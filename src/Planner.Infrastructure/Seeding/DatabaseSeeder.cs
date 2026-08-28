@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Planner.Domain.Entities;
-using Planner.Domain.Enums;
+using Planner.Contracts.Enums;
 using Planner.Domain.Identity;
 
 namespace Planner.Infrastructure.Seeding;

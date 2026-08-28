@@ -34,6 +34,12 @@ services:
 
       Planner__Database__AutoMigrate: "true"
 
+      # Desktop client update feed. build/release.ps1 writes into ./releases on the host; the API
+      # serves it at /updates so a client needs only one URL to both work and stay current.
+      Planner__Updates__Enabled: "true"
+      Planner__Updates__Directory: /var/lib/planner/updates
+      Planner__Updates__RequestPath: /updates
+
       Planner__Auth__KeyDirectory: /var/lib/planner/keys
       Planner__Auth__KeyPassword: ${PLANNER_KEY_PASSWORD:-planner-dev-keys}
       Planner__Auth__AccessTokenMinutes: "60"
@@ -50,6 +56,9 @@ services:
       - "${PLANNER_PORT:-8080}:8080"
     volumes:
       - plannerkeys:/var/lib/planner/keys
+      # A bind mount rather than a named volume: releasing is "copy the folder to the server", and a
+      # host directory is something an operator can rsync into without going through Docker.
+      - ${PLANNER_UPDATE_DIR:-./releases}:/var/lib/planner/updates:ro
 
   # Optional: docker compose --profile tools up -d
   pgadmin:

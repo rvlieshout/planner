@@ -1,0 +1,62 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Planner.Client.App"
+             xmlns:local="using:Planner.Client"
+             xmlns:converters="using:Planner.Client.Converters"
+             RequestedThemeVariant="Default">
+
+    <Application.DataTemplates>
+        <local:ViewLocator />
+    </Application.DataTemplates>
+
+    <Application.Styles>
+        <FluentTheme />
+
+        <Style Selector="TextBlock.field">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedForeground}" />
+        </Style>
+
+        <Style Selector="TextBox">
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+
+        <Style Selector="Button">
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+    </Application.Styles>
+
+    <Application.Resources>
+        <!-- One palette, two variants. Follows the OS by default, so the client looks native on a
+             machine set to dark mode without anyone configuring anything. -->
+        <ResourceDictionary>
+            <converters:HexBrushConverter x:Key="HexBrush" />
+
+            <ResourceDictionary.ThemeDictionaries>
+
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="AppBackground" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="AppForeground" Color="#16191D" />
+                    <SolidColorBrush x:Key="MutedForeground" Color="#6B7280" />
+                    <SolidColorBrush x:Key="AccentBrush" Color="#5E6AD2" />
+                    <SolidColorBrush x:Key="BorderBrush" Color="#E4E6EB" />
+                    <SolidColorBrush x:Key="ColumnBackground" Color="#F5F6F8" />
+                    <SolidColorBrush x:Key="CardBackground" Color="#FFFFFF" />
+                </ResourceDictionary>
+
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="AppBackground" Color="#16181D" />
+                    <SolidColorBrush x:Key="AppForeground" Color="#EDEEF0" />
+                    <SolidColorBrush x:Key="MutedForeground" Color="#8A8F98" />
+                    <SolidColorBrush x:Key="AccentBrush" Color="#6E79F1" />
+                    <SolidColorBrush x:Key="BorderBrush" Color="#2A2D34" />
+                    <SolidColorBrush x:Key="ColumnBackground" Color="#1C1F25" />
+                    <SolidColorBrush x:Key="CardBackground" Color="#22262D" />
+                </ResourceDictionary>
+
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

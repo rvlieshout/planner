@@ -1,0 +1,84 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Planner.Client.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="700"
+             x:Class="Planner.Client.Views.LoginView"
+             x:DataType="vm:LoginViewModel">
+
+    <Border Padding="40">
+        <StackPanel Width="380"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Spacing="18">
+
+            <StackPanel Spacing="6" Margin="0,0,0,10">
+                <TextBlock Text="Planner"
+                           FontSize="30" FontWeight="SemiBold"
+                           Foreground="{DynamicResource AppForeground}" />
+                <TextBlock Text="Sign in to your team's workspace"
+                           FontSize="13"
+                           Foreground="{DynamicResource MutedForeground}" />
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+                <TextBlock Text="Server" Classes="field" />
+                <TextBox Text="{Binding ServerUrl}"
+                         PlaceholderText="http://planner.internal:8080"
+                         IsEnabled="{Binding !IsBusy}" />
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+                <TextBlock Text="Email" Classes="field" />
+                <TextBox Text="{Binding Email}"
+                         PlaceholderText="you@company.local"
+                         IsEnabled="{Binding !IsBusy}" />
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+                <TextBlock Text="Password" Classes="field" />
+                <TextBox Text="{Binding Password}"
+                         PasswordChar="●"
+                         IsEnabled="{Binding !IsBusy}" />
+            </StackPanel>
+
+            <Button Content="Sign in"
+                    Command="{Binding SignInCommand}"
+                    IsEnabled="{Binding !IsBusy}"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center"
+                    Padding="0,11"
+                    FontWeight="SemiBold"
+                    Background="{DynamicResource AccentBrush}"
+                    Foreground="White"
+                    CornerRadius="6"
+                    IsDefault="True" />
+
+            <ProgressBar IsIndeterminate="True"
+                         IsVisible="{Binding IsBusy}"
+                         Height="3" />
+
+            <Border IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    Background="#1AEB5757"
+                    BorderBrush="#4DEB5757"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="14,11">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="{Binding Error}"
+                               TextWrapping="Wrap"
+                               FontSize="12"
+                               Foreground="#EB5757" />
+
+                    <!-- The reason the update banner is not gated on being signed in: if this version is
+                         the problem, this hint is the only route out of it. -->
+                    <TextBlock IsVisible="{Binding ShowUpdateHint}"
+                               Text="An update is ready to install. If sign-in stopped working after an upgrade, installing it may fix this."
+                               TextWrapping="Wrap"
+                               FontSize="12"
+                               Foreground="{DynamicResource MutedForeground}" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </Border>
+</UserControl>

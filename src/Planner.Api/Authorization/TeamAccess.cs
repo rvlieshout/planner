@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using Planner.Domain.Enums;
+using Planner.Contracts.Enums;
 using Planner.Infrastructure;
 
 namespace Planner.Api.Authorization;

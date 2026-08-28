@@ -1,0 +1,37 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Planner.Client.ViewModels"
+        xmlns:views="using:Planner.Client.Views"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="760"
+        x:Class="Planner.Client.Views.MainWindow"
+        x:DataType="vm:ShellViewModel"
+        Icon="/Assets/planner.ico"
+        Title="Planner"
+        Width="1280" Height="800"
+        MinWidth="900" MinHeight="600"
+        Background="{DynamicResource AppBackground}">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- Always present, above whatever screen is showing: the update banner has to reach someone
+             who is stuck on the sign-in screen. -->
+        <views:UpdateBannerView Grid.Row="0" DataContext="{Binding Update}" />
+
+        <Panel Grid.Row="1">
+            <ContentControl Content="{Binding Content}"
+                            IsVisible="{Binding !IsStarting}" />
+
+            <StackPanel IsVisible="{Binding IsStarting}"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Spacing="16">
+                <TextBlock Text="Planner"
+                           FontSize="28" FontWeight="SemiBold"
+                           HorizontalAlignment="Center"
+                           Foreground="{DynamicResource AppForeground}" />
+                <ProgressBar IsIndeterminate="True" Width="200" />
+            </StackPanel>
+        </Panel>
+    </Grid>
+</Window>

@@ -2,4 +2,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Planner.Contracts\Planner.Contracts.csproj" />
+  </ItemGroup>
 </Project>

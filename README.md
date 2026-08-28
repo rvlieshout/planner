@@ -4,9 +4,9 @@ An on-premises project and issue tracker in the shape of Linear: teams own proje
 milestones, and work happens as issues on a board. Everything lives on your own hardware — Postgres
 for storage, a single .NET container for the API, no outbound calls.
 
-This repository is the **backend**: the database design, the HTTP API and the realtime feed. The
-Avalonia desktop client is a separate deliverable and consumes the DTOs in `Planner.Contracts`
-directly.
+Two halves live here: the **backend** (database, HTTP API, realtime feed) and the **Avalonia desktop
+client**, which shares the DTOs in `Planner.Contracts` so both ends are checked by the same compiler.
+The client ships and updates itself through Velopack, from a feed the API serves.
 
 ## What is here
 
@@ -17,6 +17,8 @@ directly.
 | Identity | ASP.NET Core Identity, users and roles in the same database |
 | Tokens | OpenIddict 7 — self-hosted OAuth 2.0 / OIDC, password + refresh grants, plain JWTs |
 | Realtime | SignalR hub at `/hubs/planner`, strongly typed against a shared interface |
+| Client | Avalonia 12 on .NET 10, MVVM with compiled bindings |
+| Client updates | Velopack — delta packages, feed served by the API at `/updates` |
 | Docs | OpenAPI 3.1 at `/openapi/v1.json`, Scalar UI at `/scalar` |
 | Packaging | Docker Compose: `db` + `api` (+ optional pgAdmin) |
 
@@ -69,15 +71,38 @@ dotnet run
 `appsettings.Development.json` targets `localhost:5432`, keeps certificates in `./keys`, allows plain
 HTTP and seeds demo data.
 
+## The desktop client
+
+```bash
+dotnet run --project src/Planner.Client
+```
+
+Sign in with the same bootstrap owner. The client remembers the server and resumes the session on the
+next launch, shows the team board, and updates it live over SignalR.
+
+To build a release of it:
+
+```powershell
+./build/release.ps1 -Version 1.1.0
+```
+
+That produces an installer, a delta package and a feed index in `./releases`, which compose mounts
+into the API at `/updates`. Installed clients check that feed at startup and every four hours, download
+what they find, and offer a restart — whether or not anyone has signed in.
+See [docs/releasing.md](docs/releasing.md).
+
 ## Layout
 
 ```
 src/
-  Planner.Domain          entities, enums, roles — no framework beyond Identity's base classes
-  Planner.Contracts       request/response DTOs + the SignalR interface, shared with the client
+  Planner.Domain          entities and roles
+  Planner.Contracts       DTOs, enums and the SignalR interface — no dependencies, shared by both ends
   Planner.Infrastructure  DbContext, EF configurations, migrations, seeding
-  Planner.Api             minimal API endpoints, authorization, OpenIddict, the hub
-docs/                     architecture, database, roles, API and realtime references
+  Planner.Api             minimal API endpoints, authorization, OpenIddict, the hub, the update feed
+  Planner.Client          Avalonia desktop client
+build/release.ps1         packages and publishes a client release
+releases/                 the Velopack update feed (git-ignored contents)
+docs/                     architecture, database, roles, API, realtime, client and release references
 tools/planner.http        example requests
 ```
 
@@ -90,6 +115,8 @@ tools/planner.http        example requests
 | [docs/roles-and-permissions.md](docs/roles-and-permissions.md) | Organisation roles, team roles, and the full permission matrix |
 | [docs/api.md](docs/api.md) | Endpoint reference, filtering, paging, PATCH semantics, error shapes |
 | [docs/realtime.md](docs/realtime.md) | Hub contract, group model, and a client sample |
+| [docs/desktop-client.md](docs/desktop-client.md) | Client architecture, where it stores things, what is not built yet |
+| [docs/releasing.md](docs/releasing.md) | Packaging, distribution, channels, rollback, signing |
 
 ## Configuration
 
@@ -109,6 +136,9 @@ Every setting binds from environment variables using `__` as the separator
 | `Planner__Seed__OwnerEmail` | `owner@planner.local` | Bootstrap owner account. |
 | `Planner__Seed__OwnerPassword` | — | Set it, or no owner is created. Minimum 12 characters. |
 | `Planner__Seed__SeedDemoData` | `false` | Populate an empty database with sample content. |
+| `Planner__Updates__Enabled` | `true` | Serve the desktop client's update feed. |
+| `Planner__Updates__Directory` | `/var/lib/planner/updates` | Where release files live. Bound to `PLANNER_UPDATE_DIR` on the host. |
+| `Planner__Updates__RequestPath` | `/updates` | Public path of the feed. Anonymous, deliberately. |
 
 ## Operational notes
 
@@ -119,3 +149,6 @@ Every setting binds from environment variables using `__` as the separator
   `dotnet ef migrations script --idempotent` gives you a script to hand to a DBA instead.
 - **Deleting** is deliberately rare. Teams, projects, issues and documents archive; users deactivate.
   Hard deletes exist but need team-lead or admin authority.
+- **The update feed is anonymous** and served from `PLANNER_UPDATE_DIR`. That is intentional: a client
+  must be able to fetch a fix for a release that broke sign-in. Keep old packages — clients that have
+  been offline need the ones in between.

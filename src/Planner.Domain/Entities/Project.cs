@@ -1,5 +1,5 @@
 using Planner.Domain.Common;
-using Planner.Domain.Enums;
+using Planner.Contracts.Enums;
 
 namespace Planner.Domain.Entities;
 

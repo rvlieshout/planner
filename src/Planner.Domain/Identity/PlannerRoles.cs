@@ -1,7 +1,7 @@
 namespace Planner.Domain.Identity;
 
 /// <summary>Organisation-wide roles. Exactly one is expected per user; team-level authority is
-/// layered on top through <see cref="Planner.Domain.Enums.TeamRole"/>.</summary>
+/// layered on top through <see cref="Planner.Contracts.Enums.TeamRole"/>.</summary>
 public static class PlannerRoles
 {
     public const string Owner = "owner";

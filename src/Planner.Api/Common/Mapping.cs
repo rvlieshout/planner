@@ -4,7 +4,7 @@ using Planner.Contracts.Issues;
 using Planner.Contracts.Projects;
 using Planner.Contracts.Teams;
 using Planner.Domain.Entities;
-using Planner.Domain.Enums;
+using Planner.Contracts.Enums;
 using Planner.Domain.Identity;
 
 namespace Planner.Api.Common;

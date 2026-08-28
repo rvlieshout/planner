@@ -11,6 +11,9 @@ obj/
 keys/
 *.pfx
 
+# Build output: publish intermediates and packaged client releases
+artifacts/
+
 # Test and coverage output
 TestResults/
 coverage/

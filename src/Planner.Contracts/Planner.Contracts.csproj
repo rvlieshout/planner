@@ -1,5 +1,3 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="..\Planner.Domain\Planner.Domain.csproj" />
-  </ItemGroup>
+  <!-- Dependency-free on purpose: this is the shared kernel between the API and the desktop client. -->
 </Project>

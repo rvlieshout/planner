@@ -6,7 +6,7 @@ using Planner.Api.Realtime;
 using Planner.Contracts.Realtime;
 using Planner.Contracts.Teams;
 using Planner.Domain.Entities;
-using Planner.Domain.Enums;
+using Planner.Contracts.Enums;
 using Planner.Infrastructure;
 
 namespace Planner.Api.Endpoints;

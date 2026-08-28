@@ -1,4 +1,6 @@
-namespace Planner.Domain.Enums;
+// Lives in Contracts, not Domain: these enum names travel on the wire and the desktop
+// client needs them without taking a dependency on EF Core or ASP.NET Identity.
+namespace Planner.Contracts.Enums;
 
 /// <summary>Role of a user inside a single team. Org-level roles live in ASP.NET Identity roles.</summary>
 public enum TeamRole

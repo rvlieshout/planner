@@ -1,0 +1,53 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Planner.Client.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1200"
+             x:Class="Planner.Client.Views.UpdateBannerView"
+             x:DataType="vm:UpdateBannerViewModel"
+             IsVisible="{Binding IsVisible}">
+
+    <Border Background="{DynamicResource AccentBrush}" Padding="20,12">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+
+            <Border Grid.Column="0"
+                    Width="28" Height="28"
+                    CornerRadius="14"
+                    Background="#33FFFFFF"
+                    VerticalAlignment="Center">
+                <TextBlock Text="&#x2191;"
+                           FontSize="16" FontWeight="Bold"
+                           Foreground="White"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                <TextBlock Text="{Binding Headline}"
+                           FontWeight="SemiBold" FontSize="14"
+                           Foreground="White" />
+                <TextBlock Text="{Binding Detail}"
+                           IsVisible="{Binding Detail, Converter={x:Static ObjectConverters.IsNotNull}}"
+                           FontSize="12"
+                           Foreground="#DDFFFFFF" />
+                <ProgressBar Value="{Binding PercentComplete}"
+                             Maximum="100"
+                             Height="3"
+                             Margin="0,6,0,0"
+                             IsVisible="{Binding !CanRestart}" />
+            </StackPanel>
+
+            <Button Grid.Column="2"
+                    Content="Restart and install"
+                    Command="{Binding RestartAndInstallCommand}"
+                    IsVisible="{Binding CanRestart}"
+                    IsEnabled="{Binding !IsBusy}"
+                    VerticalAlignment="Center"
+                    Padding="16,8"
+                    Background="White"
+                    Foreground="{DynamicResource AccentBrush}"
+                    FontWeight="SemiBold"
+                    CornerRadius="6" />
+        </Grid>
+    </Border>
+</UserControl>

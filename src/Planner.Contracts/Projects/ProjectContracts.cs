@@ -1,6 +1,6 @@
 using Planner.Contracts.Auth;
 using Planner.Contracts.Common;
-using Planner.Domain.Enums;
+using Planner.Contracts.Enums;
 
 namespace Planner.Contracts.Projects;
 
