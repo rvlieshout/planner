@@ -1,0 +1,71 @@
+name: planner
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-planner}
+      POSTGRES_USER: ${POSTGRES_USER:-planner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-planner}
+      # Deterministic collation, so index ordering does not shift with the host locale.
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-planner} -d ${POSTGRES_DB:-planner}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: src/Planner.Api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ConnectionStrings__Planner: "Host=db;Port=5432;Database=${POSTGRES_DB:-planner};Username=${POSTGRES_USER:-planner};Password=${POSTGRES_PASSWORD:-planner};Include Error Detail=true"
+
+      Planner__Database__AutoMigrate: "true"
+
+      Planner__Auth__KeyDirectory: /var/lib/planner/keys
+      Planner__Auth__KeyPassword: ${PLANNER_KEY_PASSWORD:-planner-dev-keys}
+      Planner__Auth__AccessTokenMinutes: "60"
+      Planner__Auth__RefreshTokenDays: "14"
+      # The API speaks plain HTTP inside the compose network; terminate TLS at your reverse proxy.
+      Planner__Auth__AllowInsecureHttp: "true"
+      Planner__Auth__AllowedOrigins__0: ${PLANNER_ALLOWED_ORIGIN:-http://localhost:8080}
+
+      Planner__Seed__OwnerEmail: ${PLANNER_OWNER_EMAIL:-owner@planner.local}
+      Planner__Seed__OwnerPassword: ${PLANNER_OWNER_PASSWORD:?set PLANNER_OWNER_PASSWORD in .env}
+      Planner__Seed__OwnerDisplayName: ${PLANNER_OWNER_NAME:-Planner Owner}
+      Planner__Seed__SeedDemoData: ${PLANNER_SEED_DEMO:-false}
+    ports:
+      - "${PLANNER_PORT:-8080}:8080"
+    volumes:
+      - plannerkeys:/var/lib/planner/keys
+
+  # Optional: docker compose --profile tools up -d
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    profiles: ["tools"]
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@planner.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-planner}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  plannerkeys:

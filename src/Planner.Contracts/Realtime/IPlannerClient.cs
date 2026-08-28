@@ -1,0 +1,28 @@
+using Planner.Contracts.Auth;
+using Planner.Contracts.Issues;
+using Planner.Contracts.Projects;
+using Planner.Contracts.Teams;
+
+namespace Planner.Contracts.Realtime;
+
+/// <summary>Server-to-client SignalR surface. Shared with the Avalonia client so both ends are bound
+/// to the same method names and payload shapes at compile time rather than by convention.</summary>
+public interface IPlannerClient
+{
+    Task TeamChanged(EntityChange<TeamDto> change);
+    Task TeamMemberChanged(EntityChange<TeamMemberDto> change);
+    Task WorkflowStateChanged(EntityChange<WorkflowStateDto> change);
+    Task LabelChanged(EntityChange<LabelDto> change);
+    Task ProjectChanged(EntityChange<ProjectDto> change);
+    Task MilestoneChanged(EntityChange<MilestoneDto> change);
+    Task DocumentChanged(EntityChange<DocumentSummary> change);
+    Task IssueChanged(EntityChange<IssueSummary> change);
+    Task CommentChanged(EntityChange<CommentDto> change);
+    Task AttachmentChanged(EntityChange<AttachmentDto> change);
+    Task IssueRelationChanged(EntityChange<IssueRelationDto> change);
+    Task UserChanged(EntityChange<UserSummary> change);
+
+    /// <summary>Sent to the caller's own connection after it joins, so the client knows which groups
+    /// the server actually granted rather than assuming its join requests all succeeded.</summary>
+    Task Subscribed(IReadOnlyList<string> groups);
+}

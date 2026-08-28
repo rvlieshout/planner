@@ -1,0 +1,235 @@
+### Planner API — worked examples
+### Run the first request, then the rest pick up {{token}} automatically.
+### Works in VS Code (REST Client) and Rider/Visual Studio .http files.
+
+@host = http://localhost:8080
+@owner = owner@planner.local
+@password = PlannerOwner123!
+
+### 1. Sign in
+# @name signIn
+POST {{host}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id=planner-desktop&username={{owner}}&password={{password}}&scope=openid profile email roles offline_access planner.api
+
+@token = {{signIn.response.body.access_token}}
+@refresh = {{signIn.response.body.refresh_token}}
+
+### 2. Who am I, and which teams am I in
+GET {{host}}/api/v1/me
+Authorization: Bearer {{token}}
+
+### 3. Refresh the access token
+POST {{host}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=refresh_token&client_id=planner-desktop&refresh_token={{refresh}}
+
+### 4. Teams
+# @name teams
+GET {{host}}/api/v1/teams
+Authorization: Bearer {{token}}
+
+@teamId = {{teams.response.body.$[0].id}}
+
+### 5. Board columns for that team
+# @name states
+GET {{host}}/api/v1/teams/{{teamId}}/states
+Authorization: Bearer {{token}}
+
+@todoState = {{states.response.body.$[1].id}}
+@doneState = {{states.response.body.$[4].id}}
+
+### 6. Team members
+GET {{host}}/api/v1/teams/{{teamId}}/members
+Authorization: Bearer {{token}}
+
+### 7. Create a team (admin only) — its default states and your lead membership come with it
+POST {{host}}/api/v1/teams
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "key": "OPS",
+  "name": "Operations",
+  "description": "Runs the on-prem installation.",
+  "color": "#4CB782"
+}
+
+### 8. Projects, with their issue rollup
+# @name projects
+GET {{host}}/api/v1/projects?teamId={{teamId}}
+Authorization: Bearer {{token}}
+
+@projectId = {{projects.response.body.items[0].id}}
+
+### 9. Create a project
+POST {{host}}/api/v1/projects
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "teamId": "{{teamId}}",
+  "name": "Q4 hardening",
+  "summary": "Close out the reliability backlog before the holiday freeze.",
+  "status": "Planned",
+  "health": "OnTrack",
+  "targetDate": "2026-12-15"
+}
+
+### 10. Milestones of a project
+# @name milestones
+GET {{host}}/api/v1/projects/{{projectId}}/milestones
+Authorization: Bearer {{token}}
+
+@milestoneId = {{milestones.response.body.$[0].id}}
+
+### 11. Add a milestone
+POST {{host}}/api/v1/projects/{{projectId}}/milestones
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Release candidate",
+  "description": "Feature complete, bugs only.",
+  "targetDate": "2026-11-30"
+}
+
+### 12. Project documentation
+POST {{host}}/api/v1/documents
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "teamId": "{{teamId}}",
+  "projectId": "{{projectId}}",
+  "title": "Deployment runbook",
+  "content": "# Deployment\n\n1. `docker compose pull`\n2. `docker compose up -d`\n3. Watch `/health/ready`."
+}
+
+### 13. Documents attached to a project
+GET {{host}}/api/v1/projects/{{projectId}}/documents
+Authorization: Bearer {{token}}
+
+### 14. The board: one team, ordered exactly as it renders
+GET {{host}}/api/v1/issues?teamId={{teamId}}&sort=board&pageSize=200
+Authorization: Bearer {{token}}
+
+### 15. Create an issue
+# @name newIssue
+POST {{host}}/api/v1/issues
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "teamId": "{{teamId}}",
+  "title": "Reconnect banner flickers on a slow network",
+  "description": "Debounce the visibility toggle by 500ms.",
+  "priority": "High",
+  "projectId": "{{projectId}}",
+  "milestoneId": "{{milestoneId}}",
+  "estimate": 2,
+  "dueDate": "2026-09-30"
+}
+
+@issueId = {{newIssue.response.body.id}}
+@issueKey = {{newIssue.response.body.key}}
+
+### 16. PATCH one field — everything else is untouched
+PATCH {{host}}/api/v1/issues/{{issueId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "priority": "Urgent" }
+
+### 17. PATCH an explicit null — this clears the field
+PATCH {{host}}/api/v1/issues/{{issueId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "estimate": null, "assigneeId": null }
+
+### 18. Drag to another column
+POST {{host}}/api/v1/issues/{{issueId}}/move
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "stateId": "{{doneState}}" }
+
+### 19. Look it up the way a person refers to it
+GET {{host}}/api/v1/issues/by-key/{{issueKey}}
+Authorization: Bearer {{token}}
+
+### 20. Comment
+POST {{host}}/api/v1/issues/{{issueId}}/comments
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "body": "Reproduced on a 3G profile — debounce looks right." }
+
+### 21. Attach a link or a file reference (metadata only)
+POST {{host}}/api/v1/issues/{{issueId}}/attachments
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "fileName": "network-trace.har",
+  "storageUri": "file:///srv/planner/attachments/network-trace.har",
+  "contentType": "application/json",
+  "sizeBytes": 148213
+}
+
+### 22. Sub-issue
+POST {{host}}/api/v1/issues
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "teamId": "{{teamId}}",
+  "title": "Add the debounce helper",
+  "parentId": "{{issueId}}"
+}
+
+### 23. Filters: OR within a field, AND across fields
+GET {{host}}/api/v1/issues?teamId={{teamId}}&priority=Urgent&priority=High&stateType=Started&sort=priority
+Authorization: Bearer {{token}}
+
+### 24. Free-text search (trigram over title and description)
+GET {{host}}/api/v1/issues?teamId={{teamId}}&search=reconnect
+Authorization: Bearer {{token}}
+
+### 25. Delta sync after being offline
+GET {{host}}/api/v1/issues?teamId={{teamId}}&updatedSince=2026-08-27T00:00:00Z&includeArchived=true
+Authorization: Bearer {{token}}
+
+### 26. History of one issue
+GET {{host}}/api/v1/issues/{{issueId}}/activity
+Authorization: Bearer {{token}}
+
+### 27. Team-wide activity feed
+GET {{host}}/api/v1/activity?teamId={{teamId}}&pageSize=20
+Authorization: Bearer {{token}}
+
+### 28. Archive rather than delete
+POST {{host}}/api/v1/issues/{{issueId}}/archive
+Authorization: Bearer {{token}}
+
+### 29. Create a user (admin only)
+POST {{host}}/api/v1/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "email": "dana@example.local",
+  "password": "CorrectHorseBattery1",
+  "displayName": "Dana Developer",
+  "role": "member"
+}
+
+### 30. Directory search, for an assignee picker
+GET {{host}}/api/v1/users?search=dana
+Authorization: Bearer {{token}}
+
+### 31. Health
+GET {{host}}/health/ready
