@@ -7,78 +7,90 @@
              x:Class="Planner.Client.Views.LoginView"
              x:DataType="vm:LoginViewModel">
 
-    <Border Padding="40">
-        <StackPanel Width="380"
-                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Spacing="18">
+    <!-- A connection dialog, not a landing page: one bordered panel of fields, labels in their own
+         column, and the default button bottom-right. -->
+    <Border Width="340"
+            HorizontalAlignment="Center" VerticalAlignment="Center"
+            Background="{DynamicResource CardBackground}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="3">
+        <Grid RowDefinitions="Auto,Auto,Auto">
 
-            <StackPanel Spacing="6" Margin="0,0,0,10">
-                <TextBlock Text="Planner"
-                           FontSize="30" FontWeight="SemiBold"
+            <Border Grid.Row="0"
+                    Background="{DynamicResource ChromeBackground}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="12,7">
+                <TextBlock Text="Sign in to Planner" FontSize="12"
                            Foreground="{DynamicResource AppForeground}" />
-                <TextBlock Text="Sign in to your team's workspace"
-                           FontSize="13"
-                           Foreground="{DynamicResource MutedForeground}" />
-            </StackPanel>
+            </Border>
 
-            <StackPanel Spacing="6">
-                <TextBlock Text="Server" Classes="field" />
-                <TextBox Text="{Binding ServerUrl}"
+            <Grid Grid.Row="1" Margin="12"
+                  ColumnDefinitions="64,*" RowDefinitions="Auto,Auto,Auto"
+                  RowSpacing="7">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Server:" Classes="field"
+                           HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBox Grid.Row="0" Grid.Column="1"
+                         Text="{Binding ServerUrl}"
                          PlaceholderText="http://planner.internal:8080"
                          IsEnabled="{Binding !IsBusy}" />
-            </StackPanel>
 
-            <StackPanel Spacing="6">
-                <TextBlock Text="Email" Classes="field" />
-                <TextBox Text="{Binding Email}"
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Email:" Classes="field"
+                           HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBox Grid.Row="1" Grid.Column="1"
+                         Text="{Binding Email}"
                          PlaceholderText="you@company.local"
                          IsEnabled="{Binding !IsBusy}" />
-            </StackPanel>
 
-            <StackPanel Spacing="6">
-                <TextBlock Text="Password" Classes="field" />
-                <TextBox Text="{Binding Password}"
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Password:" Classes="field"
+                           HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBox Grid.Row="2" Grid.Column="1"
+                         Text="{Binding Password}"
                          PasswordChar="●"
                          IsEnabled="{Binding !IsBusy}" />
-            </StackPanel>
+            </Grid>
 
-            <Button Content="Sign in"
-                    Command="{Binding SignInCommand}"
-                    IsEnabled="{Binding !IsBusy}"
-                    HorizontalAlignment="Stretch"
-                    HorizontalContentAlignment="Center"
-                    Padding="0,11"
-                    FontWeight="SemiBold"
-                    Background="{DynamicResource AccentBrush}"
-                    Foreground="White"
-                    CornerRadius="6"
-                    IsDefault="True" />
-
-            <ProgressBar IsIndeterminate="True"
-                         IsVisible="{Binding IsBusy}"
-                         Height="3" />
-
-            <Border IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}"
-                    Background="#1AEB5757"
-                    BorderBrush="#4DEB5757"
-                    BorderThickness="1"
-                    CornerRadius="6"
-                    Padding="14,11">
+            <Border Grid.Row="2"
+                    Background="{DynamicResource ChromeBackground}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,1,0,0"
+                    Padding="12,9">
                 <StackPanel Spacing="8">
-                    <TextBlock Text="{Binding Error}"
-                               TextWrapping="Wrap"
-                               FontSize="12"
-                               Foreground="#EB5757" />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <ProgressBar Grid.Column="0"
+                                     IsIndeterminate="True"
+                                     IsVisible="{Binding IsBusy}"
+                                     Height="2"
+                                     Margin="0,0,10,0"
+                                     VerticalAlignment="Center" />
+                        <Button Grid.Column="1"
+                                Content="Sign in"
+                                Classes="accent"
+                                Command="{Binding SignInCommand}"
+                                IsEnabled="{Binding !IsBusy}"
+                                IsDefault="True"
+                                MinWidth="84"
+                                HorizontalContentAlignment="Center" />
+                    </Grid>
 
-                    <!-- The reason the update banner is not gated on being signed in: if this version is
-                         the problem, this hint is the only route out of it. -->
-                    <TextBlock IsVisible="{Binding ShowUpdateHint}"
-                               Text="An update is ready to install. If sign-in stopped working after an upgrade, installing it may fix this."
-                               TextWrapping="Wrap"
-                               FontSize="12"
-                               Foreground="{DynamicResource MutedForeground}" />
+                    <StackPanel Spacing="4"
+                                IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <TextBlock Text="{Binding Error}"
+                                   TextWrapping="Wrap"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource DangerBrush}" />
+
+                        <!-- The reason the update banner is not gated on being signed in: if this version is
+                             the problem, this hint is the only route out of it. -->
+                        <TextBlock IsVisible="{Binding ShowUpdateHint}"
+                                   Text="An update is ready to install. If sign-in stopped working after an upgrade, installing it may fix this."
+                                   TextWrapping="Wrap"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource MutedForeground}" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
-        </StackPanel>
+        </Grid>
     </Border>
 </UserControl>

@@ -1,0 +1,196 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Planner.Client.ViewModels"
+             xmlns:controls="using:Planner.Client.Controls"
+             xmlns:contracts="using:Planner.Contracts.Teams"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
+             x:Class="Planner.Client.Views.MyIssuesView"
+             x:DataType="vm:MyIssuesViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.columnHeader">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedForeground}" />
+        </Style>
+        <!-- The group being dragged over says so; dropping on it is what changes an issue's state. -->
+        <Style Selector="Border.group.dropTarget">
+            <Setter Property="Background" Value="{DynamicResource SelectedBackground}" />
+        </Style>
+
+        <Style Selector="Border.label">
+            <Setter Property="CornerRadius" Value="2" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="4,0" />
+            <Setter Property="Margin" Value="0,0,3,0" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <Grid RowDefinitions="Auto,*">
+
+            <!--
+                A header row, and every group below it laid out on the same pixel grid: 20 / 74 / 14 /
+                rest / labels / 46. That column alignment is what turns a stack of rows into a table,
+                and it is the whole difference between this and a list of cards.
+            -->
+            <Border Grid.Row="0"
+                    Height="22"
+                    Background="{DynamicResource ChromeBackground}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="8,0,14,0">
+                <Grid ColumnDefinitions="20,74,14,*,Auto,46" ColumnSpacing="8">
+                    <TextBlock Grid.Column="1" Text="ID" Classes="columnHeader" />
+                    <TextBlock Grid.Column="3" Text="Title" Classes="columnHeader" />
+                    <TextBlock Grid.Column="5" Text="Updated" Classes="columnHeader"
+                               HorizontalAlignment="Right" />
+                </Grid>
+            </Border>
+
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Groups}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:IssueGroupViewModel">
+                            <Border Classes="group"
+                                    Classes.dropTarget="{Binding IsDropTarget}"
+                                    Background="Transparent"
+                                    DragDrop.AllowDrop="True"
+                                    DragDrop.DragOver="OnGroupDragOver"
+                                    DragDrop.DragLeave="OnGroupDragLeave"
+                                    DragDrop.Drop="OnGroupDrop">
+                            <StackPanel>
+
+                                <Border Background="{DynamicResource AlternateRowBackground}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="0,0,0,1"
+                                        Height="21"
+                                        Padding="8,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="6"
+                                                VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Title}"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource AppForeground}" />
+                                        <TextBlock Text="{Binding Count}"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource MutedForeground}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <ListBox ItemsSource="{Binding Issues}"
+                                         ItemContainerTheme="{StaticResource DenseRow}"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         Padding="0"
+                                         SelectionMode="Single"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         DoubleTapped="OnRowActivated"
+                                         KeyDown="OnRowKeyDown"
+                                         ContextRequested="OnContextRequested">
+                                    <ListBox.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="_Open" InputGesture="Enter"
+                                                      Click="OnOpenClick" />
+                                            <MenuItem Header="_Copy Issue Key" Click="OnCopyKeyClick" />
+                                        </ContextMenu>
+                                    </ListBox.ContextMenu>
+
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:IssueCardViewModel">
+                                            <Grid ColumnDefinitions="20,74,14,*,Auto,46"
+                                                  ColumnSpacing="8"
+                                                  Height="22"
+                                                  Margin="8,0,14,0">
+
+                                                <controls:Icon Grid.Column="0"
+                                                               Data="{Binding PriorityIcon}"
+                                                               Size="14"
+                                                               IsVisible="{Binding HasPriority}"
+                                                               HorizontalAlignment="Left"
+                                                               VerticalAlignment="Center"
+                                                               ToolTip.Tip="{Binding PriorityLabel}"
+                                                               Foreground="{Binding PriorityColor, Converter={StaticResource HexBrush}}" />
+
+                                                <TextBlock Grid.Column="1" Text="{Binding Key}"
+                                                           Classes="key"
+                                                           VerticalAlignment="Center" />
+
+                                                <Ellipse Grid.Column="2" Width="8" Height="8"
+                                                         VerticalAlignment="Center"
+                                                         ToolTip.Tip="{Binding StateName}"
+                                                         Fill="{Binding StateColor, Converter={StaticResource HexBrush}}" />
+
+                                                <TextBlock Grid.Column="3" Text="{Binding Title}"
+                                                           FontSize="12"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Foreground="{DynamicResource AppForeground}" />
+
+                                                <ItemsControl Grid.Column="4" ItemsSource="{Binding Labels}"
+                                                              IsVisible="{Binding HasLabels}"
+                                                              VerticalAlignment="Center">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <StackPanel Orientation="Horizontal" />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="contracts:LabelDto">
+                                                            <Border Classes="label"
+                                                                    BorderBrush="{Binding Color, Converter={StaticResource HexBrush}}">
+                                                                <TextBlock Text="{Binding Name}"
+                                                                           FontSize="10"
+                                                                           Foreground="{Binding Color, Converter={StaticResource HexBrush}}" />
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                                <TextBlock Grid.Column="5" Text="{Binding UpdatedLabel}"
+                                                           FontSize="11"
+                                                           HorizontalAlignment="Right"
+                                                           VerticalAlignment="Center"
+                                                           ToolTip.Tip="{Binding UpdatedTooltip}"
+                                                           Foreground="{DynamicResource MutedForeground}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+
+        <ProgressBar IsIndeterminate="True"
+                     IsVisible="{Binding IsLoading}"
+                     VerticalAlignment="Top"
+                     Height="2" />
+
+        <StackPanel IsVisible="{Binding IsEmpty}"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Spacing="4">
+            <TextBlock Text="Nothing assigned to you"
+                       FontSize="13"
+                       HorizontalAlignment="Center"
+                       Foreground="{DynamicResource AppForeground}" />
+            <TextBlock Text="Issues assigned to you across all your teams show up here."
+                       FontSize="11"
+                       HorizontalAlignment="Center"
+                       Foreground="{DynamicResource MutedForeground}" />
+        </StackPanel>
+
+        <Border IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}"
+                VerticalAlignment="Bottom" HorizontalAlignment="Stretch"
+                Background="{DynamicResource DangerBackground}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0"
+                Padding="9,5">
+            <TextBlock Text="{Binding Error}" FontSize="11"
+                       Foreground="{DynamicResource DangerBrush}" />
+        </Border>
+    </Panel>
+</UserControl>

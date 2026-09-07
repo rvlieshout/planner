@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Planner.Client.ViewModels"
         xmlns:views="using:Planner.Client.Views"
+        xmlns:controls="using:Planner.Client.Controls"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="760"
@@ -9,29 +10,298 @@
         x:DataType="vm:ShellViewModel"
         Icon="/Assets/planner.ico"
         Title="Planner"
-        Width="1280" Height="800"
-        MinWidth="900" MinHeight="600"
-        Background="{DynamicResource AppBackground}">
+        Width="1200" Height="760"
+        MinWidth="820" MinHeight="520"
+        Background="{DynamicResource AppBackground}"
+        WindowDecorations="BorderOnly"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="32">
 
-    <Grid RowDefinitions="Auto,*">
+    <!--
+        The accelerators live on the window, not on the menu: Avalonia's MenuItem.InputGesture only
+        draws the shortcut, it does not listen for it. Every gesture here is also shown in the menu, so
+        the menu stays the discoverable index of what the keyboard can do.
+
+        Digits must be written as D1/D2: KeyGesture.Parse reads "Ctrl+1" as the Key whose numeric
+        value is 1 — Key.Cancel — and binds that instead, silently. The two view shortcuts are also
+        offered on the number row, which is where the habit from other tools puts them, while the menu
+        advertises the spelled-out form.
+    -->
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Ctrl+N" Command="{Binding Workspace.NewIssueCommand}" />
+        <KeyBinding Gesture="F5" Command="{Binding Workspace.RefreshCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+M" Command="{Binding Workspace.ShowMyIssuesCommand}" />
+        <KeyBinding Gesture="Ctrl+D1" Command="{Binding Workspace.ShowMyIssuesCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+B" Command="{Binding Workspace.ShowBoardCommand}" />
+        <KeyBinding Gesture="Ctrl+D2" Command="{Binding Workspace.ShowBoardCommand}" />
+        <KeyBinding Gesture="Ctrl+B" Command="{Binding Workspace.ToggleSidebarCommand}" />
+        <!-- F10 has reached for the menu bar since Windows had one. -->
+        <KeyBinding Gesture="F10" Command="{Binding ToggleMenuCommand}" />
+    </Window.KeyBindings>
+
+    <Window.Styles>
+        <!-- Title bar buttons sit on the caption, so they are square and quiet rather than toolbar-sized. -->
+        <Style Selector="Button.caption">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="7,0" />
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource AppForeground}" />
+        </Style>
+        <Style Selector="Button.caption /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.caption:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HoverBackground}" />
+        </Style>
+        <Style Selector="Button.caption:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource PressedBackground}" />
+        </Style>
+        <Style Selector="Button.caption controls|Icon">
+            <Setter Property="Foreground" Value="{DynamicResource MutedForeground}" />
+        </Style>
+
+        <!-- Window controls: full-height, square, and edge to edge, the way Windows draws them. -->
+        <Style Selector="Button.window">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Width" Value="44" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource AppForeground}" />
+        </Style>
+        <Style Selector="Button.window /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="Button.window:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HoverBackground}" />
+        </Style>
+        <Style Selector="Button.window:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource PressedBackground}" />
+        </Style>
+        <Style Selector="Button.window controls|Icon">
+            <Setter Property="Foreground" Value="{DynamicResource AppForeground}" />
+        </Style>
+        <Style Selector="Button.window.close:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#C42B1C" />
+        </Style>
+        <Style Selector="Button.window.close:pointerover controls|Icon">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+    </Window.Styles>
+
+    <!-- OffScreenMargin keeps the content inside the screen when the window is maximised, which a
+         window that draws its own title bar has to account for itself. -->
+    <DockPanel LastChildFill="True" Margin="{Binding $parent[Window].OffScreenMargin}">
+
+        <!--
+            The title bar is the menu bar.
+
+            The client area is extended over the caption, so this strip is ours to fill: the hamburger
+            stands where the app icon used to, and what follows it is either the menu — unfolded — or
+            the actions worth one click. Windows still draws its own minimise/maximise/close at the far
+            right, and the reserved panel at the end of the row keeps our content out from under them.
+        -->
+        <Border DockPanel.Dock="Top"
+                Height="32"
+                Background="{DynamicResource ChromeBackground}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                PointerPressed="OnTitleBarPressed">
+            <Panel>
+                <!-- Behind everything and not in the way of a drag. -->
+                <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           IsHitTestVisible="False"
+                           FontSize="12"
+                           Foreground="{DynamicResource MutedForeground}" />
+
+                <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="4,0,0,0">
+                    <Button Grid.Column="0"
+                            Classes="caption"
+                            Command="{Binding ToggleMenuCommand}"
+                            ToolTip.Tip="Menu (F10)">
+                        <controls:Icon Data="{Binding MenuIcon}" Size="15" />
+                    </Button>
+
+                    <Menu Grid.Column="1"
+                          IsVisible="{Binding IsMenuVisible}"
+                          VerticalAlignment="Center"
+                          Padding="2,0">
+                        <MenuItem Header="_File">
+                            <MenuItem Header="_New Issue…"
+                                      InputGesture="Ctrl+N"
+                                      Command="{Binding Workspace.NewIssueCommand}" />
+                            <Separator />
+                            <MenuItem Header="_Refresh"
+                                      InputGesture="F5"
+                                      Command="{Binding Workspace.RefreshCommand}" />
+                            <Separator />
+                            <MenuItem Header="Sign _Out"
+                                      Command="{Binding Workspace.SignOutCommand}" />
+                            <MenuItem Header="E_xit"
+                                      InputGesture="Alt+F4"
+                                      Command="{Binding ExitCommand}" />
+                        </MenuItem>
+
+                        <MenuItem Header="_View">
+                            <MenuItem Header="_My Issues"
+                                      InputGesture="Ctrl+Shift+M"
+                                      Command="{Binding Workspace.ShowMyIssuesCommand}" />
+                            <MenuItem Header="_Board"
+                                      InputGesture="Ctrl+Shift+B"
+                                      Command="{Binding Workspace.ShowBoardCommand}" />
+                            <Separator />
+                            <MenuItem Header="_Sidebar"
+                                      InputGesture="Ctrl+B"
+                                      ToggleType="CheckBox"
+                                      IsChecked="{Binding Workspace.IsSidebarVisible, Mode=OneWay}"
+                                      Command="{Binding Workspace.ToggleSidebarCommand}" />
+                            <MenuItem Header="_Menu Bar"
+                                      InputGesture="F10"
+                                      ToggleType="CheckBox"
+                                      IsChecked="{Binding IsMenuVisible, Mode=OneWay}"
+                                      Command="{Binding ToggleMenuCommand}" />
+                        </MenuItem>
+
+                        <MenuItem Header="_Help">
+                            <MenuItem Header="_About Planner" Click="OnAboutClick" />
+                        </MenuItem>
+                    </Menu>
+
+                    <!-- What the folded menu leaves behind: the two things worth one click. -->
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                Spacing="2"
+                                VerticalAlignment="Center"
+                                IsVisible="{Binding !IsMenuVisible}">
+                        <Button Classes="caption"
+                                Command="{Binding Workspace.NewIssueCommand}"
+                                IsVisible="{Binding Workspace, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                ToolTip.Tip="New issue (Ctrl+N)">
+                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                <controls:Icon Data="{Binding PlusIcon}" Size="14" VerticalAlignment="Center" />
+                                <TextBlock Text="New Issue" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="caption"
+                                Command="{Binding Workspace.RefreshCommand}"
+                                IsVisible="{Binding Workspace, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                ToolTip.Tip="Refresh (F5)">
+                            <controls:Icon Data="{Binding RefreshIcon}" Size="14" />
+                        </Button>
+                    </StackPanel>
+
+                    <!--
+                        Our own minimise / maximise / close. `WindowDecorations="BorderOnly"` keeps the
+                        resizable frame and drops the system title bar, which is the only way to own
+                        this strip: with the system caption still drawn, its title text lands on top of
+                        the hamburger. Sizes follow the Windows convention — 44x32, square corners,
+                        close turning red — so they still behave like the buttons people aim at.
+                    -->
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Stretch">
+                        <Button Classes="window"
+                                Click="OnMinimiseClick"
+                                ToolTip.Tip="Minimise">
+                            <controls:Icon Data="{Binding MinimiseIcon}" Size="14" />
+                        </Button>
+
+                        <Button Classes="window"
+                                Click="OnMaximiseClick"
+                                ToolTip.Tip="Maximise">
+                            <Panel>
+                                <controls:Icon x:Name="MaximiseGlyph"
+                                               Data="{Binding MaximiseIcon}" Size="12" />
+                                <controls:Icon x:Name="RestoreGlyph"
+                                               Data="{Binding RestoreIcon}" Size="12"
+                                               IsVisible="False" />
+                            </Panel>
+                        </Button>
+
+                        <Button Classes="window close"
+                                Click="OnCloseClick"
+                                ToolTip.Tip="Close">
+                            <controls:Icon Data="{Binding CloseIcon}" Size="14" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Panel>
+        </Border>
 
         <!-- Always present, above whatever screen is showing: the update banner has to reach someone
              who is stuck on the sign-in screen. -->
-        <views:UpdateBannerView Grid.Row="0" DataContext="{Binding Update}" />
+        <views:UpdateBannerView DockPanel.Dock="Top" DataContext="{Binding Update}" />
 
-        <Panel Grid.Row="1">
+        <!-- Status bar: what the current view holds, whether the socket is live, and which build this is.
+             The three questions a support call opens with. -->
+        <Border DockPanel.Dock="Bottom"
+                Background="{DynamicResource ChromeBackground}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Height="23"
+                Padding="9,0">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="9">
+                <TextBlock Grid.Column="0"
+                           Text="{Binding Workspace.ContentStatus}"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           Foreground="{DynamicResource MutedForeground}" />
+
+                <TextBlock Grid.Column="1"
+                           Text="Loading…"
+                           IsVisible="{Binding Workspace.IsContentLoading}"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           Foreground="{DynamicResource MutedForeground}" />
+
+                <Border Grid.Column="2" Classes="rule" Width="1" Height="12"
+                        VerticalAlignment="Center"
+                        IsVisible="{Binding Workspace, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="5"
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding Workspace, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            ToolTip.Tip="Live updates from the server">
+                    <Ellipse Width="6" Height="6" VerticalAlignment="Center"
+                             Fill="{Binding Workspace.LiveColor, Converter={StaticResource HexBrush}}" />
+                    <TextBlock Text="{Binding Workspace.LiveText}"
+                               VerticalAlignment="Center"
+                               FontSize="11"
+                               Foreground="{DynamicResource MutedForeground}" />
+                </StackPanel>
+
+                <Border Grid.Column="4" Classes="rule" Width="1" Height="12" VerticalAlignment="Center" />
+
+                <TextBlock Grid.Column="5"
+                           Text="{Binding AppVersion, StringFormat='v{0}'}"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           Foreground="{DynamicResource MutedForeground}" />
+            </Grid>
+        </Border>
+
+        <Panel>
             <ContentControl Content="{Binding Content}"
                             IsVisible="{Binding !IsStarting}" />
 
             <StackPanel IsVisible="{Binding IsStarting}"
                         HorizontalAlignment="Center" VerticalAlignment="Center"
-                        Spacing="16">
+                        Spacing="12">
                 <TextBlock Text="Planner"
-                           FontSize="28" FontWeight="SemiBold"
+                           FontSize="20"
                            HorizontalAlignment="Center"
                            Foreground="{DynamicResource AppForeground}" />
-                <ProgressBar IsIndeterminate="True" Width="200" />
+                <ProgressBar IsIndeterminate="True" Width="180" Height="2" />
             </StackPanel>
         </Panel>
-    </Grid>
+    </DockPanel>
 </Window>

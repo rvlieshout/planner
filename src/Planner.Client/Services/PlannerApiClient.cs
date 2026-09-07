@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Planner.Contracts.Auth;
 using Planner.Contracts.Common;
 using Planner.Contracts.Issues;
+using Planner.Contracts.Projects;
 using Planner.Contracts.Teams;
 
 namespace Planner.Client.Services;
@@ -28,10 +29,10 @@ public sealed class PlannerApiException(HttpStatusCode status, string detail)
 /// actually uses is small, and hand-writing it keeps the DTOs shared rather than duplicated.</summary>
 public sealed class PlannerApiClient(HttpClient http, ILogger<PlannerApiClient> logger)
 {
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
-    {
-        Converters = { new JsonStringEnumConverter() }
-    };
+    // OptionalJson supplies the resolver that omits unset Optional<T> properties, which is what makes
+    // a PATCH body mean "change this one field" rather than "clear everything I did not mention".
+    private static readonly JsonSerializerOptions Json =
+        OptionalJson.CreateOptions(new JsonStringEnumConverter());
 
     private string? _accessToken;
 
@@ -109,11 +110,69 @@ public sealed class PlannerApiClient(HttpClient http, ILogger<PlannerApiClient> 
     public Task<PagedResult<IssueSummary>> GetBoardAsync(Guid teamId, CancellationToken ct) =>
         GetAsync<PagedResult<IssueSummary>>($"api/v1/issues?teamId={teamId}&sort=board&pageSize=200", ct);
 
-    public Task<IssueSummary> MoveIssueAsync(Guid issueId, Guid stateId, CancellationToken ct) =>
+    public Task<IReadOnlyList<TeamMemberDto>> GetTeamMembersAsync(Guid teamId, CancellationToken ct) =>
+        GetAsync<IReadOnlyList<TeamMemberDto>>($"api/v1/teams/{teamId}/members", ct);
+
+    /// <summary>Team labels plus the organisation-wide ones, which is what the issue form should offer.</summary>
+    public Task<IReadOnlyList<LabelDto>> GetTeamLabelsAsync(Guid teamId, CancellationToken ct) =>
+        GetAsync<IReadOnlyList<LabelDto>>($"api/v1/teams/{teamId}/labels", ct);
+
+    public Task<PagedResult<ProjectDto>> GetProjectsAsync(Guid teamId, CancellationToken ct) =>
+        GetAsync<PagedResult<ProjectDto>>($"api/v1/projects?teamId={teamId}&pageSize=100", ct);
+
+    public Task<IReadOnlyList<MilestoneDto>> GetMilestonesAsync(Guid projectId, CancellationToken ct) =>
+        GetAsync<IReadOnlyList<MilestoneDto>>($"api/v1/projects/{projectId}/milestones", ct);
+
+    /// <summary>Everything assigned to one person, across every team they can see. No teamId filter:
+    /// "my issues" is a person's whole workload, not their workload in the team currently on screen.</summary>
+    public Task<PagedResult<IssueSummary>> GetAssignedIssuesAsync(Guid userId, CancellationToken ct) =>
+        GetAsync<PagedResult<IssueSummary>>(
+            $"api/v1/issues?assigneeId={userId}&sort=-updatedAt&pageSize=200", ct);
+
+    public Task<PagedResult<IssueSummary>> GetProjectIssuesAsync(Guid projectId, CancellationToken ct) =>
+        GetAsync<PagedResult<IssueSummary>>($"api/v1/issues?projectId={projectId}&sort=board&pageSize=200", ct);
+
+    public Task<IssueSummary> CreateIssueAsync(CreateIssueRequest request, CancellationToken ct) =>
+        SendAsync<IssueSummary>(
+            () => new HttpRequestMessage(HttpMethod.Post, Resolve("api/v1/issues"))
+            {
+                Content = JsonContent.Create(request, options: Json)
+            },
+            ct);
+
+    public Task<IssueDetail> GetIssueAsync(Guid issueId, CancellationToken ct) =>
+        GetAsync<IssueDetail>($"api/v1/issues/{issueId}", ct);
+
+    /// <summary>Sends only the fields the caller actually set; see <see cref="OptionalJson"/>.</summary>
+    public Task<IssueSummary> UpdateIssueAsync(Guid issueId, UpdateIssueRequest request, CancellationToken ct) =>
+        SendAsync<IssueSummary>(
+            () => new HttpRequestMessage(HttpMethod.Patch, Resolve($"api/v1/issues/{issueId}"))
+            {
+                Content = JsonContent.Create(request, options: Json)
+            },
+            ct);
+
+    public Task<IssueSummary> ArchiveIssueAsync(Guid issueId, CancellationToken ct) =>
+        SendAsync<IssueSummary>(
+            () => new HttpRequestMessage(HttpMethod.Post, Resolve($"api/v1/issues/{issueId}/archive")),
+            ct);
+
+    /// <summary>Moves an issue to a state, and optionally between two neighbours.
+    ///
+    /// The anchors are what make a drag land where it was dropped: the server takes the midpoint of
+    /// the two ranks, so a reorder writes one row instead of renumbering the column. Passing neither
+    /// puts the issue at the end of the target column.</summary>
+    public Task<IssueSummary> MoveIssueAsync(
+        Guid issueId,
+        Guid stateId,
+        Guid? afterIssueId,
+        Guid? beforeIssueId,
+        CancellationToken ct) =>
         SendAsync<IssueSummary>(
             () => new HttpRequestMessage(HttpMethod.Post, Resolve($"api/v1/issues/{issueId}/move"))
             {
-                Content = JsonContent.Create(new MoveIssueRequest(stateId, null, null, null), options: Json)
+                Content = JsonContent.Create(
+                    new MoveIssueRequest(stateId, null, afterIssueId, beforeIssueId), options: Json)
             },
             ct);
 

@@ -42,6 +42,8 @@ public sealed partial class UpdateBannerViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool IsProblem { get; set; }
 
+    public Avalonia.Media.Geometry? UpdateIcon => Controls.AppIcons.Update;
+
     public string CurrentVersion => _updates.CurrentVersion;
 
     /// <summary>True once an update is staged. The sign-in screen reads this to suggest installing it

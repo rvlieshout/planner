@@ -17,7 +17,7 @@ The client ships and updates itself through Velopack, from a feed the API serves
 | Identity | ASP.NET Core Identity, users and roles in the same database |
 | Tokens | OpenIddict 7 — self-hosted OAuth 2.0 / OIDC, password + refresh grants, plain JWTs |
 | Realtime | SignalR hub at `/hubs/planner`, strongly typed against a shared interface |
-| Client | Avalonia 12 on .NET 10, MVVM with compiled bindings |
+| Client | Avalonia 12 on .NET 10, MVVM with compiled bindings, Lucide icons |
 | Client updates | Velopack — delta packages, feed served by the API at `/updates` |
 | Docs | OpenAPI 3.1 at `/openapi/v1.json`, Scalar UI at `/scalar` |
 | Packaging | Docker Compose: `db` + `api` (+ optional pgAdmin) |
@@ -78,7 +78,14 @@ dotnet run --project src/Planner.Client
 ```
 
 Sign in with the same bootstrap owner. The client remembers the server and resumes the session on the
-next launch, shows the team board, and updates it live over SignalR.
+next launch. The sidebar carries My Issues, the team board and one row per project; Ctrl+N files work
+into the current team, and everything stays live over SignalR.
+
+It is built as a desktop application rather than a page in a window frame: menu bar, toolbar and status
+bar, a sidebar you can drag or collapse, dense selectable lists where Enter and double-click open the
+selected issue, drag-and-drop between board columns and My Issues groups, and the issue form as a real
+modal dialog. See [docs/desktop-client.md](docs/desktop-client.md) for the shortcut table and the
+design system behind it.
 
 To build a release of it:
 

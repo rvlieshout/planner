@@ -1,13 +1,21 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Planner.Contracts.Common;
+
+/// <summary>Non-generic view of <see cref="Optional{T}"/>, so serialization can ask whether a value was
+/// set without knowing its type.</summary>
+public interface IOptional
+{
+    bool IsSet { get; }
+}
 
 /// <summary>Distinguishes "field absent from the PATCH body" from "field explicitly set to null".
 /// Without this, a JSON PATCH cannot express "clear the assignee" separately from "leave it alone".</summary>
 [JsonConverter(typeof(OptionalConverterFactory))]
-public readonly struct Optional<T>
+public readonly struct Optional<T> : IOptional
 {
     private readonly T? _value;
 
@@ -32,6 +40,45 @@ public readonly struct Optional<T>
 
     /// <summary>Applies the patch to <paramref name="current"/>, returning it unchanged when absent.</summary>
     public T? Or(T? current) => IsSet ? _value : current;
+}
+
+/// <summary>Makes unset <see cref="Optional{T}"/> properties disappear from the JSON entirely.
+///
+/// A converter cannot do this on its own: by the time it runs, the property name has already been
+/// written, so the best it could manage is an explicit null — which is precisely the opposite of what
+/// "absent" means to a PATCH endpoint. Without this, a client sending one changed field would clear
+/// every other field on the entity.</summary>
+public static class OptionalJson
+{
+    public static void IgnoreUnset(JsonTypeInfo typeInfo)
+    {
+        foreach (var property in typeInfo.Properties)
+        {
+            if (!property.PropertyType.IsGenericType ||
+                property.PropertyType.GetGenericTypeDefinition() != typeof(Optional<>))
+            {
+                continue;
+            }
+
+            property.ShouldSerialize = (_, value) => value is IOptional { IsSet: true };
+        }
+    }
+
+    /// <summary>Serializer options that write PATCH bodies correctly. Web defaults plus the modifier.</summary>
+    public static JsonSerializerOptions CreateOptions(params JsonConverter[] converters)
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        {
+            TypeInfoResolver = new DefaultJsonTypeInfoResolver { Modifiers = { IgnoreUnset } }
+        };
+
+        foreach (var converter in converters)
+        {
+            options.Converters.Add(converter);
+        }
+
+        return options;
+    }
 }
 
 public sealed class OptionalConverterFactory : JsonConverterFactory

@@ -3,6 +3,7 @@
              x:Class="Planner.Client.App"
              xmlns:local="using:Planner.Client"
              xmlns:converters="using:Planner.Client.Converters"
+             xmlns:controls="using:Planner.Client.Controls"
              RequestedThemeVariant="Default">
 
     <Application.DataTemplates>
@@ -12,19 +13,186 @@
     <Application.Styles>
         <FluentTheme />
 
-        <Style Selector="TextBlock.field">
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource MutedForeground}" />
-        </Style>
+        <!--
+            Desktop density.
 
-        <Style Selector="TextBox">
-            <Setter Property="Padding" Value="10,8" />
-            <Setter Property="CornerRadius" Value="6" />
+            Fluent's stock metrics are sized for touch: 32-40px controls, 8px corners, generous
+            padding. On a mouse-driven window that reads as a web page rendered inside a frame.
+            Everything below pulls the chrome back to the proportions of a native tool — 22-24px
+            controls, 3px corners, 12px text — so a whole board fits on screen instead of three cards
+            and a scrollbar.
+        -->
+
+        <Style Selector="Window">
+            <Setter Property="FontFamily" Value="{DynamicResource AppFontFamily}" />
+            <Setter Property="FontSize" Value="12" />
         </Style>
 
         <Style Selector="Button">
-            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="Padding" Value="11,3" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+
+        <!-- The primary button on a surface uses Fluent's own `accent` class, which paints it in the
+             colour the user picked in Windows personalisation. That is what a native default button
+             does, so it is left alone rather than repainted in the app's own indigo. -->
+
+        <!-- Toolbar buttons: flat until pointed at, the way a native toolstrip behaves. -->
+        <Style Selector="Button.tool">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="MinHeight" Value="22" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Foreground" Value="{DynamicResource AppForeground}" />
+        </Style>
+        <Style Selector="Button.tool /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.tool:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HoverBackground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        </Style>
+        <Style Selector="Button.tool:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource PressedBackground}" />
+        </Style>
+        <Style Selector="Button.tool:disabled /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+
+        <Style Selector="TextBox">
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+
+        <!--
+            Fluent grows the focused border element to 2px regardless of the TextBox's own
+            BorderThickness, and the text presenter fills that same rectangle. On a field deliberately
+            given no border and no padding — the issue title and description — that stroke lands
+            directly on top of the text; on a normal input it also shifts the content by a pixel as
+            focus moves in and out.
+
+            Keep the theme's focus colour, which is what actually signals focus, and hold the
+            thickness at whatever the control asked for.
+        -->
+        <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+            <Setter Property="BorderThickness" Value="{Binding $parent[TextBox].BorderThickness}" />
+            <!-- The theme's focus ring is the Windows accent, which reads as someone else's blue next
+                 to the rest of this app. -->
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
+            <Setter Property="BorderThickness" Value="{Binding $parent[TextBox].BorderThickness}" />
+        </Style>
+
+        <Style Selector="ComboBox">
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="Padding" Value="8,2" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="ComboBoxItem">
+            <Setter Property="MinHeight" Value="22" />
+            <Setter Property="Padding" Value="8,2" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+
+        <!-- The estimate spinner is retemplated rather than restyled; see the control themes below.
+             These are the parts a style can still reach. -->
+        <Style Selector="NumericUpDown">
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+
+        <!-- Spin buttons: a 19px column each, flat until pointed at, and no divider rules. -->
+        <Style Selector="RepeatButton.spin">
+            <Setter Property="Width" Value="19" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedForeground}" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="RepeatButton.spin /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="RepeatButton.spin:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HoverBackground}" />
+        </Style>
+        <Style Selector="RepeatButton.spin:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource PressedBackground}" />
+        </Style>
+
+        <!-- Popup surfaces: the same 3px corner as everything else, and no card-sized padding. -->
+        <Style Selector="ContextMenu">
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="2" />
+        </Style>
+        <Style Selector="MenuFlyoutPresenter">
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="2" />
+        </Style>
+        <Style Selector="Separator">
+            <Setter Property="Margin" Value="0,2" />
+            <Setter Property="Height" Value="1" />
+        </Style>
+
+        <Style Selector="Menu">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="Menu > MenuItem">
+            <Setter Property="Padding" Value="9,3" />
+            <Setter Property="CornerRadius" Value="3" />
+        </Style>
+        <Style Selector="MenuItem">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinHeight" Value="24" />
+        </Style>
+
+        <Style Selector="ToolTip">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Padding" Value="7,3" />
+            <Setter Property="CornerRadius" Value="3" />
+        </Style>
+
+        <Style Selector="ProgressBar">
+            <Setter Property="MinHeight" Value="2" />
+        </Style>
+
+        <Style Selector="TextBlock.field">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedForeground}" />
+        </Style>
+
+        <!-- Section captions in the sidebar and the form. Small and grey rather than bold: they label
+             a group without competing with the content inside it. -->
+        <Style Selector="TextBlock.caption">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedForeground}" />
+        </Style>
+
+        <!-- Issue keys are identifiers, not prose: aligned digits make a column of them scannable. -->
+        <Style Selector="TextBlock.key">
+            <Setter Property="FontFamily" Value="{DynamicResource AppMonoFontFamily}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedForeground}" />
+        </Style>
+
+        <!-- One-pixel rules do the work a Bootstrap card outline was doing. -->
+        <Style Selector="Border.rule">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
         </Style>
     </Application.Styles>
 
@@ -32,28 +200,189 @@
         <!-- One palette, two variants. Follows the OS by default, so the client looks native on a
              machine set to dark mode without anyone configuring anything. -->
         <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://Planner.Client/Assets/Icons.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+
             <converters:HexBrushConverter x:Key="HexBrush" />
+
+            <!-- The shell font is the one the OS dresses its own windows in; Inter is only the fallback
+                 for machines that have neither Segoe. -->
+            <FontFamily x:Key="AppFontFamily">Segoe UI Variable Text, Segoe UI, Inter</FontFamily>
+            <FontFamily x:Key="AppMonoFontFamily">Cascadia Mono, Consolas, Menlo, monospace</FontFamily>
+
+            <!--
+                A dense row is a rectangle that fills its column, tints on hover and holds a selection —
+                no rounded card, no shadow, no gap. Fluent's stock ListBoxItem is a 40px pill; this is
+                the row's own content and nothing else.
+            -->
+            <ControlTheme x:Key="DenseRow" TargetType="ListBoxItem">
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <Border Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter Name="PART_ContentPresenter"
+                                              Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter>
+
+                <Style Selector="^:pointerover /template/ Border#Root">
+                    <Setter Property="Background" Value="{DynamicResource HoverBackground}" />
+                </Style>
+                <Style Selector="^:selected /template/ Border#Root">
+                    <Setter Property="Background" Value="{DynamicResource SelectedBackground}" />
+                </Style>
+                <Style Selector="^:selected:focus /template/ Border#Root">
+                    <Setter Property="Background" Value="{DynamicResource SelectedFocusBackground}" />
+                </Style>
+            </ControlTheme>
+
+            <!--
+                NumericUpDown and its spinner, retemplated rather than restyled.
+
+                Fluent's versions hard-code exactly the parts that make the estimate field look like it
+                came from a different toolkit: 34px spin buttons, a chevron twice the size of the
+                ComboBox's own, a divider rule beside each button, and asymmetric 10,6,6,5 padding on
+                the inner TextBox that leaves the control 29px tall next to 24px neighbours. Those are
+                local values in the template, and a style cannot override a local value — owning the
+                template is the only way to reach them.
+            -->
+            <ControlTheme x:Key="{x:Type ButtonSpinner}" TargetType="ButtonSpinner">
+                <Setter Property="MinHeight" Value="24" />
+                <Setter Property="Background" Value="{DynamicResource AppBackground}" />
+                <!-- Fluent's own input border, so the spinner's outline matches the ComboBox beside
+                     it in both theme variants rather than approximating it. -->
+                <Setter Property="BorderBrush" Value="{DynamicResource TextControlBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="3" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <Border Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{TemplateBinding CornerRadius}"
+                                ClipToBounds="True">
+                            <DockPanel>
+                                <StackPanel Name="PART_SpinnerPanel"
+                                            DockPanel.Dock="Right"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Stretch"
+                                            IsVisible="{TemplateBinding ShowButtonSpinner}">
+                                    <RepeatButton Name="PART_IncreaseButton" Classes="spin">
+                                        <controls:Icon Data="{StaticResource IconChevronDown}"
+                                                       Size="11"
+                                                       RenderTransform="rotate(180deg)" />
+                                    </RepeatButton>
+                                    <RepeatButton Name="PART_DecreaseButton" Classes="spin">
+                                        <controls:Icon Data="{StaticResource IconChevronDown}" Size="11" />
+                                    </RepeatButton>
+                                </StackPanel>
+
+                                <ContentPresenter Name="PART_ContentPresenter"
+                                                  Content="{TemplateBinding Content}"
+                                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                  HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                            </DockPanel>
+                        </Border>
+                    </ControlTemplate>
+                </Setter>
+
+                <Style Selector="^:focus-within /template/ Border#Root">
+                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                </Style>
+            </ControlTheme>
+
+            <ControlTheme x:Key="{x:Type NumericUpDown}" TargetType="NumericUpDown">
+                <Setter Property="MinHeight" Value="24" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <ButtonSpinner Name="PART_Spinner"
+                                       MinHeight="{TemplateBinding MinHeight}"
+                                       IsTabStop="False"
+                                       AllowSpin="{TemplateBinding AllowSpin}"
+                                       ShowButtonSpinner="{TemplateBinding ShowButtonSpinner}"
+                                       ButtonSpinnerLocation="{TemplateBinding ButtonSpinnerLocation}"
+                                       HorizontalContentAlignment="Stretch"
+                                       VerticalContentAlignment="Center">
+                            <TextBox Name="PART_TextBox"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     MinHeight="0"
+                                     Padding="6,1"
+                                     VerticalAlignment="Center"
+                                     AcceptsReturn="False"
+                                     TextWrapping="NoWrap"
+                                     Text="{TemplateBinding Text, Mode=TwoWay}"
+                                     PlaceholderText="{TemplateBinding PlaceholderText}"
+                                     IsReadOnly="{TemplateBinding IsReadOnly}"
+                                     TextAlignment="{TemplateBinding TextAlignment}" />
+                        </ButtonSpinner>
+                    </ControlTemplate>
+                </Setter>
+            </ControlTheme>
 
             <ResourceDictionary.ThemeDictionaries>
 
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="AppBackground" Color="#FFFFFF" />
-                    <SolidColorBrush x:Key="AppForeground" Color="#16191D" />
-                    <SolidColorBrush x:Key="MutedForeground" Color="#6B7280" />
+                    <SolidColorBrush x:Key="AppForeground" Color="#1A1D21" />
+                    <SolidColorBrush x:Key="MutedForeground" Color="#61656C" />
                     <SolidColorBrush x:Key="AccentBrush" Color="#5E6AD2" />
-                    <SolidColorBrush x:Key="BorderBrush" Color="#E4E6EB" />
-                    <SolidColorBrush x:Key="ColumnBackground" Color="#F5F6F8" />
+                    <SolidColorBrush x:Key="BorderBrush" Color="#DDDFE4" />
+                    <SolidColorBrush x:Key="BorderStrongBrush" Color="#C2C5CC" />
+                    <SolidColorBrush x:Key="ColumnBackground" Color="#F1F2F4" />
                     <SolidColorBrush x:Key="CardBackground" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="SidebarBackground" Color="#F5F6F7" />
+                    <SolidColorBrush x:Key="ChromeBackground" Color="#EFF0F2" />
+                    <SolidColorBrush x:Key="AlternateRowBackground" Color="#FAFAFB" />
+                    <SolidColorBrush x:Key="HoverBackground" Color="#12000000" />
+                    <SolidColorBrush x:Key="PressedBackground" Color="#1F000000" />
+                    <SolidColorBrush x:Key="SelectedBackground" Color="#1A5E6AD2" />
+                    <SolidColorBrush x:Key="SelectedFocusBackground" Color="#2E5E6AD2" />
+                    <SolidColorBrush x:Key="DangerBrush" Color="#C42B1C" />
+                    <SolidColorBrush x:Key="DangerBackground" Color="#14C42B1C" />
+                    <SolidColorBrush x:Key="SuccessBrush" Color="#3D9A6C" />
                 </ResourceDictionary>
 
                 <ResourceDictionary x:Key="Dark">
-                    <SolidColorBrush x:Key="AppBackground" Color="#16181D" />
-                    <SolidColorBrush x:Key="AppForeground" Color="#EDEEF0" />
-                    <SolidColorBrush x:Key="MutedForeground" Color="#8A8F98" />
+                    <SolidColorBrush x:Key="AppBackground" Color="#1E1F22" />
+                    <SolidColorBrush x:Key="AppForeground" Color="#E6E7EA" />
+                    <SolidColorBrush x:Key="MutedForeground" Color="#9296A0" />
                     <SolidColorBrush x:Key="AccentBrush" Color="#6E79F1" />
-                    <SolidColorBrush x:Key="BorderBrush" Color="#2A2D34" />
-                    <SolidColorBrush x:Key="ColumnBackground" Color="#1C1F25" />
-                    <SolidColorBrush x:Key="CardBackground" Color="#22262D" />
+                    <SolidColorBrush x:Key="BorderBrush" Color="#34363B" />
+                    <SolidColorBrush x:Key="BorderStrongBrush" Color="#4A4D54" />
+                    <SolidColorBrush x:Key="ColumnBackground" Color="#26282C" />
+                    <SolidColorBrush x:Key="CardBackground" Color="#2C2E33" />
+                    <SolidColorBrush x:Key="SidebarBackground" Color="#1A1B1E" />
+                    <SolidColorBrush x:Key="ChromeBackground" Color="#232427" />
+                    <SolidColorBrush x:Key="AlternateRowBackground" Color="#232427" />
+                    <SolidColorBrush x:Key="HoverBackground" Color="#14FFFFFF" />
+                    <SolidColorBrush x:Key="PressedBackground" Color="#22FFFFFF" />
+                    <SolidColorBrush x:Key="SelectedBackground" Color="#336E79F1" />
+                    <SolidColorBrush x:Key="SelectedFocusBackground" Color="#4D6E79F1" />
+                    <SolidColorBrush x:Key="DangerBrush" Color="#FF6B5E" />
+                    <SolidColorBrush x:Key="DangerBackground" Color="#1FFF6B5E" />
+                    <SolidColorBrush x:Key="SuccessBrush" Color="#4CB782" />
                 </ResourceDictionary>
 
             </ResourceDictionary.ThemeDictionaries>
