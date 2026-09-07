@@ -113,6 +113,23 @@
             <Setter Property="Background" Value="Transparent" />
         </Style>
 
+        <!--
+            Access keys in menus.
+
+            AtomUI's menu item template runs the header through a converter that wraps a string in a
+            TextBlock before the ContentPresenter sees it. RecognizesAccessKey only fires for string
+            content, so the wrapper defeats it: "E_xit" is drawn with the underscore in it and Alt+X
+            does nothing. Handing the presenter the raw header back restores the AccessText the rest of
+            the framework — and every other menu on this platform — expects.
+
+            Top level items are unaffected: their template binds Header straight through, which is why
+            this only touches the part named in the popup template. Drop this once AtomUI stops
+            converting.
+        -->
+        <Style Selector="atom|MenuItem:not(:toplevel) /template/ ContentPresenter#ItemTextPresenter">
+            <Setter Property="Content" Value="{Binding $parent[atom:MenuItem].Header}" />
+        </Style>
+
     </Application.Styles>
 
     <Application.Resources>

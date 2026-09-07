@@ -56,12 +56,20 @@
 
             <TextBlock Grid.Row="1" Grid.Column="0" Text="Description:" Classes="formLabel"
                        VerticalAlignment="Top" Margin="0,4,8,0" />
+            <!--
+                IsAutoSize is what makes this a text area rather than a tall box with two editable lines
+                in the middle of it. Left off, AtomUI pins the inner scroll viewer to exactly Lines
+                (default 2) high and centres it in whatever space the control was given, so the frame
+                stretches to fill the row while the text — and the caret — stay in a two-line band. On,
+                the viewer follows the control, and the row's star height is the height of the field.
+            -->
             <atom:TextArea Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
                            Text="{Binding Description}"
                            PlaceholderText="Optional detail"
                            AcceptsReturn="True"
                            TextWrapping="Wrap"
                            AcceptsTab="False"
+                           IsAutoSize="True"
                            MinHeight="84"
                            VerticalContentAlignment="Top" />
 
