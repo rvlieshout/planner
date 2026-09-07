@@ -437,6 +437,31 @@ works when it is grey — it is simply as fresh as the last fetch. `WorkspaceVie
 current view's own summary ("11 issues in 6 columns") to that bar, because the status bar lives in the
 window frame and cannot bind through the content it is describing.
 
+## Users and access
+
+Owners and administrators can open **Users & access** from the sidebar, including on an installation
+with no teams. Search covers the complete directory, including inactive accounts. Select a user to
+edit their display name, time zone, organisation role, active state, and memberships across teams;
+archived teams are included and labelled. **New user** also requires an email and a confirmed password
+of at least 12 characters. Existing email addresses are read-only.
+
+The team table previews effective access using the API's permission matrix: admins and owners
+administer every team, guests are capped at commenting, and a member's Viewer role grants read-only
+access. Only owners can assign or revoke ownership. Own accounts and owner accounts cannot be
+deactivated through the page. The API remains the authority for every write, including the last-lead
+restriction.
+
+**Save user & team access** saves the account followed by changed memberships. These are separate API
+operations: if a team change fails, the page reports partial success and keeps the remaining edits for
+correction and retry. Password reset is a separate action. Navigation prompts before discarding edits,
+and is blocked while an operation is running. F5 reloads the directory. Organisation role and active
+state changes become effective at token refresh or sign-in.
+
+Run the simulated-API regression checks with
+`dotnet run --project tests/Planner.Client.Checks`. They cover directory pagination, draft protection,
+partial-save recovery, membership operations, password validation, PATCH omission, and effective rights.
+They do not replace an interactive desktop check against a running API.
+
 ## Updates
 
 Covered in full in [releasing.md](releasing.md). The client-side rules, briefly:

@@ -7,4 +7,7 @@
     <Project Path="src/Planner.Domain/Planner.Domain.csproj" />
     <Project Path="src/Planner.Infrastructure/Planner.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Planner.Client.Checks/Planner.Client.Checks.csproj" />
+  </Folder>
 </Solution>

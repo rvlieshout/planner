@@ -97,6 +97,18 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
 
     public string UserRole => _auth.CurrentUser?.Role ?? string.Empty;
 
+    public bool CanManageUsers => UserRole is "owner" or "admin";
+
+    public bool IsUsersSelected => Content is UsersViewModel;
+
+    [RelayCommand]
+    private async Task ManageUsersAsync()
+    {
+        if (!CanManageUsers || !await MayDiscardAsync()) return;
+        Highlight(null);
+        Show(new UsersViewModel(_api, _auth.CurrentUser!) { ConfirmDiscard = ConfirmDiscard });
+    }
+
     public string UserInitials => Initials(UserName);
 
     public string LiveText => IsLive ? "Live" : "Offline";
@@ -143,6 +155,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
 
     partial void OnContentChanged(ViewModelBase? value)
     {
+        OnPropertyChanged(nameof(IsUsersSelected));
         OnPropertyChanged(nameof(ContentTitle));
         OnPropertyChanged(nameof(ContentSubtitle));
         OnPropertyChanged(nameof(ContentStatus));
@@ -244,6 +257,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
     /// routes deliberately do not: closing the window, and the update service restarting the app.</summary>
     private async Task<bool> MayDiscardAsync()
     {
+        if (Content is UsersViewModel { IsLoading: true }) return false;
         if (Content is not IUnsavedWork { HasUnsavedChanges: true } page || ConfirmDiscard is null)
         {
             return true;

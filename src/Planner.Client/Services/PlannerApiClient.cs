@@ -101,6 +101,42 @@ public sealed class PlannerApiClient(HttpClient http, ILogger<PlannerApiClient> 
     public Task<MeResponse> GetMeAsync(CancellationToken ct) =>
         GetAsync<MeResponse>("api/v1/me", ct);
 
+    public Task<PagedResult<UserSummary>> GetUsersAsync(int page, CancellationToken ct) =>
+        GetAsync<PagedResult<UserSummary>>($"api/v1/users?includeInactive=true&pageSize=200&page={page}", ct);
+
+    public Task<UserDetail> GetUserAsync(Guid id, CancellationToken ct) =>
+        GetAsync<UserDetail>($"api/v1/users/{id}", ct);
+
+    public Task<UserSummary> CreateUserAsync(CreateUserRequest request, CancellationToken ct) =>
+        SendJsonAsync<UserSummary>(HttpMethod.Post, "api/v1/users", request, ct);
+
+    public Task<UserSummary> UpdateUserAsync(Guid id, UpdateUserRequest request, CancellationToken ct) =>
+        SendJsonAsync<UserSummary>(HttpMethod.Patch, $"api/v1/users/{id}", request, ct);
+
+    public Task ResetUserPasswordAsync(Guid id, string password, CancellationToken ct) =>
+        SendAsync(() => new HttpRequestMessage(HttpMethod.Post, Resolve($"api/v1/users/{id}/password"))
+        {
+            Content = JsonContent.Create(new ResetPasswordRequest(password), options: Json)
+        }, ct);
+
+    public Task<IReadOnlyList<TeamDto>> GetAdministrationTeamsAsync(CancellationToken ct) =>
+        GetAsync<IReadOnlyList<TeamDto>>("api/v1/teams?includeArchived=true", ct);
+
+    public Task<TeamMemberDto> AddTeamMemberAsync(Guid teamId, AddTeamMemberRequest request, CancellationToken ct) =>
+        SendJsonAsync<TeamMemberDto>(HttpMethod.Post, $"api/v1/teams/{teamId}/members", request, ct);
+
+    public Task<TeamMemberDto> UpdateTeamMemberAsync(Guid teamId, Guid userId, UpdateTeamMemberRequest request, CancellationToken ct) =>
+        SendJsonAsync<TeamMemberDto>(HttpMethod.Patch, $"api/v1/teams/{teamId}/members/{userId}", request, ct);
+
+    public Task RemoveTeamMemberAsync(Guid teamId, Guid userId, CancellationToken ct) =>
+        SendAsync(() => new HttpRequestMessage(HttpMethod.Delete, Resolve($"api/v1/teams/{teamId}/members/{userId}")), ct);
+
+    private Task<T> SendJsonAsync<T>(HttpMethod method, string path, object body, CancellationToken ct) =>
+        SendAsync<T>(() => new HttpRequestMessage(method, Resolve(path))
+        {
+            Content = JsonContent.Create(body, options: Json)
+        }, ct);
+
     public Task<IReadOnlyList<TeamDto>> GetTeamsAsync(CancellationToken ct) =>
         GetAsync<IReadOnlyList<TeamDto>>("api/v1/teams", ct);
 

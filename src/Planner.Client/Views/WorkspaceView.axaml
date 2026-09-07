@@ -67,6 +67,10 @@
                 <atom:ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,2,0,0">
                     <StackPanel>
 
+                        <atom:Button Classes="nav" Classes.selected="{Binding IsUsersSelected}"
+                                     ButtonType="Text" Command="{Binding ManageUsersCommand}"
+                                     IsVisible="{Binding CanManageUsers}" Padding="10,4" Content="Users &amp; access" />
+
                         <ItemsControl ItemsSource="{Binding PrimaryNav}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:NavItemViewModel">
