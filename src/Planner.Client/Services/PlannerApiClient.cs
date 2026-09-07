@@ -101,8 +101,12 @@ public sealed class PlannerApiClient(HttpClient http, ILogger<PlannerApiClient> 
     public Task<MeResponse> GetMeAsync(CancellationToken ct) =>
         GetAsync<MeResponse>("api/v1/me", ct);
 
-    public Task<PagedResult<UserSummary>> GetUsersAsync(int page, CancellationToken ct) =>
-        GetAsync<PagedResult<UserSummary>>($"api/v1/users?includeInactive=true&pageSize=200&page={page}", ct);
+    /// <summary>One page of the user directory. Administration wants the inactive accounts too — they
+    /// are what someone has come to reactivate — while a picker offering people to add to a team does
+    /// not.</summary>
+    public Task<PagedResult<UserSummary>> GetUsersAsync(int page, bool includeInactive, CancellationToken ct) =>
+        GetAsync<PagedResult<UserSummary>>(
+            $"api/v1/users?includeInactive={(includeInactive ? "true" : "false")}&pageSize=200&page={page}", ct);
 
     public Task<UserDetail> GetUserAsync(Guid id, CancellationToken ct) =>
         GetAsync<UserDetail>($"api/v1/users/{id}", ct);
@@ -119,8 +123,23 @@ public sealed class PlannerApiClient(HttpClient http, ILogger<PlannerApiClient> 
             Content = JsonContent.Create(new ResetPasswordRequest(password), options: Json)
         }, ct);
 
+    /// <summary>Every team the caller can see, archived ones included. Administration is the one place
+    /// an archived team has to be visible — restoring it, or seeing who is still in it, is only
+    /// possible from a list that has not left it out.</summary>
     public Task<IReadOnlyList<TeamDto>> GetAdministrationTeamsAsync(CancellationToken ct) =>
         GetAsync<IReadOnlyList<TeamDto>>("api/v1/teams?includeArchived=true", ct);
+
+    public Task<TeamDto> CreateTeamAsync(CreateTeamRequest request, CancellationToken ct) =>
+        SendJsonAsync<TeamDto>(HttpMethod.Post, "api/v1/teams", request, ct);
+
+    public Task<TeamDto> UpdateTeamAsync(Guid teamId, UpdateTeamRequest request, CancellationToken ct) =>
+        SendJsonAsync<TeamDto>(HttpMethod.Patch, $"api/v1/teams/{teamId}", request, ct);
+
+    public Task<TeamDto> ArchiveTeamAsync(Guid teamId, CancellationToken ct) =>
+        PostAsync<TeamDto>($"api/v1/teams/{teamId}/archive", ct);
+
+    public Task<TeamDto> RestoreTeamAsync(Guid teamId, CancellationToken ct) =>
+        PostAsync<TeamDto>($"api/v1/teams/{teamId}/restore", ct);
 
     public Task<TeamMemberDto> AddTeamMemberAsync(Guid teamId, AddTeamMemberRequest request, CancellationToken ct) =>
         SendJsonAsync<TeamMemberDto>(HttpMethod.Post, $"api/v1/teams/{teamId}/members", request, ct);
@@ -130,6 +149,10 @@ public sealed class PlannerApiClient(HttpClient http, ILogger<PlannerApiClient> 
 
     public Task RemoveTeamMemberAsync(Guid teamId, Guid userId, CancellationToken ct) =>
         SendAsync(() => new HttpRequestMessage(HttpMethod.Delete, Resolve($"api/v1/teams/{teamId}/members/{userId}")), ct);
+
+    /// <summary>A POST that says everything in its URL — archive, restore — and so carries no body.</summary>
+    private Task<T> PostAsync<T>(string path, CancellationToken ct) =>
+        SendAsync<T>(() => new HttpRequestMessage(HttpMethod.Post, Resolve(path)), ct);
 
     private Task<T> SendJsonAsync<T>(HttpMethod method, string path, object body, CancellationToken ct) =>
         SendAsync<T>(() => new HttpRequestMessage(method, Resolve(path))

@@ -38,7 +38,7 @@ Program.cs            VelopackApp.Run() first, then Avalonia
 App.axaml.cs          AtomUI registration and the design tokens, then the DI container and window
 Services/             the parts with no UI: settings, session, API, realtime, updates
 ViewModels/           shell, login, workspace, navigation, board, my issues, issue editor,
-                      project editor, update banner
+                      project editor, users and access, teams and membership, update banner
 Views/                one .axaml per view model, matched by ViewLocator; plus the real windows —
                       MainWindow, the IssueEditorWindow dialog, About and Confirm — and
                       DragGhostView, the card that follows the cursor during a drag
@@ -527,10 +527,47 @@ correction and retry. Password reset is a separate action. Navigation prompts be
 and is blocked while an operation is running. F5 reloads the directory. Organisation role and active
 state changes become effective at token refresh or sign-in.
 
-Run the simulated-API regression checks with
+## Teams and membership
+
+**Teams** sits beside Users & access in the sidebar, and like it is reachable on an installation with
+no teams at all — creating the first one is the point. Who sees the entry is the API's permission
+matrix, read off the caller's own profile: an owner or administrator administers every team and is the
+only one who can create one, a team lead administers the teams they lead, and a guest administers
+nothing whatever their team role says. The list is therefore the teams you may *change*, which is a
+different list from the switcher above it — that one is every team you may read.
+
+Archived teams are listed last rather than left out, because restoring one is only possible from a list
+that still shows it. Selecting a team opens its settings — name, description, colour, and whether it is
+private — with its membership underneath. The key is set once, at creation: it prefixes every issue
+identifier the team ever writes, so the server does not let it change and the field is read-only
+afterwards. It is upper-cased and checked against the server's own rule (1–8 characters, starting with
+a letter) before the request goes out, because a rejected key is otherwise a round trip to learn a
+typo.
+
+Creating flows straight into filling in, exactly as the project page does: a successful create turns
+the page into that team's page, the creator is already in it as its first lead, and the membership
+section below comes to life. Roles are changed in place and saved with the page — each row carries a
+tick while it differs from the server, and **Save changes** drives every dirty row as well as the team
+itself. Adding someone is its own button and its own request; so is removing them, which asks first and
+leaves both the account and everything they wrote in the team untouched. The picker offers active
+accounts who are not already members.
+
+Two refusals belong to the server and are shown as it writes them: a duplicate team key, and demoting
+or removing a team's only lead. A lead who demotes or removes *themselves* — which the server allows
+once another lead exists — loses the team from this page at that moment, because the authority the page
+was working with has just been handed back.
+
+Archiving is how a team ends. Deleting one would take its projects, issues and history with it, so the
+API does not offer that and neither does this page; an archived team says so, and **Restore** puts it
+back. Anything that changes the team list — a create, a rename, a recolour, an archive or a restore —
+refreshes the switcher and the sidebar around the page without navigating away from it.
+
+Run the simulated-API regression checks for both administration pages with
 `dotnet run --project tests/Planner.Client.Checks`. They cover directory pagination, draft protection,
-partial-save recovery, membership operations, password validation, PATCH omission, and effective rights.
-They do not replace an interactive desktop check against a running API.
+partial-save recovery, membership operations, password validation, PATCH omission, effective rights,
+who may administer which teams, key validation and upper-casing, create-then-fill-in, the last-lead
+refusal, archive and restore, and a lead demoting themselves. They do not replace an interactive
+desktop check against a running API.
 
 ## Updates
 
@@ -559,13 +596,16 @@ name, so a `ContentControl` bound to a view model renders the right view with no
 
 The client is a working foundation, not the finished product. Present: sign-in, session resume, team
 switching, the sidebar, My Issues, team and project boards, creating and editing issues in a modal
-dialog, creating and editing projects and their milestones on a page, archiving issues, the menu bar
-and status bar, keyboard activation and a per-row context menu, live updates, and the full update
-pipeline. Absent, in rough order of what a user would miss first:
+dialog, creating and editing projects and their milestones on a page, archiving issues, user
+administration, team administration and membership, the menu bar and status bar, keyboard activation
+and a per-row context menu, live updates, and the full update pipeline. Absent, in rough order of what
+a user would miss first:
 
 - **Comments, sub-issues, attachments and the activity feed.** The editor covers an issue's fields;
   everything around the conversation is still API-only (`docs/api.md`).
 - Filtering, search and saved views — the API's filter surface is much richer than the UI exposes.
+- **A team's board columns and its labels.** The teams page covers a team's settings and who is in it;
+  workflow states and labels are administered through the API alone (`docs/api.md`).
 - Archiving and restoring projects, which needs somewhere to see archived ones first.
 - **Live updates for anything but issues.** The socket carries project, milestone, label and member
   changes too; `RealtimeService` subscribes to `IssueChanged` alone, so a project someone else creates

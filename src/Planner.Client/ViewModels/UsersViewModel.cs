@@ -84,7 +84,7 @@ public sealed partial class UsersViewModel(PlannerApiClient api, MeResponse call
             var users = new List<UserSummary>();
             for (var page = 1; ; page++)
             {
-                var result = await api.GetUsersAsync(page, ct);
+                var result = await api.GetUsersAsync(page, includeInactive: true, ct);
                 users.AddRange(result.Items);
                 if (!result.HasNext) break;
             }

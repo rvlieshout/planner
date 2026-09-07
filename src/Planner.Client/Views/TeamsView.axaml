@@ -1,0 +1,441 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:atom="https://atomui.net"
+             xmlns:vm="using:Planner.Client.ViewModels"
+             xmlns:controls="using:Planner.Client.Controls"
+             xmlns:auth="using:Planner.Contracts.Auth"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
+             x:Class="Planner.Client.Views.TeamsView"
+             x:DataType="vm:TeamsViewModel">
+
+    <UserControl.Styles>
+        <!-- The same right-aligned label column the project page and the issue form use. -->
+        <Style Selector="TextBlock.formLabel">
+            <Setter Property="Foreground" Value="{atom:SharedTokenResource ColorTextSecondary}" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+        </Style>
+
+        <Style Selector="TextBlock.section">
+            <Setter Property="FontSize" Value="{atom:SharedTokenResource FontSizeSM}" />
+            <Setter Property="Foreground" Value="{atom:SharedTokenResource ColorTextSecondary}" />
+        </Style>
+
+        <Style Selector="TextBlock.columnHeader">
+            <Setter Property="FontSize" Value="{atom:SharedTokenResource FontSizeSM}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{atom:SharedTokenResource ColorTextSecondary}" />
+        </Style>
+
+        <Style Selector="atom|Button.teamRow.selected">
+            <Setter Property="CustomBackground" Value="{atom:SharedTokenResource ControlItemBgActive}" />
+        </Style>
+
+        <!-- The swatch metrics of the project page, for the same reasons written down there. -->
+        <Style Selector="atom|Button.swatch">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+        </Style>
+
+        <Style Selector="Border.swatch">
+            <Setter Property="Padding" Value="2" />
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.swatch.selected">
+            <Setter Property="BorderBrush" Value="{atom:SharedTokenResource ColorText}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <Grid RowDefinitions="*,Auto">
+
+            <!-- Keep the content and its colours steady while a write finishes, rather than disabling
+                 the pane and dimming everything on it. -->
+            <Grid Grid.Row="0" ColumnDefinitions="248,Auto,*" IsHitTestVisible="{Binding !IsBusy}">
+
+                <!-- The teams this caller may administer. Not a filter on the switcher in the sidebar:
+                     that one is every team they can read, and this one is every team they can change. -->
+                <Grid Grid.Column="0" RowDefinitions="Auto,*" Margin="12,12,0,0">
+                    <atom:Button Grid.Row="0"
+                                 Content="New team"
+                                 HorizontalAlignment="Stretch"
+                                 Margin="0,0,12,8"
+                                 IsVisible="{Binding CanCreateTeams}"
+                                 IsEnabled="{Binding !IsBusy}"
+                                 Command="{Binding NewTeamCommand}" />
+
+                    <atom:ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <ItemsControl ItemsSource="{Binding Teams}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:TeamListRow">
+                                        <atom:Button Classes="teamRow"
+                                                     Classes.selected="{Binding IsSelected}"
+                                                     ButtonType="Text"
+                                                     HorizontalAlignment="Stretch"
+                                                     HorizontalContentAlignment="Stretch"
+                                                     Padding="10,8"
+                                                     Margin="0,0,8,4"
+                                                     Command="{Binding $parent[UserControl].((vm:TeamsViewModel)DataContext).SelectTeamCommand}"
+                                                     CommandParameter="{Binding}">
+                                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                <Ellipse Grid.Column="0" Width="8" Height="8"
+                                                         VerticalAlignment="Center"
+                                                         Fill="{Binding Color, Converter={StaticResource HexBrush}}" />
+                                                <StackPanel Grid.Column="1" Spacing="2">
+                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                                        <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding Key}" Classes="key" />
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding Detail}" Classes="caption"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </atom:Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="No teams you can administer."
+                                       Classes="caption"
+                                       Margin="10,4,12,0"
+                                       TextWrapping="Wrap"
+                                       IsVisible="{Binding !HasTeams}" />
+                        </StackPanel>
+                    </atom:ScrollViewer>
+                </Grid>
+
+                <Border Grid.Column="1" Width="1" Margin="12,0"
+                        Background="{atom:SharedTokenResource ColorBorderSecondary}" />
+
+                <TextBlock Grid.Column="2"
+                           Text="Select a team to change its settings and who is in it."
+                           Classes="caption"
+                           Margin="0,14,16,0"
+                           TextWrapping="Wrap"
+                           IsVisible="{Binding !HasEditor}" />
+
+                <atom:ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"
+                                   IsVisible="{Binding HasEditor}">
+                    <StackPanel Margin="0,12,16,16" Spacing="10" MaxWidth="720" HorizontalAlignment="Left">
+
+                        <TextBlock Text="{Binding EditorTitle}" FontWeight="SemiBold" FontSize="16" />
+
+                        <TextBlock Text="This team is archived. Its work is kept and read-only to the people in it; restore it to put it back."
+                                   Classes="caption"
+                                   TextWrapping="Wrap"
+                                   IsVisible="{Binding IsArchived}" />
+
+                        <TextBlock Text="DETAILS" Classes="section" />
+
+                        <Grid ColumnDefinitions="88,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                              RowSpacing="7">
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Key:" Classes="formLabel" />
+                            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                <!-- The key prefixes every issue identifier the team ever writes, so the
+                                     server does not let it change and neither does this. -->
+                                <atom:LineEdit Text="{Binding TeamKey}"
+                                               Width="120"
+                                               MaxLength="8"
+                                               IsEnabled="{Binding IsNew}"
+                                               PlaceholderText="ENG" />
+                                <TextBlock Text="Up to 8 characters, A–Z and 0–9. It prefixes every issue: ENG-128."
+                                           Classes="caption"
+                                           VerticalAlignment="Center"
+                                           IsVisible="{Binding IsNew}" />
+                                <TextBlock Text="Set when the team was created; issues carry it."
+                                           Classes="caption"
+                                           VerticalAlignment="Center"
+                                           IsVisible="{Binding IsEditing}" />
+                            </StackPanel>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Name:" Classes="formLabel" />
+                            <atom:LineEdit Grid.Row="1" Grid.Column="1"
+                                           Text="{Binding TeamName}"
+                                           PlaceholderText="What this team is called" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Description:" Classes="formLabel"
+                                       VerticalAlignment="Top" Margin="0,4,8,0" />
+                            <atom:TextArea Grid.Row="2" Grid.Column="1"
+                                           Text="{Binding Description}"
+                                           PlaceholderText="Optional — what this team is responsible for"
+                                           AcceptsReturn="True"
+                                           TextWrapping="Wrap"
+                                           AcceptsTab="False"
+                                           IsAutoSize="True"
+                                           MinHeight="72"
+                                           VerticalContentAlignment="Top" />
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Colour:" Classes="formLabel" />
+                            <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                <ItemsControl ItemsSource="{Binding Swatches}" VerticalAlignment="Center">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="2" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ColorSwatchViewModel">
+                                            <atom:Button Classes="swatch"
+                                                         ButtonType="Text"
+                                                         Command="{Binding $parent[UserControl].((vm:TeamsViewModel)DataContext).PickColorCommand}"
+                                                         CommandParameter="{Binding}"
+                                                         atom:ToolTip.Tip="{Binding Value}">
+                                                <Border Classes="swatch" Classes.selected="{Binding IsSelected}">
+                                                    <Border Width="14" Height="14" CornerRadius="3"
+                                                            Background="{Binding Value, Converter={StaticResource HexBrush}}" />
+                                                </Border>
+                                            </atom:Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <atom:LineEdit Text="{Binding TeamColor}" Width="92" VerticalAlignment="Center" />
+                            </StackPanel>
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Visibility:" Classes="formLabel" />
+                            <StackPanel Grid.Row="4" Grid.Column="1" Spacing="3">
+                                <atom:CheckBox Content="Private team" IsChecked="{Binding IsPrivate}" />
+                                <TextBlock Text="A private team is visible only to its members — and to organisation administrators, who administer every team whether or not they are in it."
+                                           Classes="caption"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Classes="rule" Margin="0,6,0,2" />
+
+                        <TextBlock Text="MEMBERS" Classes="section" />
+
+                        <!-- Membership hangs off a team id, so there is nobody to add until the team
+                             exists. Saving turns this page into that team's page and the section below
+                             comes to life, with the creator already in it as its lead. -->
+                        <TextBlock Text="Create the team first — you become its first lead, and everyone else is added here."
+                                   Classes="caption"
+                                   IsVisible="{Binding IsNew}" />
+
+                        <StackPanel IsVisible="{Binding IsEditing}" Spacing="0">
+
+                            <Grid ColumnDefinitions="*,168,28,28" ColumnSpacing="7"
+                                  Height="20" Margin="0,0,0,3">
+                                <TextBlock Grid.Column="0" Text="Person" Classes="columnHeader" />
+                                <TextBlock Grid.Column="1" Text="Team role" Classes="columnHeader" />
+                            </Grid>
+
+                            <ItemsControl ItemsSource="{Binding Members}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:TeamMemberRowViewModel">
+                                        <StackPanel Margin="0,0,0,4">
+                                            <Grid ColumnDefinitions="*,168,28,28" ColumnSpacing="7">
+                                                <Grid Grid.Column="0" ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                    <atom:Avatar Grid.Column="0" Size="22" Shape="Circle"
+                                                                 Text="{Binding Initials}"
+                                                                 VerticalAlignment="Center" />
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding DisplayName}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding Email}" Classes="caption"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+                                                </Grid>
+
+                                                <atom:ComboBox Grid.Column="1"
+                                                               HorizontalAlignment="Stretch"
+                                                               VerticalAlignment="Center"
+                                                               ItemsSource="{Binding Roles}"
+                                                               SelectedItem="{Binding SelectedRole}"
+                                                               IsEnabled="{Binding !IsBusy}">
+                                                    <atom:ComboBox.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:TeamRoleOption">
+                                                            <TextBlock Text="{Binding Label}"
+                                                                       atom:ToolTip.Tip="{Binding Description}" />
+                                                        </DataTemplate>
+                                                    </atom:ComboBox.ItemTemplate>
+                                                </atom:ComboBox>
+
+                                                <!-- Present only once the row differs from what the
+                                                     server holds, so the button is also the unsaved
+                                                     mark. -->
+                                                <atom:Button Grid.Column="2" Classes="tool"
+                                                             ButtonType="Text"
+                                                             Padding="4,0"
+                                                             Command="{Binding SaveCommand}"
+                                                             IsVisible="{Binding IsDirty}"
+                                                             atom:ToolTip.Tip="Save this role">
+                                                    <controls:Icon Data="{Binding $parent[UserControl].((vm:TeamsViewModel)DataContext).CheckIcon}"
+                                                                   Size="14" />
+                                                </atom:Button>
+
+                                                <atom:PopupConfirm Grid.Column="3"
+                                                                   Title="Remove from this team?"
+                                                                   ConfirmContent="The account is untouched, and everything they wrote here stays."
+                                                                   OkText="Remove"
+                                                                   CancelText="Keep"
+                                                                   ConfirmStatus="Warning"
+                                                                   Confirmed="OnRemoveMemberConfirmed">
+                                                    <atom:Button Classes="tool"
+                                                                 ButtonType="Text"
+                                                                 Padding="4,0"
+                                                                 IsEnabled="{Binding !IsBusy}"
+                                                                 atom:ToolTip.Tip="Remove from the team">
+                                                        <controls:Icon Data="{Binding $parent[UserControl].((vm:TeamsViewModel)DataContext).TrashIcon}"
+                                                                       Size="14" />
+                                                    </atom:Button>
+                                                </atom:PopupConfirm>
+                                            </Grid>
+
+                                            <TextBlock Text="{Binding Error}"
+                                                       IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                       Margin="0,3,0,0"
+                                                       TextWrapping="Wrap"
+                                                       FontSize="{atom:SharedTokenResource FontSizeSM}"
+                                                       Foreground="{atom:SharedTokenResource ColorError}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="Nobody is in this team yet."
+                                       Classes="caption"
+                                       Margin="0,2,0,4"
+                                       IsVisible="{Binding !HasMembers}" />
+
+                            <!-- The add row sits on the same column grid as the rows above it, so it
+                                 reads as the next one rather than as a separate form. -->
+                            <Grid ColumnDefinitions="*,168,28,28" ColumnSpacing="7" Margin="0,6,0,0"
+                                  IsVisible="{Binding HasCandidates}">
+                                <atom:ComboBox Grid.Column="0"
+                                               HorizontalAlignment="Stretch"
+                                               PlaceholderText="Add someone"
+                                               ItemsSource="{Binding Candidates}"
+                                               SelectedItem="{Binding SelectedCandidate}">
+                                    <atom:ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="auth:UserSummary">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding Email}" Classes="caption"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </atom:ComboBox.ItemTemplate>
+                                </atom:ComboBox>
+
+                                <atom:ComboBox Grid.Column="1"
+                                               HorizontalAlignment="Stretch"
+                                               ItemsSource="{Binding Roles}"
+                                               SelectedItem="{Binding NewMemberRole}">
+                                    <atom:ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:TeamRoleOption">
+                                            <TextBlock Text="{Binding Label}"
+                                                       atom:ToolTip.Tip="{Binding Description}" />
+                                        </DataTemplate>
+                                    </atom:ComboBox.ItemTemplate>
+                                </atom:ComboBox>
+
+                                <atom:Button Grid.Column="2" Grid.ColumnSpan="2"
+                                             Classes="tool"
+                                             ButtonType="Text"
+                                             Padding="4,0"
+                                             Command="{Binding AddMemberCommand}"
+                                             IsEnabled="{Binding !IsBusy}"
+                                             atom:ToolTip.Tip="Add to the team">
+                                    <controls:Icon Data="{Binding PlusIcon}" Size="14" />
+                                </atom:Button>
+                            </Grid>
+
+                            <TextBlock Text="Everyone with an active account is already in this team."
+                                       Classes="caption"
+                                       Margin="0,6,0,0"
+                                       IsVisible="{Binding !HasCandidates}" />
+
+                            <TextBlock Text="{Binding RoleDescription}"
+                                       Classes="caption"
+                                       Margin="0,6,0,0"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </StackPanel>
+                </atom:ScrollViewer>
+            </Grid>
+
+            <!-- Command area, on the same footing as the project page's: what went wrong on the left,
+                 what to do next on the right. -->
+            <Border Grid.Row="1"
+                    Background="{atom:SharedTokenResource ColorBgLayout}"
+                    BorderBrush="{atom:SharedTokenResource ColorBorderSecondary}"
+                    BorderThickness="0,1,0,0"
+                    Padding="12,9"
+                    IsVisible="{Binding HasEditor}">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="7">
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding Error}"
+                               IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center"
+                               FontSize="{atom:SharedTokenResource FontSizeSM}"
+                               Foreground="{atom:SharedTokenResource ColorError}" />
+
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding Notice}"
+                               IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center"
+                               FontSize="{atom:SharedTokenResource FontSizeSM}"
+                               Foreground="{atom:SharedTokenResource ColorTextSecondary}" />
+
+                    <TextBlock Grid.Column="1"
+                               Text="Unsaved changes"
+                               IsVisible="{Binding HasUnsavedChanges}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,4,0"
+                               FontSize="{atom:SharedTokenResource FontSizeSM}"
+                               Foreground="{atom:SharedTokenResource ColorTextSecondary}" />
+
+                    <!-- Archiving is how a team ends: deleting one would take its projects, issues and
+                         history with it, so the API does not offer that and neither does this. -->
+                    <atom:PopupConfirm Grid.Column="2"
+                                       Title="Archive this team?"
+                                       ConfirmContent="It leaves the team switcher and its work stops being edited. Restoring it puts everything back."
+                                       OkText="Archive"
+                                       CancelText="Keep"
+                                       ConfirmStatus="Warning"
+                                       Confirmed="OnArchiveConfirmed"
+                                       IsVisible="{Binding CanArchive}">
+                        <atom:Button Content="Archive"
+                                     MinWidth="84"
+                                     HorizontalContentAlignment="Center"
+                                     IsEnabled="{Binding !IsBusy}" />
+                    </atom:PopupConfirm>
+
+                    <atom:Button Grid.Column="2" Content="Restore"
+                                 MinWidth="84"
+                                 HorizontalContentAlignment="Center"
+                                 IsVisible="{Binding CanRestore}"
+                                 IsEnabled="{Binding !IsBusy}"
+                                 Command="{Binding RestoreCommand}" />
+
+                    <atom:Button Grid.Column="3"
+                                 ButtonType="Primary"
+                                 Command="{Binding SaveCommand}"
+                                 IsLoading="{Binding IsBusy}"
+                                 IsEnabled="{Binding !IsBusy}"
+                                 MinWidth="104"
+                                 HorizontalContentAlignment="Center">
+                        <TextBlock Text="{Binding SaveLabel}" />
+                    </atom:Button>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <atom:ProgressBar IsIndeterminate="True"
+                          IsVisible="{Binding IsLoading}"
+                          IsProgressInfoVisible="False"
+                          VerticalAlignment="Top" />
+    </Panel>
+</UserControl>

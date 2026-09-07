@@ -109,6 +109,107 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
         Show(new UsersViewModel(_api, _auth.CurrentUser!) { ConfirmDiscard = ConfirmDiscard });
     }
 
+    /// <summary>Who gets the Teams entry: an owner or administrator, who administers every team and is
+    /// the only one who can create one, and a team lead, who administers the teams they lead. A guest
+    /// is capped at commenting whatever team role they hold, so the entry is not theirs even if one of
+    /// their memberships says Lead — which is the API's rule, read here off the same profile.</summary>
+    public bool CanManageTeams =>
+        CanManageUsers ||
+        (UserRole != "guest" &&
+         _auth.CurrentUser?.Teams.Any(t => string.Equals(t.Role, "Lead", StringComparison.OrdinalIgnoreCase)) == true);
+
+    public bool IsTeamsSelected => Content is TeamsViewModel;
+
+    [RelayCommand]
+    private async Task ManageTeamsAsync()
+    {
+        if (!CanManageTeams || !await MayDiscardAsync()) return;
+
+        var page = new TeamsViewModel(
+            _api, _loggerFactory.CreateLogger<TeamsViewModel>(), _auth.CurrentUser!)
+        {
+            ConfirmDiscard = ConfirmDiscard
+        };
+
+        // A team that was just created, renamed, recoloured or archived changes the switcher above the
+        // sidebar and the rows under it. The page asking for that stays where it is.
+        page.TeamsChanged += () => _ = RefreshTeamsAsync(page);
+
+        Highlight(null);
+        Show(page);
+    }
+
+    /// <summary>Rebuilds the team switcher and the sidebar around a page that is still on screen.
+    ///
+    /// Deliberately not <see cref="LoadTeamsAsync"/>: that one is startup, and everything it touches —
+    /// emptying the combo box, choosing a team, navigating to a view of it — would take the content
+    /// pane away from the page that asked for the refresh, discard prompt and all.</summary>
+    private async Task RefreshTeamsAsync(ViewModelBase page)
+    {
+        if (!ReferenceEquals(Content, page))
+        {
+            return;
+        }
+
+        var shown = _shownTeam?.Id;
+
+        try
+        {
+            var teams = await _api.GetTeamsAsync(CancellationToken.None);
+
+            // The combo box writes a null selection back the moment the collection is emptied; the
+            // guard is what keeps that from reading as the user switching teams.
+            _restoringTeam = true;
+
+            Teams.Clear();
+            foreach (var team in teams)
+            {
+                Teams.Add(team);
+            }
+
+            // An archived team is gone from this list, so falling back to the first is the same choice
+            // the workspace made when it started.
+            SelectedTeam = Teams.FirstOrDefault(t => t.Id == shown) ?? Teams.FirstOrDefault();
+            _shownTeam = SelectedTeam;
+        }
+        catch (Exception ex) when (ex is PlannerApiException or HttpRequestException)
+        {
+            _logger.LogWarning(ex, "Could not refresh the team list");
+            return;
+        }
+        finally
+        {
+            _restoringTeam = false;
+        }
+
+        // The page could have been navigated away from while the list was being fetched, in which case
+        // whatever replaced it built its own navigation and lit its own row.
+        if (!ReferenceEquals(Content, page))
+        {
+            return;
+        }
+
+        PrimaryNav.Clear();
+        ProjectNav.Clear();
+
+        if (SelectedTeam is not { } current)
+        {
+            return;
+        }
+
+        var settings = _settings.Current;
+        settings.LastTeamId = current.Id;
+        _settings.Save(settings);
+
+        PrimaryNav.Add(NavItemViewModel.MyIssues());
+        PrimaryNav.Add(NavItemViewModel.Board(current.Name));
+
+        await LoadProjectNavAsync(current, null, CancellationToken.None);
+
+        // Nothing in the sidebar is what is on screen — the teams page is — so nothing is lit.
+        Highlight(null);
+    }
+
     public string UserInitials => ViewModels.Initials.Of(UserName);
 
     public string LiveText => IsLive ? "Live" : "Offline";
@@ -156,6 +257,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
     partial void OnContentChanged(ViewModelBase? value)
     {
         OnPropertyChanged(nameof(IsUsersSelected));
+        OnPropertyChanged(nameof(IsTeamsSelected));
         OnPropertyChanged(nameof(ContentTitle));
         OnPropertyChanged(nameof(ContentSubtitle));
         OnPropertyChanged(nameof(ContentStatus));
@@ -257,7 +359,9 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
     /// routes deliberately do not: closing the window, and the update service restarting the app.</summary>
     private async Task<bool> MayDiscardAsync()
     {
-        if (Content is UsersViewModel { IsLoading: true }) return false;
+        // A page part-way through a sequence of writes is not interrupted: one of them has already
+        // been accepted by the server, and the page is the only thing that still knows which.
+        if (Content is UsersViewModel { IsLoading: true } or TeamsViewModel { IsBusy: true }) return false;
         if (Content is not IUnsavedWork { HasUnsavedChanges: true } page || ConfirmDiscard is null)
         {
             return true;

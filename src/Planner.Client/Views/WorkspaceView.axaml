@@ -71,6 +71,13 @@
                                      ButtonType="Text" Command="{Binding ManageUsersCommand}"
                                      IsVisible="{Binding CanManageUsers}" Padding="10,4" Content="Users &amp; access" />
 
+                        <!-- Above the team's own views, with the users entry: both are about the
+                             organisation rather than about the team currently selected, and both are
+                             reachable on an installation that has no teams yet. -->
+                        <atom:Button Classes="nav" Classes.selected="{Binding IsTeamsSelected}"
+                                     ButtonType="Text" Command="{Binding ManageTeamsCommand}"
+                                     IsVisible="{Binding CanManageTeams}" Padding="10,4" Content="Teams" />
+
                         <ItemsControl ItemsSource="{Binding PrimaryNav}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:NavItemViewModel">

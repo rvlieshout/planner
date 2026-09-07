@@ -24,14 +24,7 @@ namespace Planner.Client.ViewModels;
 /// are sent, so two people editing different fields of the same project do not overwrite each other.</summary>
 public sealed partial class ProjectEditorViewModel : ViewModelBase, IWorkspaceContent, IUnsavedWork
 {
-    /// <summary>The palette a project can be labelled with. Ten is enough to tell a sidebar full of
-    /// projects apart and few enough that the choice is a glance rather than a colour wheel; anything
-    /// else can still be typed in as hex.</summary>
-    private static readonly string[] Palette =
-    [
-        "#5E6AD2", "#26B5CE", "#4CB782", "#0F7B6C", "#F2C94C",
-        "#F2994A", "#EB5757", "#BB87FC", "#D4A27F", "#95A2B3"
-    ];
+    private static readonly IReadOnlyList<string> Palette = ColorSwatchViewModel.Palette;
 
     private readonly PlannerApiClient _api;
     private readonly ILogger _logger;

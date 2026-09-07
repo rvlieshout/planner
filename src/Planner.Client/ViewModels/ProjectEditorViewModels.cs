@@ -60,10 +60,20 @@ public sealed record LeadOption(TeamMemberDto? Member)
     public string Label => Member?.DisplayName ?? "No lead";
 }
 
-/// <summary>One colour in the project palette. The swatch knows whether it is the chosen one so the
-/// tick can be bound rather than recomputed by a converter on every redraw.</summary>
+/// <summary>One colour in the palette. The swatch knows whether it is the chosen one so the tick can
+/// be bound rather than recomputed by a converter on every redraw.</summary>
 public sealed partial class ColorSwatchViewModel(string value) : ViewModelBase
 {
+    /// <summary>The colours a project or a team can be labelled with. Ten is enough to tell a sidebar
+    /// full of them apart and few enough that the choice is a glance rather than a colour wheel;
+    /// anything else can still be typed in as hex. One palette, so a team and the projects under it
+    /// are drawn from the same set of colours.</summary>
+    public static readonly IReadOnlyList<string> Palette =
+    [
+        "#5E6AD2", "#26B5CE", "#4CB782", "#0F7B6C", "#F2C94C",
+        "#F2994A", "#EB5757", "#BB87FC", "#D4A27F", "#95A2B3"
+    ];
+
     public string Value { get; } = value;
 
     [ObservableProperty]

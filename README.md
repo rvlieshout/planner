@@ -110,6 +110,9 @@ process, which is how the Aspire app host points the client at the API and how a
 aim a machine at its own server without provisioning a settings file first. The client remembers the server and resumes the session on the
 next launch. The sidebar carries My Issues, the team board and one row per project; Ctrl+N files work
 into the current team, Ctrl+Shift+N starts a project, and everything stays live over SignalR.
+Administration sits at the top of that sidebar for the people entitled to it: **Users & access** for
+owners and administrators, and **Teams** — settings and membership, creating and archiving — for them
+and for the leads of the teams they lead.
 
 It is built as a desktop application rather than a page in a window frame: menu bar, toolbar and status
 bar, a sidebar you can drag or collapse, dense selectable lists where Enter and double-click open the
