@@ -54,6 +54,9 @@ public static class AppIcons
     public static Geometry? PriorityHigh => Get("IconSignalHigh");
     public static Geometry? PriorityMedium => Get("IconSignalMedium");
     public static Geometry? PriorityLow => Get("IconSignalLow");
+
+    /// <summary>What "no priority" looks like: the signal bars with none of them raised.</summary>
+    public static Geometry? NoPriority => Get("IconMinus");
     public static Geometry? Label => Get("IconTag");
 
     public static Geometry? Trash => Get("IconTrash");

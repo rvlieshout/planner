@@ -2,29 +2,53 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:atom="https://atomui.net"
              xmlns:vm="using:Planner.Client.ViewModels"
+             xmlns:controls="using:Planner.Client.Controls"
              xmlns:contracts="using:Planner.Contracts.Teams"
-             xmlns:projects="using:Planner.Contracts.Projects"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignWidth="560" d:DesignHeight="560"
+             mc:Ignorable="d" d:DesignWidth="620" d:DesignHeight="540"
              x:Class="Planner.Client.Views.IssueEditorWindow"
              x:DataType="vm:IssueEditorViewModel"
              Icon="/Assets/planner.ico"
              Title="{Binding WindowTitle}"
-             Width="560" Height="560"
-             MinWidth="460" MinHeight="420"
+             Width="620" Height="540"
+             MinWidth="520" MinHeight="420"
              ShowInTaskbar="False"
              WindowStartupLocation="CenterOwner"
              LogoVisibility="Never"
              IsMinimizeCaptionButtonVisible="False">
 
     <atom:Window.Styles>
-        <!-- Right-aligned label column, the way a native property sheet lines its fields up. -->
-        <Style Selector="TextBlock.formLabel">
-            <Setter Property="Foreground" Value="{atom:SharedTokenResource ColorTextSecondary}" />
-            <Setter Property="HorizontalAlignment" Value="Right" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Margin" Value="0,0,8,0" />
+        <!--
+            A property pill.
+
+            Each of these is a real combo box — selection, keyboard, type-ahead — wearing the shape of
+            a chip: filled rather than outlined, sized to whatever it currently holds rather than to a
+            column, and carrying its own icon. That icon and the words in it are the whole label. A
+            pill that reads "No priority" or "Unassigned" says what it is without a caption beside it
+            saying it again, which is the point: an empty box needs "Priority:" to explain itself, and
+            a pill does not.
+        -->
+        <Style Selector="atom|ComboBox.pill">
+            <Setter Property="SizeType" Value="Small" />
+            <Setter Property="StyleVariant" Value="Filled" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Margin" Value="0,0,6,6" />
+        </Style>
+
+        <!-- The two writing surfaces carry no frame: on a dialog this size the box around a field is
+             noise, and the placeholder already says what belongs there. -->
+        <Style Selector="atom|LineEdit.title">
+            <Setter Property="StyleVariant" Value="Borderless" />
+            <Setter Property="IsCustomFontSize" Value="True" />
+            <Setter Property="FontSize" Value="{atom:SharedTokenResource FontSizeHeading5}" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+
+        <Style Selector="atom|TextArea.body">
+            <Setter Property="StyleVariant" Value="Borderless" />
+            <Setter Property="Padding" Value="0" />
         </Style>
     </atom:Window.Styles>
 
@@ -43,147 +67,162 @@
             </StackPanel>
         </Border>
 
-        <Grid Grid.Row="1"
-              Margin="12,12,14,12"
-              ColumnDefinitions="72,*,72,*"
-              RowDefinitions="Auto,*,Auto,Auto,Auto,Auto"
-              RowSpacing="7" ColumnSpacing="0">
+        <!--
+            The description takes the star row, so it is the field that grows with the dialog and there
+            is never a band of dead space under the properties. Everything else is exactly as tall as
+            what it holds.
+        -->
+        <Grid Grid.Row="1" Margin="14,12,16,12"
+              RowDefinitions="Auto,*,Auto,Auto" RowSpacing="6">
 
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="Title:" Classes="formLabel" />
-            <atom:LineEdit Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="3"
-                           Text="{Binding IssueTitle}"
-                           PlaceholderText="Short summary of the work" />
+                <atom:LineEdit Grid.Row="0" Classes="title"
+                               Text="{Binding IssueTitle}"
+                               PlaceholderText="Issue title" />
 
-            <TextBlock Grid.Row="1" Grid.Column="0" Text="Description:" Classes="formLabel"
-                       VerticalAlignment="Top" Margin="0,4,8,0" />
-            <!--
-                IsAutoSize is what makes this a text area rather than a tall box with two editable lines
-                in the middle of it. Left off, AtomUI pins the inner scroll viewer to exactly Lines
-                (default 2) high and centres it in whatever space the control was given, so the frame
-                stretches to fill the row while the text — and the caret — stay in a two-line band. On,
-                the viewer follows the control, and the row's star height is the height of the field.
-            -->
-            <atom:TextArea Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
-                           Text="{Binding Description}"
-                           PlaceholderText="Optional detail"
-                           AcceptsReturn="True"
-                           TextWrapping="Wrap"
-                           AcceptsTab="False"
-                           IsAutoSize="True"
-                           MinHeight="84"
-                           VerticalContentAlignment="Top" />
+                <!-- IsAutoSize, or AtomUI pins the editable region to two lines and centres it in the
+                     space the control was given. -->
+                <atom:TextArea Grid.Row="1" Classes="body"
+                               Text="{Binding Description}"
+                               PlaceholderText="Add description…"
+                               AcceptsReturn="True"
+                               TextWrapping="Wrap"
+                               AcceptsTab="False"
+                               IsAutoSize="True"
+                               MinHeight="96"
+                               VerticalContentAlignment="Top" />
 
-            <TextBlock Grid.Row="2" Grid.Column="0" Text="Status:" Classes="formLabel" />
-            <atom:ComboBox Grid.Row="2" Grid.Column="1"
-                           HorizontalAlignment="Stretch"
-                           Margin="0,0,10,0"
-                           ItemsSource="{Binding States}" SelectedItem="{Binding SelectedState}">
-                <atom:ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="contracts:WorkflowStateDto">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <Ellipse Width="8" Height="8" VerticalAlignment="Center"
-                                     Fill="{Binding Color, Converter={StaticResource HexBrush}}" />
-                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </DataTemplate>
-                </atom:ComboBox.ItemTemplate>
-            </atom:ComboBox>
+                <!--
+                    The properties, as one wrapping row of pills rather than a column of captioned
+                    fields. Order is the order they get answered in: where the work stands, how much it
+                    matters, who has it, and then where it belongs.
+                -->
+                <WrapPanel Grid.Row="2" Margin="0,4,0,0">
 
-            <TextBlock Grid.Row="2" Grid.Column="2" Text="Priority:" Classes="formLabel" />
-            <atom:ComboBox Grid.Row="2" Grid.Column="3"
-                           HorizontalAlignment="Stretch"
-                           ItemsSource="{Binding Priorities}" SelectedItem="{Binding SelectedPriority}">
-                <atom:ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:PriorityOption">
-                        <TextBlock Text="{Binding Label}" />
-                    </DataTemplate>
-                </atom:ComboBox.ItemTemplate>
-            </atom:ComboBox>
+                    <atom:ComboBox Classes="pill"
+                                   ItemsSource="{Binding States}"
+                                   SelectedItem="{Binding SelectedState}"
+                                   atom:ToolTip.Tip="Status">
+                        <atom:ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="contracts:WorkflowStateDto">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                             Fill="{Binding Color, Converter={StaticResource HexBrush}}" />
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </atom:ComboBox.ItemTemplate>
+                    </atom:ComboBox>
 
-            <TextBlock Grid.Row="3" Grid.Column="0" Text="Assignee:" Classes="formLabel" />
-            <atom:ComboBox Grid.Row="3" Grid.Column="1"
-                           HorizontalAlignment="Stretch"
-                           Margin="0,0,10,0"
-                           ItemsSource="{Binding Assignees}"
-                           SelectedItem="{Binding SelectedAssignee}"
-                           PlaceholderText="Unassigned">
-                <atom:ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="contracts:TeamMemberDto">
-                        <TextBlock Text="{Binding DisplayName}" />
-                    </DataTemplate>
-                </atom:ComboBox.ItemTemplate>
-            </atom:ComboBox>
+                    <atom:ComboBox Classes="pill"
+                                   ItemsSource="{Binding Priorities}"
+                                   SelectedItem="{Binding SelectedPriority}"
+                                   atom:ToolTip.Tip="Priority">
+                        <atom:ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:PriorityOption">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <controls:Icon Data="{Binding Icon}" Size="13"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{Binding Color, Converter={StaticResource HexBrush}}" />
+                                    <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </atom:ComboBox.ItemTemplate>
+                    </atom:ComboBox>
 
-            <TextBlock Grid.Row="3" Grid.Column="2" Text="Estimate:" Classes="formLabel" />
-            <atom:NumericUpDown Grid.Row="3" Grid.Column="3"
-                                HorizontalAlignment="Stretch"
-                                Value="{Binding Estimate}"
-                                Minimum="0" Maximum="1000" Increment="1"
-                                FormatString="0"
-                                PlaceholderText="—" />
+                    <atom:ComboBox Classes="pill"
+                                   ItemsSource="{Binding Assignees}"
+                                   SelectedItem="{Binding SelectedAssignee}"
+                                   atom:ToolTip.Tip="Assignee">
+                        <atom:ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:AssigneeOption">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <atom:Avatar Size="16" Shape="Circle"
+                                                 Text="{Binding Initials}"
+                                                 IsVisible="{Binding HasMember}"
+                                                 VerticalAlignment="Center" />
+                                    <controls:Icon Data="{Binding Icon}"
+                                                   Size="14"
+                                                   IsVisible="{Binding !HasMember}"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{atom:SharedTokenResource ColorTextTertiary}" />
+                                    <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </atom:ComboBox.ItemTemplate>
+                    </atom:ComboBox>
 
-            <TextBlock Grid.Row="4" Grid.Column="0" Text="Project:" Classes="formLabel" />
-            <atom:ComboBox Grid.Row="4" Grid.Column="1"
-                           HorizontalAlignment="Stretch"
-                           Margin="0,0,10,0"
-                           ItemsSource="{Binding Projects}"
-                           SelectedItem="{Binding SelectedProject}"
-                           PlaceholderText="No project">
-                <atom:ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="projects:ProjectDto">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <Ellipse Width="8" Height="8" VerticalAlignment="Center"
-                                     Fill="{Binding Color, Converter={StaticResource HexBrush}}" />
-                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </DataTemplate>
-                </atom:ComboBox.ItemTemplate>
-            </atom:ComboBox>
+                    <atom:ComboBox Classes="pill"
+                                   ItemsSource="{Binding Projects}"
+                                   SelectedItem="{Binding SelectedProject}"
+                                   atom:ToolTip.Tip="Project">
+                        <atom:ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ProjectOption">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                             Fill="{Binding Color, Converter={StaticResource HexBrush}}" />
+                                    <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </atom:ComboBox.ItemTemplate>
+                    </atom:ComboBox>
 
-            <TextBlock Grid.Row="4" Grid.Column="2" Text="Milestone:" Classes="formLabel"
-                       IsVisible="{Binding SelectedProject, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            <atom:ComboBox Grid.Row="4" Grid.Column="3"
-                           HorizontalAlignment="Stretch"
-                           IsVisible="{Binding SelectedProject, Converter={x:Static ObjectConverters.IsNotNull}}"
-                           ItemsSource="{Binding Milestones}"
-                           SelectedItem="{Binding SelectedMilestone}"
-                           PlaceholderText="No milestone">
-                <atom:ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="projects:MilestoneDto">
-                        <TextBlock Text="{Binding Name}" />
-                    </DataTemplate>
-                </atom:ComboBox.ItemTemplate>
-            </atom:ComboBox>
+                    <atom:ComboBox Classes="pill"
+                                   ItemsSource="{Binding Milestones}"
+                                   SelectedItem="{Binding SelectedMilestone}"
+                                   IsVisible="{Binding HasProject}"
+                                   atom:ToolTip.Tip="Milestone">
+                        <atom:ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:MilestoneOption">
+                                <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </atom:ComboBox.ItemTemplate>
+                    </atom:ComboBox>
 
-            <TextBlock Grid.Row="5" Grid.Column="0" Text="Labels:" Classes="formLabel"
-                       VerticalAlignment="Top" Margin="0,2,8,0"
-                       IsVisible="{Binding HasLabels}" />
+                    <atom:ComboBox Classes="pill"
+                                   ItemsSource="{Binding Estimates}"
+                                   SelectedItem="{Binding SelectedEstimate}"
+                                   atom:ToolTip.Tip="Estimate">
+                        <atom:ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:EstimateOption">
+                                <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </atom:ComboBox.ItemTemplate>
+                    </atom:ComboBox>
+                </WrapPanel>
 
-            <!-- A label is picked, not typed, and the tag that shows it on a card is the same shape as
-                 the one that toggles it here — which is the whole reason to use AtomUI's checkable tag
-                 rather than a toggle button dressed up to look like one.
+                <!--
+                    A label is picked, not typed, and the tag that shows it on a card is the same shape
+                    as the one that toggles it here — which is the whole reason to use AtomUI's
+                    checkable tag rather than a toggle button dressed up to look like one.
 
-                 The colours are set locally so that they survive being checked: the theme paints the
-                 checked state through a selector, and a local value outranks one. -->
-            <ItemsControl Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="3"
-                          ItemsSource="{Binding Labels}"
-                          IsVisible="{Binding HasLabels}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <WrapPanel />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:LabelChipViewModel">
-                        <atom:CheckableTag Content="{Binding Name}"
-                                           IsChecked="{Binding IsSelected}"
-                                           Background="{Binding ChipBackground, Converter={StaticResource HexBrush}}"
-                                           BorderBrush="{Binding Color, Converter={StaticResource HexBrush}}"
-                                           Foreground="{Binding ChipForeground, Converter={StaticResource HexBrush}}"
-                                           Margin="0,0,4,4" />
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                    The colours are set locally so that they survive being checked: the theme paints the
+                    checked state through a selector, and a local value outranks one.
+                -->
+                <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="7"
+                            IsVisible="{Binding HasLabels}">
+                    <controls:Icon Data="{Binding LabelIcon}" Size="13"
+                                   VerticalAlignment="Top" Margin="0,3,0,0"
+                                   Foreground="{atom:SharedTokenResource ColorTextTertiary}"
+                                   atom:ToolTip.Tip="Labels" />
+
+                    <ItemsControl ItemsSource="{Binding Labels}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LabelChipViewModel">
+                                <atom:CheckableTag Content="{Binding Name}"
+                                                   IsChecked="{Binding IsSelected}"
+                                                   Background="{Binding ChipBackground, Converter={StaticResource HexBrush}}"
+                                                   BorderBrush="{Binding Color, Converter={StaticResource HexBrush}}"
+                                                   Foreground="{Binding ChipForeground, Converter={StaticResource HexBrush}}"
+                                                   Margin="0,0,4,4" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
         </Grid>
 
         <!-- Command area. Buttons bottom-right, destructive action kept far away on the left. -->

@@ -109,7 +109,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
         Show(new UsersViewModel(_api, _auth.CurrentUser!) { ConfirmDiscard = ConfirmDiscard });
     }
 
-    public string UserInitials => Initials(UserName);
+    public string UserInitials => ViewModels.Initials.Of(UserName);
 
     public string LiveText => IsLive ? "Live" : "Offline";
 
@@ -559,17 +559,6 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
         {
             content.ApplyIssueChange(change);
         }
-    }
-
-    private static string Initials(string displayName)
-    {
-        var parts = displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length switch
-        {
-            0 => "?",
-            1 => parts[0][..1].ToUpperInvariant(),
-            _ => (parts[0][..1] + parts[^1][..1]).ToUpperInvariant()
-        };
     }
 
     public async ValueTask DisposeAsync()

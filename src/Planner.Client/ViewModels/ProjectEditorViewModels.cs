@@ -72,10 +72,11 @@ public sealed partial class ColorSwatchViewModel(string value) : ViewModelBase
 
 /// <summary>One milestone, editable in place.
 ///
-/// Each row saves itself. A milestone is its own resource on the server — its own POST, PATCH and
-/// DELETE — and rolling them into the project's Save button would mean one button standing for a batch
-/// of independent requests, any of which can fail on its own. So the row carries its own busy state and
-/// its own error, and the Save button lights up only once something in that row has actually changed.</summary>
+/// A milestone is its own resource on the server — its own POST, PATCH and DELETE — so the row owns its
+/// request, its busy state and its error, and its tick appears only once something in that row has
+/// actually changed. What the row does not own is *when* it is saved: the page's Save button drives
+/// every dirty row as well as the project, because a button called "Save changes" on a page that shows
+/// an unsaved mark has to be able to clear that mark. The tick remains for saving one row alone.</summary>
 public sealed partial class MilestoneRowViewModel : ViewModelBase
 {
     private readonly PlannerApiClient _api;
@@ -158,8 +159,10 @@ public sealed partial class MilestoneRowViewModel : ViewModelBase
         SaveCommand.NotifyCanExecuteChanged();
     }
 
+    /// <summary>Saves this row. Internal because the page's Save button drives it directly rather than
+    /// through the command — it needs to await each row in turn and see which ones stayed dirty.</summary>
     [RelayCommand(CanExecute = nameof(CanSave))]
-    private async Task SaveAsync(CancellationToken ct)
+    internal async Task SaveAsync(CancellationToken ct)
     {
         var name = NameValue;
 

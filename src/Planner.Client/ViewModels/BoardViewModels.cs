@@ -37,7 +37,8 @@ public sealed partial class IssueCardViewModel(IssueSummary issue) : ViewModelBa
 
     public Guid? AssigneeId => Issue.Assignee?.Id;
 
-    public string? AssigneeInitials => Issue.Assignee is null ? null : Initials(Issue.Assignee.DisplayName);
+    public string? AssigneeInitials =>
+        Issue.Assignee is null ? null : ViewModels.Initials.Of(Issue.Assignee.DisplayName);
 
     public string? AssigneeName => Issue.Assignee?.DisplayName;
 
@@ -99,17 +100,6 @@ public sealed partial class IssueCardViewModel(IssueSummary issue) : ViewModelBa
         {
             OnPropertyChanged(property);
         }
-    }
-
-    private static string Initials(string displayName)
-    {
-        var parts = displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length switch
-        {
-            0 => "?",
-            1 => parts[0][..1].ToUpperInvariant(),
-            _ => (parts[0][..1] + parts[^1][..1]).ToUpperInvariant()
-        };
     }
 
     private static string Age(DateTimeOffset when)

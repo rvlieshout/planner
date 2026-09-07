@@ -418,29 +418,48 @@ public sealed partial class ProjectEditorViewModel : ViewModelBase, IWorkspaceCo
 
         try
         {
-            var saved = ProjectId is { } projectId
-                ? await _api.UpdateProjectAsync(projectId, BuildPatch(name, start, target), ct)
-                : await _api.CreateProjectAsync(BuildCreate(name, start, target), ct);
-
             var created = ProjectId is null;
 
-            // A create is the moment this stops being a form and becomes the project's page: the id
-            // arrives, the heading changes, and the milestone section has something to POST to.
-            ProjectId = saved.Id;
-            Remember(saved);
-
-            if (created)
+            if (created || IsFormDirty)
             {
-                OnPropertyChanged(nameof(IsEditing));
-                OnPropertyChanged(nameof(Subtitle));
-                OnPropertyChanged(nameof(SaveLabel));
-                NotifyMilestonesChanged();
+                var saved = ProjectId is { } projectId
+                    ? await _api.UpdateProjectAsync(projectId, BuildPatch(name, start, target), ct)
+                    : await _api.CreateProjectAsync(BuildCreate(name, start, target), ct);
+
+                // A create is the moment this stops being a form and becomes the project's page: the id
+                // arrives, the heading changes, and the milestone section has something to POST to.
+                ProjectId = saved.Id;
+                Remember(saved);
+
+                if (created)
+                {
+                    OnPropertyChanged(nameof(IsEditing));
+                    OnPropertyChanged(nameof(Subtitle));
+                    OnPropertyChanged(nameof(SaveLabel));
+                    NotifyMilestonesChanged();
+                }
+
+                _logger.LogInformation("{Action} project {Name}", created ? "Created" : "Updated", saved.Name);
+                Saved?.Invoke(saved);
             }
 
-            Notice = created ? "Project created." : "Saved.";
-            _logger.LogInformation("{Action} project {Name}", created ? "Created" : "Updated", saved.Name);
+            // The milestones are on this page, so they are part of saving it. Anything typed into the
+            // add row counts too: a name sitting there when Save is pressed was meant to be added.
+            await AddPendingMilestoneAsync(ct);
+            var unsaved = await SaveMilestonesAsync(ct);
 
-            Saved?.Invoke(saved);
+            if (unsaved > 0)
+            {
+                // Each row already says what went wrong with it; the page only says how many, so that
+                // Save never reports success over work that is still sitting there.
+                Error = unsaved == 1
+                    ? "One milestone could not be saved — see the row for why."
+                    : $"{unsaved} milestones could not be saved — see the rows for why.";
+            }
+            else
+            {
+                Notice = created ? "Project created." : "Saved.";
+            }
         }
         catch (PlannerApiException ex)
         {
@@ -462,14 +481,12 @@ public sealed partial class ProjectEditorViewModel : ViewModelBase, IWorkspaceCo
     [RelayCommand]
     private async Task AddMilestoneAsync(CancellationToken ct)
     {
-        if (ProjectId is not { } projectId)
+        if (ProjectId is null)
         {
             return;
         }
 
-        var name = Trimmed(NewMilestoneName);
-
-        if (string.IsNullOrEmpty(name))
+        if (string.IsNullOrWhiteSpace(NewMilestoneName))
         {
             Error = "Give the milestone a name.";
             return;
@@ -480,22 +497,7 @@ public sealed partial class ProjectEditorViewModel : ViewModelBase, IWorkspaceCo
 
         try
         {
-            var created = await _api.CreateMilestoneAsync(
-                projectId,
-                new CreateMilestoneRequest(
-                    name,
-                    null,
-                    MilestoneRowViewModel.ToDateOnly(NewMilestoneTargetDate),
-                    NewMilestoneStatus?.Value ?? MilestoneStatus.Upcoming),
-                ct);
-
-            Milestones.Add(new MilestoneRowViewModel(_api, _logger, created));
-
-            NewMilestoneName = string.Empty;
-            NewMilestoneTargetDate = null;
-            NewMilestoneStatus = MilestoneStatusOption.All[0];
-
-            _logger.LogInformation("Added milestone {Name}", created.Name);
+            await AddPendingMilestoneAsync(ct);
         }
         catch (PlannerApiException ex)
         {
@@ -510,6 +512,54 @@ public sealed partial class ProjectEditorViewModel : ViewModelBase, IWorkspaceCo
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>Adds whatever is sitting in the add row, and nothing if it is empty. Throws: the
+    /// callers own the busy state and the error, because one of them is saving the whole page.</summary>
+    private async Task AddPendingMilestoneAsync(CancellationToken ct)
+    {
+        var name = Trimmed(NewMilestoneName);
+
+        if (ProjectId is not { } projectId || string.IsNullOrEmpty(name))
+        {
+            return;
+        }
+
+        var created = await _api.CreateMilestoneAsync(
+            projectId,
+            new CreateMilestoneRequest(
+                name,
+                null,
+                MilestoneRowViewModel.ToDateOnly(NewMilestoneTargetDate),
+                NewMilestoneStatus?.Value ?? MilestoneStatus.Upcoming),
+            ct);
+
+        Milestones.Add(new MilestoneRowViewModel(_api, _logger, created));
+
+        NewMilestoneName = string.Empty;
+        NewMilestoneTargetDate = null;
+        NewMilestoneStatus = MilestoneStatusOption.All[0];
+
+        _logger.LogInformation("Added milestone {Name}", created.Name);
+    }
+
+    /// <summary>Saves every row that differs from the server, and reports how many would not go. A row
+    /// that fails keeps its own error and stays dirty, which is what the page counts.</summary>
+    private async Task<int> SaveMilestonesAsync(CancellationToken ct)
+    {
+        var unsaved = 0;
+
+        foreach (var row in Milestones.Where(m => m.IsDirty).ToList())
+        {
+            await row.SaveAsync(ct);
+
+            if (row.IsDirty)
+            {
+                unsaved++;
+            }
+        }
+
+        return unsaved;
     }
 
     [RelayCommand]

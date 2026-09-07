@@ -211,12 +211,54 @@ opens the window when that becomes non-null and closes it when it clears. Closin
 title bar runs `CloseEditorCommand`, or the workspace would still believe a form was open and refuse
 to open the next one.
 
+### The shape of it
+
+Title, description, and then one wrapping row of **property pills** — no caption column.
+
+```
+CORE │ CORE-284
+───────────────────────────────────────────────────────────
+Nightly import silently drops rows over 4MB     ← borderless
+The importer streams into a buffer sized from…  ← borderless, takes the star row
+
+● In Progress ▾  ⚠ Urgent ▾  (DW) Dana Whitfield ▾  ● Apollo ▾  Dual-write ▾  5 points ▾
+🏷 bug  performance  needs-design  good-first-issue
+───────────────────────────────────────────────────────────
+Archive                              [Save changes] [Cancel]
+```
+
+Each pill is a real `atom:ComboBox` — selection, keyboard, type-ahead — wearing the shape of a chip:
+`StyleVariant="Filled"`, `SizeType="Small"`, `MinWidth="0"` so it is as wide as whatever it currently
+holds rather than as wide as a column. One `ItemTemplate` serves both the closed pill and the dropdown
+row, so a property looks the same wherever it is read.
+
+The icon and the words in the pill **are** the label. That only works if a pill always reads as a
+value, which is why every optional property has an explicit empty option — "No priority",
+"Unassigned", "No project", "No milestone", "No estimate" — rather than an empty box. Those options
+earn their place twice over: they are also the only way *back* to empty. Before this the assignee,
+project and milestone combos could be set but never cleared, because there was no row to choose that
+meant "none".
+
+The empty option is not the same thing as no selection, and the view model keeps them apart. Refilling
+a combo's `ItemsSource` — which changing project does to the milestone list — makes it write a null
+selection back down the binding; that reads as *unchanged*, while the explicit empty option reads as
+*clear it*. Collapsing the two would make a field unclearable again. Milestones therefore reset to
+`MilestoneOption.None` explicitly when the project changes, because the milestone the form was holding
+belonged to the project that was just swapped out.
+
+**Estimate** is a combo on the usual 1/2/3/5/8/13/21 scale rather than a numeric spinner: a spinner
+showing a bare number needs a caption to say what the number means, which is the thing this layout is
+trying to stop doing. Anything the server sends that is not on the scale is inserted into it on load,
+so opening an issue pointed by some other means and saving it cannot quietly round the estimate away.
+
+**Assignees** are drawn with `atom:Avatar` initials, not Gravatar: this app makes no outbound calls,
+and `TeamMemberDto.AvatarUrl` is the on-prem hook if a real picture is ever wanted.
+
 **Creating.** Only the title is required — the server fills in the team's default workflow state, no
 priority and no assignee — so an issue can be captured in two keystrokes and fleshed out later. That is
-the difference between a tracker people use and one they route around. Everything else is optional:
-status, priority, assignee (team members only, which the API enforces), estimate, project, milestone
-(filtered to the chosen project) and labels as toggleable chips. Opening the form from inside a project
-pre-selects that project.
+the difference between a tracker people use and one they route around. Assignees are team members
+only, which the API enforces, and milestones are filtered to the chosen project. Opening the form from
+inside a project pre-selects that project.
 
 **Editing.** The form is populated from `GET /api/v1/issues/{id}` — the summary on a card has no
 description, so the detail is fetched. On save it sends a **diff**: the values the form held when it
@@ -263,12 +305,19 @@ editing different fields of the same project do not overwrite each other. Renami
 refreshes the sidebar row and the toolbar heading without a reload.
 
 **Milestones** are listed on the same page and edited in place: name, target date and status, with the
-issue rollup the server computes beside them. Each row saves itself. A milestone is its own POST,
-PATCH and DELETE, and rolling them into the project's Save button would make one button stand for a
-batch of independent requests that can fail separately — so a row carries its own busy state and its
-own error, and its tick appears only once that row differs from what the server holds. The tick is
-therefore also the unsaved-changes mark. Deleting asks first, and says what it costs: the milestone
-goes, its issues stay in the project.
+issue rollup the server computes beside them. A milestone is its own POST, PATCH and DELETE on the
+server, so each row owns its request, its busy state and its error, and its tick appears only once that
+row differs from what the server holds — which makes the tick the row's unsaved mark as well as its
+save button.
+
+What a row does not own is *when* it is saved. **Save changes saves the page**: the project's own
+fields, every dirty milestone row, and anything typed into the add row and not yet added. It has to.
+The page shows one unsaved mark covering all of that, and a button called "Save changes" that leaves
+the mark standing is a button that lies. Rows are saved one at a time after the project; any that the
+server refuses keep their own error and stay dirty, and the page then reports how many rather than
+claiming success over work still sitting there.
+
+Deleting asks first, and says what it costs: the milestone goes, its issues stay in the project.
 
 **Colour** is ten swatches plus a hex box. The swatches are the quick answer and the box is the honest
 one, because the server takes any hex and a team may have a colour of its own. Selection is a ring
@@ -346,6 +395,7 @@ A handful of app classes sit on top, in `App.axaml`:
 | Class | Used for |
 | --- | --- |
 | `atom:ListBox.dense` | The list row reduced to the rectangle around its content, with AtomUI's per-column "No data" placeholder turned off |
+| `atom:ComboBox.pill` | The issue form's property controls: filled, small, and sized to their content, so the value is its own label |
 | `atom:Button.tool` / `.caption` | Toolbar and title-bar buttons, on AtomUI's `Text` button type |
 | `TextBlock.key` | Issue identifiers, in the mono font so a column of them lines up |
 | `TextBlock.caption` | Section labels in the sidebar and forms |

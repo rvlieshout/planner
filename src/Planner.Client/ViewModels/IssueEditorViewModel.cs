@@ -11,22 +11,6 @@ using Planner.Contracts.Teams;
 
 namespace Planner.Client.ViewModels;
 
-/// <summary>A priority the combo box can show, since the enum member alone reads badly in a UI.</summary>
-public sealed record PriorityOption(IssuePriority Value, string Label)
-{
-    public static readonly IReadOnlyList<PriorityOption> All =
-    [
-        new(IssuePriority.None, "No priority"),
-        new(IssuePriority.Urgent, "Urgent"),
-        new(IssuePriority.High, "High"),
-        new(IssuePriority.Medium, "Medium"),
-        new(IssuePriority.Low, "Low")
-    ];
-
-    public static PriorityOption For(IssuePriority priority) =>
-        All.First(p => p.Value == priority);
-}
-
 public sealed partial class LabelChipViewModel(LabelDto label) : ViewModelBase
 {
     public LabelDto Label { get; } = label;
@@ -100,6 +84,10 @@ public sealed partial class IssueEditorViewModel : ViewModelBase
 
         TeamName = teamName;
         SelectedPriority = PriorityOption.All[0];
+        SelectedAssignee = AssigneeOption.Unassigned;
+        SelectedProject = ProjectOption.None;
+        SelectedMilestone = MilestoneOption.None;
+        SelectedEstimate = EstimateOption.None;
     }
 
     public static IssueEditorViewModel ForCreate(
@@ -140,37 +128,41 @@ public sealed partial class IssueEditorViewModel : ViewModelBase
 
     public ObservableCollection<WorkflowStateDto> States { get; } = [];
 
-    public ObservableCollection<TeamMemberDto> Assignees { get; } = [];
+    public ObservableCollection<AssigneeOption> Assignees { get; } = [AssigneeOption.Unassigned];
 
-    public ObservableCollection<ProjectDto> Projects { get; } = [];
+    public ObservableCollection<ProjectOption> Projects { get; } = [ProjectOption.None];
 
-    public ObservableCollection<MilestoneDto> Milestones { get; } = [];
+    public ObservableCollection<MilestoneOption> Milestones { get; } = [MilestoneOption.None];
+
+    public ObservableCollection<EstimateOption> Estimates { get; } = [];
 
     public ObservableCollection<LabelChipViewModel> Labels { get; } = [];
 
     [ObservableProperty]
-    public partial string IssueTitle { get; set; } = string.Empty;
+    public partial string? IssueTitle { get; set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string Description { get; set; } = string.Empty;
+    public partial string? Description { get; set; } = string.Empty;
 
     [ObservableProperty]
     public partial WorkflowStateDto? SelectedState { get; set; }
 
+    // Every one of these is nullable because a combo box whose ItemsSource is refilled writes a null
+    // selection back down the binding; the accessors below read "nothing selected" as "unchanged".
     [ObservableProperty]
-    public partial PriorityOption SelectedPriority { get; set; }
+    public partial PriorityOption? SelectedPriority { get; set; }
 
     [ObservableProperty]
-    public partial TeamMemberDto? SelectedAssignee { get; set; }
+    public partial AssigneeOption? SelectedAssignee { get; set; }
 
     [ObservableProperty]
-    public partial ProjectDto? SelectedProject { get; set; }
+    public partial ProjectOption? SelectedProject { get; set; }
 
     [ObservableProperty]
-    public partial MilestoneDto? SelectedMilestone { get; set; }
+    public partial MilestoneOption? SelectedMilestone { get; set; }
 
     [ObservableProperty]
-    public partial decimal? Estimate { get; set; }
+    public partial EstimateOption? SelectedEstimate { get; set; }
 
     [ObservableProperty]
     public partial bool IsBusy { get; set; }
@@ -182,6 +174,30 @@ public sealed partial class IssueEditorViewModel : ViewModelBase
     public partial string? Error { get; set; }
 
     public bool HasLabels => Labels.Count > 0;
+
+    public Avalonia.Media.Geometry? LabelIcon => Controls.AppIcons.Label;
+
+    /// <summary>A milestone belongs to a project, so the pill only appears once there is one.</summary>
+    public bool HasProject => SelectedProject?.Project is not null;
+
+    private string TitleValue => IssueTitle?.Trim() ?? string.Empty;
+
+    private string? DescriptionValue =>
+        string.IsNullOrWhiteSpace(Description) ? null : Description;
+
+    private Guid StateId => SelectedState?.Id ?? _originalStateId;
+
+    private IssuePriority PriorityValue => SelectedPriority?.Value ?? _originalPriority;
+
+    /// <summary>Nothing selected means unchanged; the explicit empty option — "Unassigned", "No
+    /// project" — means clear it. Collapsing those two would make the field unclearable.</summary>
+    private Guid? AssigneeId => SelectedAssignee is { } option ? option.Member?.UserId : _originalAssigneeId;
+
+    private Guid? ProjectId => SelectedProject is { } option ? option.Project?.Id : _originalProjectId;
+
+    private Guid? MilestoneId => SelectedMilestone is { } option ? option.Milestone?.Id : _originalMilestoneId;
+
+    private int? EstimateValue => SelectedEstimate is { } option ? option.Value : _originalEstimate;
 
     /// <summary>Raised with the saved issue so the current view can show it without waiting for the
     /// socket to echo it back.</summary>
@@ -207,7 +223,8 @@ public sealed partial class IssueEditorViewModel : ViewModelBase
 
                 if (DefaultProjectId is { } preselect)
                 {
-                    SelectedProject = Projects.FirstOrDefault(p => p.Id == preselect);
+                    SelectedProject =
+                        Projects.FirstOrDefault(p => p.Project?.Id == preselect) ?? ProjectOption.None;
                 }
             }
         }
@@ -233,17 +250,24 @@ public sealed partial class IssueEditorViewModel : ViewModelBase
 
         foreach (var member in await _api.GetTeamMembersAsync(_teamId, ct))
         {
-            Assignees.Add(member);
+            Assignees.Add(new AssigneeOption(member));
         }
 
         foreach (var project in (await _api.GetProjectsAsync(_teamId, ct)).Items)
         {
-            Projects.Add(project);
+            Projects.Add(new ProjectOption(project));
         }
 
         foreach (var label in await _api.GetTeamLabelsAsync(_teamId, ct))
         {
             Labels.Add(new LabelChipViewModel(label));
+        }
+
+        Estimates.Add(EstimateOption.None);
+
+        foreach (var points in EstimateOption.Scale)
+        {
+            Estimates.Add(new EstimateOption(points));
         }
 
         OnPropertyChanged(nameof(HasLabels));
@@ -262,24 +286,27 @@ public sealed partial class IssueEditorViewModel : ViewModelBase
         Description = issue.Description ?? string.Empty;
         SelectedState = States.FirstOrDefault(s => s.Id == issue.StateId);
         SelectedPriority = PriorityOption.For(issue.Priority);
-        SelectedAssignee = Assignees.FirstOrDefault(a => a.UserId == issue.Assignee?.Id);
-        SelectedProject = Projects.FirstOrDefault(p => p.Id == issue.ProjectId);
-        Estimate = issue.Estimate;
+        SelectedAssignee = Assignees.FirstOrDefault(a => a.Member?.UserId == issue.Assignee?.Id)
+                           ?? AssigneeOption.Unassigned;
+        SelectedProject = Projects.FirstOrDefault(p => p.Project?.Id == issue.ProjectId)
+                          ?? ProjectOption.None;
+        SelectedEstimate = EstimateFor(issue.Estimate);
 
         foreach (var chip in Labels)
         {
             chip.IsSelected = issue.Labels.Any(l => l.Id == chip.Id);
         }
 
-        if (SelectedProject is { } project)
+        if (SelectedProject.Project is { } project)
         {
             await LoadMilestonesAsync(project.Id, ct);
-            SelectedMilestone = Milestones.FirstOrDefault(m => m.Id == issue.MilestoneId);
+            SelectedMilestone = Milestones.FirstOrDefault(m => m.Milestone?.Id == issue.MilestoneId)
+                                ?? MilestoneOption.None;
         }
 
         _populating = false;
 
-        _originalTitle = IssueTitle;
+        _originalTitle = TitleValue;
         _originalDescription = issue.Description;
         _originalStateId = issue.StateId;
         _originalPriority = issue.Priority;
@@ -291,21 +318,49 @@ public sealed partial class IssueEditorViewModel : ViewModelBase
 
         OnPropertyChanged(nameof(Heading));
         OnPropertyChanged(nameof(WindowTitle));
+        OnPropertyChanged(nameof(HasProject));
     }
 
-    partial void OnSelectedProjectChanged(ProjectDto? value)
+    /// <summary>The estimate the issue actually carries, adding it to the scale when it is not on it —
+    /// so an issue pointed by some other means keeps its number instead of being rounded away by the
+    /// act of opening the form.</summary>
+    private EstimateOption EstimateFor(int? estimate)
     {
+        if (estimate is not { } points)
+        {
+            return EstimateOption.None;
+        }
+
+        if (Estimates.FirstOrDefault(e => e.Value == points) is { } known)
+        {
+            return known;
+        }
+
+        var option = new EstimateOption(points);
+        var at = Estimates.TakeWhile(e => e.Value is { } v && v < points).Count();
+        Estimates.Insert(Math.Max(at, 1), option);
+
+        return option;
+    }
+
+    partial void OnSelectedProjectChanged(ProjectOption? value)
+    {
+        OnPropertyChanged(nameof(HasProject));
+
         if (_populating)
         {
             return;
         }
 
+        // Explicitly "no milestone" rather than no selection: the milestone the form was holding
+        // belonged to the project that was just swapped out, and must not survive it.
         Milestones.Clear();
-        SelectedMilestone = null;
+        Milestones.Add(MilestoneOption.None);
+        SelectedMilestone = MilestoneOption.None;
 
-        if (value is not null)
+        if (value?.Project is { } project)
         {
-            _ = LoadMilestonesAsync(value.Id, CancellationToken.None);
+            _ = LoadMilestonesAsync(project.Id, CancellationToken.None);
         }
     }
 
@@ -313,12 +368,17 @@ public sealed partial class IssueEditorViewModel : ViewModelBase
     {
         try
         {
-            Milestones.Clear();
+            var milestones = await _api.GetMilestonesAsync(projectId, ct);
 
-            foreach (var milestone in await _api.GetMilestonesAsync(projectId, ct))
+            Milestones.Clear();
+            Milestones.Add(MilestoneOption.None);
+
+            foreach (var milestone in milestones)
             {
-                Milestones.Add(milestone);
+                Milestones.Add(new MilestoneOption(milestone));
             }
+
+            SelectedMilestone ??= MilestoneOption.None;
         }
         catch (Exception ex) when (ex is PlannerApiException or HttpRequestException)
         {
@@ -331,7 +391,7 @@ public sealed partial class IssueEditorViewModel : ViewModelBase
     {
         Error = null;
 
-        if (string.IsNullOrWhiteSpace(IssueTitle))
+        if (string.IsNullOrEmpty(TitleValue))
         {
             Error = "Give the issue a title.";
             return;
@@ -406,15 +466,15 @@ public sealed partial class IssueEditorViewModel : ViewModelBase
 
         return new CreateIssueRequest(
             _teamId,
-            IssueTitle.Trim(),
-            string.IsNullOrWhiteSpace(Description) ? null : Description,
+            TitleValue,
+            DescriptionValue,
             SelectedState?.Id,
-            SelectedPriority.Value,
-            SelectedAssignee?.UserId,
-            SelectedProject?.Id,
-            SelectedMilestone?.Id,
+            PriorityValue,
+            AssigneeId,
+            ProjectId,
+            MilestoneId,
             null,
-            Estimate is null ? null : (int)Estimate,
+            EstimateValue,
             null,
             labelIds.Count == 0 ? null : labelIds);
     }
@@ -424,25 +484,20 @@ public sealed partial class IssueEditorViewModel : ViewModelBase
     /// overwrites it with a value this form happened to be holding.</summary>
     private UpdateIssueRequest BuildPatch()
     {
-        var title = IssueTitle.Trim();
-        var description = string.IsNullOrWhiteSpace(Description) ? null : Description;
-        var stateId = SelectedState?.Id ?? _originalStateId;
-        var assigneeId = SelectedAssignee?.UserId;
-        var projectId = SelectedProject?.Id;
-        var milestoneId = SelectedMilestone?.Id;
-        var estimate = Estimate is null ? (int?)null : (int)Estimate;
+        var title = TitleValue;
+        var description = DescriptionValue;
         var labelIds = SelectedLabelIds();
 
         return new UpdateIssueRequest(
             Title: When(title != _originalTitle, title),
             Description: When(description != _originalDescription, description),
-            StateId: When(stateId != _originalStateId, stateId),
-            Priority: When(SelectedPriority.Value != _originalPriority, SelectedPriority.Value),
-            AssigneeId: When(assigneeId != _originalAssigneeId, assigneeId),
-            ProjectId: When(projectId != _originalProjectId, projectId),
-            MilestoneId: When(milestoneId != _originalMilestoneId, milestoneId),
+            StateId: When(StateId != _originalStateId, StateId),
+            Priority: When(PriorityValue != _originalPriority, PriorityValue),
+            AssigneeId: When(AssigneeId != _originalAssigneeId, AssigneeId),
+            ProjectId: When(ProjectId != _originalProjectId, ProjectId),
+            MilestoneId: When(MilestoneId != _originalMilestoneId, MilestoneId),
             ParentId: default,
-            Estimate: When(estimate != _originalEstimate, estimate),
+            Estimate: When(EstimateValue != _originalEstimate, EstimateValue),
             DueDate: default,
             SortOrder: default,
             LabelIds: When(!labelIds.OrderBy(id => id).SequenceEqual(_originalLabelIds.OrderBy(id => id)),
