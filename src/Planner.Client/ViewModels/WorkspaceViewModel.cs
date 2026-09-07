@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Planner.Client.Controls;
 using Planner.Client.Services;
 using Planner.Contracts.Issues;
+using Planner.Contracts.Projects;
 using Planner.Contracts.Realtime;
 using Planner.Contracts.Teams;
 
@@ -25,6 +26,16 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
     private readonly ILogger<WorkspaceViewModel> _logger;
 
     private CancellationTokenSource _contentLoad = new();
+
+    /// <summary>Where the sidebar was when the project page opened, so closing it lands somewhere the
+    /// user recognises rather than on whatever the shell considers home.</summary>
+    private NavItemViewModel? _navBeforeProjectEditor;
+
+    /// <summary>The team the workspace is actually showing. <see cref="SelectedTeam"/> is what the
+    /// combo box holds, and the two disagree for as long as it takes to answer a discard prompt.</summary>
+    private TeamDto? _shownTeam;
+
+    private bool _restoringTeam;
 
     public WorkspaceViewModel(
         PlannerApiClient api,
@@ -44,6 +55,13 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
         _realtime.IssueChanged += OnIssueChanged;
         _realtime.ConnectedChanged += connected => Dispatcher.UIThread.Post(() => IsLive = connected);
     }
+
+    /// <summary>Asked before a page holding unsaved work is replaced; true means go ahead and discard.
+    ///
+    /// Set by the view, which is the layer that can put a modal on the screen. Left unset — the XAML
+    /// previewer, a test — navigation is never interrupted, which is the right default for a caller
+    /// that has no user to ask.</summary>
+    public Func<string, Task<bool>>? ConfirmDiscard { get; set; }
 
     public ObservableCollection<TeamDto> Teams { get; } = [];
 
@@ -81,8 +99,6 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
 
     public string UserInitials => Initials(UserName);
 
-    public bool HasProjects => ProjectNav.Count > 0;
-
     public string LiveText => IsLive ? "Live" : "Offline";
 
     /// <summary>Green when the socket is up, grey when the view is only as fresh as the last fetch.</summary>
@@ -95,6 +111,8 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
     public Geometry? SignOutIcon => AppIcons.SignOut;
 
     public Geometry? TeamIcon => AppIcons.Team;
+
+    public Geometry? SettingsIcon => AppIcons.Settings;
 
     public string ContentTitle => (Content as IWorkspaceContent)?.Title ?? string.Empty;
 
@@ -110,6 +128,17 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
     {
         OnPropertyChanged(nameof(LiveText));
         OnPropertyChanged(nameof(LiveColor));
+    }
+
+    /// <summary>Whether the thing on screen belongs to a project, and so whether there are project
+    /// settings to open. A bindable property rather than the command's own CanExecute, which is a
+    /// method and cannot be bound to.</summary>
+    public bool IsProjectSelected => SelectedNav?.Kind == NavKind.Project;
+
+    partial void OnSelectedNavChanged(NavItemViewModel? value)
+    {
+        OnPropertyChanged(nameof(IsProjectSelected));
+        EditProjectCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnContentChanged(ViewModelBase? value)
@@ -129,6 +158,13 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
                 break;
             case nameof(IWorkspaceContent.IsLoading):
                 OnPropertyChanged(nameof(IsContentLoading));
+                break;
+            // Renaming a project on its own page has to reach the toolbar strip above it.
+            case nameof(IWorkspaceContent.Title):
+                OnPropertyChanged(nameof(ContentTitle));
+                break;
+            case nameof(IWorkspaceContent.Subtitle):
+                OnPropertyChanged(nameof(ContentSubtitle));
                 break;
         }
     }
@@ -165,6 +201,27 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
 
     partial void OnSelectedTeamChanged(TeamDto? value)
     {
+        if (!_restoringTeam)
+        {
+            _ = SwitchTeamAsync(value);
+        }
+    }
+
+    /// <summary>Switching teams throws the current page away like any other navigation, so it asks
+    /// first — and puts the combo box back where it was if the answer is no. The combo box has already
+    /// moved by the time this runs; that is what <see cref="_shownTeam"/> is for.</summary>
+    private async Task SwitchTeamAsync(TeamDto? value)
+    {
+        if (!await MayDiscardAsync())
+        {
+            _restoringTeam = true;
+            SelectedTeam = _shownTeam;
+            _restoringTeam = false;
+            return;
+        }
+
+        _shownTeam = value;
+
         if (value is null)
         {
             PrimaryNav.Clear();
@@ -177,7 +234,22 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
         settings.LastTeamId = value.Id;
         _settings.Save(settings);
 
-        _ = BuildNavigationAsync(value, CancellationToken.None);
+        await BuildNavigationAsync(value, CancellationToken.None);
+    }
+
+    /// <summary>The whole of the guard: does the page on screen hold anything, and if so may it go?
+    ///
+    /// Every route that replaces the content pane goes through here — the sidebar, the View and Project
+    /// menus, the project page's own Close button, switching team, refreshing, and signing out. Two
+    /// routes deliberately do not: closing the window, and the update service restarting the app.</summary>
+    private async Task<bool> MayDiscardAsync()
+    {
+        if (Content is not IUnsavedWork { HasUnsavedChanges: true } page || ConfirmDiscard is null)
+        {
+            return true;
+        }
+
+        return await ConfirmDiscard(page.UnsavedSummary);
     }
 
     private async Task BuildNavigationAsync(TeamDto team, CancellationToken ct)
@@ -190,6 +262,99 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
         PrimaryNav.Add(NavItemViewModel.MyIssues());
         PrimaryNav.Add(NavItemViewModel.Board(team.Name));
 
+        await LoadProjectNavAsync(team, null, ct);
+
+        // First open lands on My Issues: it is the one view that is about the person rather than the
+        // team, and it is the question someone opens a tracker to answer. Switching teams otherwise
+        // keeps the kind of view they were on — except a project view, which cannot survive the switch
+        // because the project belonged to the team they just left.
+        Navigate(previousKind switch
+        {
+            NavKind.Board or NavKind.Project => PrimaryNav[1],
+            _ => PrimaryNav[0]
+        });
+    }
+
+    [RelayCommand]
+    private async Task SelectAsync(NavItemViewModel? item)
+    {
+        if (item is null || SelectedTeam is null || !await MayDiscardAsync())
+        {
+            return;
+        }
+
+        Navigate(item);
+    }
+
+    /// <summary>The move itself, past the guard. Separate so the routes that have already asked — a
+    /// team switch, closing the project page — do not ask a second time.</summary>
+    private void Navigate(NavItemViewModel item)
+    {
+        if (SelectedTeam is not { } team)
+        {
+            return;
+        }
+
+        Highlight(item);
+
+        IIssueContent content = item.Kind switch
+        {
+            NavKind.MyIssues => new MyIssuesViewModel(
+                _api, _loggerFactory.CreateLogger<MyIssuesViewModel>(), _auth.CurrentUser!.Id),
+
+            NavKind.Project => new BoardViewModel(
+                _api, _loggerFactory.CreateLogger<BoardViewModel>(), team.Id,
+                item.Title, "Project board", item.ProjectId),
+
+            _ => new BoardViewModel(
+                _api, _loggerFactory.CreateLogger<BoardViewModel>(), team.Id,
+                team.Name, $"{team.Key} · all issues")
+        };
+
+        content.IssueActivated += card => _ = OpenIssueAsync(card);
+        Show(content);
+    }
+
+    /// <summary>Lights one navigation row and nothing else. Passing null leaves the sidebar with no
+    /// selection, which is what the new-project page wants: it belongs to no row yet.</summary>
+    private void Highlight(NavItemViewModel? item)
+    {
+        foreach (var nav in PrimaryNav.Concat(ProjectNav))
+        {
+            nav.IsSelected = ReferenceEquals(nav, item);
+        }
+
+        SelectedNav = item;
+    }
+
+    /// <summary>Puts a page in the content pane and starts it loading.</summary>
+    private void Show(IWorkspaceContent content)
+    {
+        // Cancel whatever the previous view was still fetching: its results are no longer wanted.
+        _contentLoad.Cancel();
+        _contentLoad.Dispose();
+        _contentLoad = new CancellationTokenSource();
+        var ct = _contentLoad.Token;
+
+        if (Content is INotifyPropertyChanged previous)
+        {
+            previous.PropertyChanged -= OnContentPropertyChanged;
+        }
+
+        var next = (ViewModelBase)content;
+        next.PropertyChanged += OnContentPropertyChanged;
+
+        Content = next;
+        _ = content.LoadAsync(ct);
+    }
+
+    /// <summary>Fills the PROJECTS section, optionally lighting one of the rows it just built.
+    ///
+    /// Called on a team switch and again after every project save. Rebuilt rather than patched: the
+    /// rows are cheap, and the alternative is keeping a hand-written merge in step with a name change,
+    /// a colour change, a new project and a reordering all at once.</summary>
+    private async Task LoadProjectNavAsync(TeamDto team, Guid? selectProjectId, CancellationToken ct)
+    {
         ProjectNav.Clear();
 
         try
@@ -206,85 +371,97 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
             _logger.LogWarning(ex, "Could not load projects for {TeamKey}", team.Key);
         }
 
-        OnPropertyChanged(nameof(HasProjects));
-
-        // First open lands on My Issues: it is the one view that is about the person rather than the
-        // team, and it is the question someone opens a tracker to answer. Switching teams otherwise
-        // keeps the kind of view they were on — except a project view, which cannot survive the switch
-        // because the project belonged to the team they just left.
-        Select(previousKind switch
+        if (selectProjectId is { } projectId &&
+            ProjectNav.FirstOrDefault(n => n.ProjectId == projectId) is { } row)
         {
-            NavKind.Board or NavKind.Project => PrimaryNav[1],
-            _ => PrimaryNav[0]
-        });
+            Highlight(row);
+        }
     }
 
+    /// <summary>The sidebar's ＋, Project ▸ New Project, or Ctrl+Shift+N. Opens the project form as a
+    /// page: no row owns it yet, so the sidebar shows no selection while it is up.</summary>
     [RelayCommand]
-    private void Select(NavItemViewModel? item)
+    private async Task NewProjectAsync()
     {
-        if (item is null || SelectedTeam is not { } team)
+        if (SelectedTeam is not { } team || !await MayDiscardAsync())
         {
             return;
         }
 
-        foreach (var nav in PrimaryNav.Concat(ProjectNav))
+        _navBeforeProjectEditor = SelectedNav;
+        Highlight(null);
+
+        ShowProjectEditor(ProjectEditorViewModel.ForCreate(
+            _api, _loggerFactory.CreateLogger<ProjectEditorViewModel>(), team.Id, team.Name));
+    }
+
+    /// <summary>Opens the selected project's settings. The row stays lit: this page is that project,
+    /// seen from a different side.</summary>
+    [RelayCommand(CanExecute = nameof(CanEditProject))]
+    private async Task EditProjectAsync()
+    {
+        if (SelectedTeam is not { } team ||
+            SelectedNav is not { Kind: NavKind.Project, ProjectId: { } projectId } ||
+            !await MayDiscardAsync())
         {
-            nav.IsSelected = ReferenceEquals(nav, item);
+            return;
         }
 
-        SelectedNav = item;
+        _navBeforeProjectEditor = SelectedNav;
 
-        // Cancel whatever the previous view was still fetching: its results are no longer wanted.
-        _contentLoad.Cancel();
-        _contentLoad.Dispose();
-        _contentLoad = new CancellationTokenSource();
-        var ct = _contentLoad.Token;
+        ShowProjectEditor(ProjectEditorViewModel.ForEdit(
+            _api, _loggerFactory.CreateLogger<ProjectEditorViewModel>(), team.Id, team.Name, projectId));
+    }
 
-        IWorkspaceContent content = item.Kind switch
+    private bool CanEditProject() => SelectedNav?.Kind == NavKind.Project;
+
+    private void ShowProjectEditor(ProjectEditorViewModel editor)
+    {
+        editor.Saved += project => _ = OnProjectSavedAsync(project);
+        editor.Closed += () => _ = CloseProjectEditorAsync(editor);
+
+        Show(editor);
+    }
+
+    private Task OnProjectSavedAsync(ProjectDto project) =>
+        SelectedTeam is { } team
+            ? LoadProjectNavAsync(team, project.Id, CancellationToken.None)
+            : Task.CompletedTask;
+
+    private async Task CloseProjectEditorAsync(ProjectEditorViewModel editor)
+    {
+        if (!ReferenceEquals(Content, editor))
         {
-            NavKind.MyIssues => new MyIssuesViewModel(
-                _api, _loggerFactory.CreateLogger<MyIssuesViewModel>(), _auth.CurrentUser!.Id),
-
-            NavKind.Project => new BoardViewModel(
-                _api, _loggerFactory.CreateLogger<BoardViewModel>(), team.Id,
-                item.Title, "Project board", item.ProjectId),
-
-            _ => new BoardViewModel(
-                _api, _loggerFactory.CreateLogger<BoardViewModel>(), team.Id,
-                team.Name, $"{team.Key} · all issues")
-        };
-
-        content.IssueActivated += card => _ = OpenIssueAsync(card);
-
-        if (Content is INotifyPropertyChanged previous)
-        {
-            previous.PropertyChanged -= OnContentPropertyChanged;
+            return;
         }
 
-        var next = (ViewModelBase)content;
-        next.PropertyChanged += OnContentPropertyChanged;
+        // A project that now exists is the obvious place to land — including one created a moment ago,
+        // whose board is empty and waiting for its first issue. Routed through the guarded command, so
+        // Close asks about unsaved work exactly as the sidebar would.
+        var landing = editor.ProjectId is { } projectId
+            ? ProjectNav.FirstOrDefault(n => n.ProjectId == projectId)
+            : null;
 
-        Content = next;
-        _ = content.LoadAsync(ct);
+        await SelectAsync(landing ?? _navBeforeProjectEditor ?? PrimaryNav.FirstOrDefault());
     }
 
     /// <summary>View ▸ My Issues (Ctrl+1). Menu entries address the navigation by kind rather than by
     /// the item instance the sidebar happens to hold.</summary>
     [RelayCommand]
-    private void ShowMyIssues()
+    private async Task ShowMyIssuesAsync()
     {
         if (PrimaryNav.Count > 0)
         {
-            Select(PrimaryNav[0]);
+            await SelectAsync(PrimaryNav[0]);
         }
     }
 
     [RelayCommand]
-    private void ShowBoard()
+    private async Task ShowBoardAsync()
     {
         if (PrimaryNav.Count > 1)
         {
-            Select(PrimaryNav[1]);
+            await SelectAsync(PrimaryNav[1]);
         }
     }
 
@@ -294,7 +471,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
     [RelayCommand]
     private async Task RefreshAsync(CancellationToken ct)
     {
-        if (Content is IWorkspaceContent content)
+        if (Content is IWorkspaceContent content && await MayDiscardAsync())
         {
             await content.LoadAsync(ct);
         }
@@ -351,14 +528,20 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
     private void CloseEditor() => Editor = null;
 
     [RelayCommand]
-    private void SignOut() => _auth.SignOut();
+    private async Task SignOutAsync()
+    {
+        if (await MayDiscardAsync())
+        {
+            _auth.SignOut();
+        }
+    }
 
     private void OnIssueChanged(EntityChange<IssueSummary> change) =>
         Dispatcher.UIThread.Post(() => ApplyToContent(change));
 
     private void ApplyToContent(EntityChange<IssueSummary> change)
     {
-        if (Content is IWorkspaceContent content)
+        if (Content is IIssueContent content)
         {
             content.ApplyIssueChange(change);
         }

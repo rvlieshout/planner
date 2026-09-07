@@ -94,10 +94,20 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <TextBlock Text="PROJECTS"
-                                   Classes="caption"
-                                   Margin="10,14,0,4"
-                                   IsVisible="{Binding HasProjects}" />
+                        <!-- Always shown, projects or not: the ＋ beside it is how the first one gets
+                             made, and a section that only appears once you have one cannot say that. -->
+                        <Grid ColumnDefinitions="*,Auto" Margin="10,14,4,4">
+                            <TextBlock Grid.Column="0" Text="PROJECTS" Classes="caption"
+                                       VerticalAlignment="Center" />
+                            <atom:Button Grid.Column="1" Classes="tool"
+                                         ButtonType="Text"
+                                         Padding="3,0"
+                                         MinHeight="16"
+                                         Command="{Binding NewProjectCommand}"
+                                         atom:ToolTip.Tip="New project (Ctrl+Shift+N)">
+                                <controls:Icon Data="{Binding PlusIcon}" Size="13" />
+                            </atom:Button>
+                        </Grid>
 
                         <ItemsControl ItemsSource="{Binding ProjectNav}">
                             <ItemsControl.ItemTemplate>
@@ -182,6 +192,20 @@
                                IsVisible="{Binding ContentSubtitle, Converter={x:Static ObjectConverters.IsNotNull}}"
                                Classes="caption"
                                VerticalAlignment="Center" />
+
+                    <!-- Only reachable while a project is the thing on screen, which is also the only
+                         time it means anything. -->
+                    <atom:Button Grid.Column="2" Classes="tool"
+                                 ButtonType="Text"
+                                 HorizontalAlignment="Right"
+                                 Command="{Binding EditProjectCommand}"
+                                 IsVisible="{Binding IsProjectSelected}"
+                                 atom:ToolTip.Tip="Project settings and milestones">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <controls:Icon Data="{Binding SettingsIcon}" Size="14" VerticalAlignment="Center" />
+                            <TextBlock Text="Project" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </atom:Button>
 
                     <atom:Button Grid.Column="3" Classes="tool"
                                  ButtonType="Text"

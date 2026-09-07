@@ -28,6 +28,7 @@
     -->
     <atom:Window.KeyBindings>
         <KeyBinding Gesture="Ctrl+N" Command="{Binding Workspace.NewIssueCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+N" Command="{Binding Workspace.NewProjectCommand}" />
         <KeyBinding Gesture="F5" Command="{Binding Workspace.RefreshCommand}" />
         <KeyBinding Gesture="Ctrl+Shift+M" Command="{Binding Workspace.ShowMyIssuesCommand}" />
         <KeyBinding Gesture="Ctrl+D1" Command="{Binding Workspace.ShowMyIssuesCommand}" />
@@ -90,6 +91,16 @@
                                    ToggleType="CheckBox"
                                    IsChecked="{Binding IsMenuVisible, Mode=OneWay}"
                                    Command="{Binding ToggleMenuCommand}" />
+                </atom:MenuItem>
+
+                <!-- Projects are a noun of their own here, not a filter on issues: they are created,
+                     they carry milestones, and both live on one page. -->
+                <atom:MenuItem Header="_Project">
+                    <atom:MenuItem Header="_New Project…"
+                                   InputGesture="Ctrl+Shift+N"
+                                   Command="{Binding Workspace.NewProjectCommand}" />
+                    <atom:MenuItem Header="Project _Settings…"
+                                   Command="{Binding Workspace.EditProjectCommand}" />
                 </atom:MenuItem>
 
                 <atom:MenuItem Header="_Help">

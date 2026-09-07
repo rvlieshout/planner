@@ -4,9 +4,9 @@ using Planner.Client.ViewModels;
 
 namespace Planner.Client.Views;
 
-/// <summary>Hosts the two pieces of window behaviour a view model cannot express on its own: the
-/// collapsible sidebar column, and the issue editor as a real modal dialog rather than a panel drawn
-/// over the page.</summary>
+/// <summary>Hosts the pieces of window behaviour a view model cannot express on its own: the
+/// collapsible sidebar column, the issue editor as a real modal dialog rather than a panel drawn over
+/// the page, and the question the navigator asks before it throws unsaved work away.</summary>
 public partial class WorkspaceView : UserControl
 {
     private const double DefaultSidebarWidth = 216;
@@ -27,6 +27,7 @@ public partial class WorkspaceView : UserControl
         if (_model is not null)
         {
             _model.PropertyChanged -= OnModelPropertyChanged;
+            _model.ConfirmDiscard = null;
         }
 
         _model = DataContext as WorkspaceViewModel;
@@ -34,6 +35,7 @@ public partial class WorkspaceView : UserControl
         if (_model is not null)
         {
             _model.PropertyChanged += OnModelPropertyChanged;
+            _model.ConfirmDiscard = AskToDiscardAsync;
         }
 
         ApplySidebar();
@@ -51,6 +53,20 @@ public partial class WorkspaceView : UserControl
                 SyncEditor();
                 break;
         }
+    }
+
+    /// <summary>Answers the navigator's question with a real modal. With no window to own it —
+    /// the previewer — the answer is yes: there is nobody to ask, and blocking navigation there would
+    /// be worse than losing a form that was never real.</summary>
+    private async Task<bool> AskToDiscardAsync(string summary)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return true;
+        }
+
+        return await ConfirmWindow.AskAsync(
+            owner, "Discard unsaved changes?", summary, "Discard", "Keep editing");
     }
 
     private void ApplySidebar()

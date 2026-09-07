@@ -37,10 +37,11 @@ real, see [releasing.md](releasing.md).
 Program.cs            VelopackApp.Run() first, then Avalonia
 App.axaml.cs          AtomUI registration and the design tokens, then the DI container and window
 Services/             the parts with no UI: settings, session, API, realtime, updates
-ViewModels/           shell, login, workspace, navigation, board, my issues, new issue, update banner
-Views/                one .axaml per view model, matched by ViewLocator; plus the two real
-                      windows — MainWindow and the IssueEditorWindow dialog — and DragGhostView,
-                      the card that follows the cursor during a drag
+ViewModels/           shell, login, workspace, navigation, board, my issues, issue editor,
+                      project editor, update banner
+Views/                one .axaml per view model, matched by ViewLocator; plus the real windows —
+                      MainWindow, the IssueEditorWindow dialog, About and Confirm — and
+                      DragGhostView, the card that follows the cursor during a drag
 Controls/             the Icon control and the named Lucide geometries
 Converters/           hex colour to brush
 Infrastructure/       app paths, file logging, the Velopack logging bridge
@@ -110,7 +111,7 @@ The left sidebar is the whole app's map:
 | Team switcher | Every team the caller can read. Switching rebuilds the rest of the sidebar. |
 | **My Issues** | Everything assigned to you, across *every* team — not just the one on screen. |
 | *Team name* | The team board: one column per workflow state. |
-| **Projects** | One row per project in the current team, each with the project's own colour. Opens that project's board. |
+| **Projects** | One row per project in the current team, each with the project's own colour. Opens that project's board. The ＋ on the section header starts a new one. |
 | Footer | Who you are signed in as, and the way out. |
 
 The client opens on **My Issues**. It is the one view about the person rather than the team, and it is
@@ -119,6 +120,40 @@ except a project view — that project belongs to the team you just left.
 
 Each row builds its own content view model and cancels whatever the previous one was still fetching,
 so clicking through the sidebar quickly cannot leave a slow response overwriting a newer view.
+
+What the content pane can hold is `IWorkspaceContent`: a title and subtitle for the toolbar strip, a
+line for the status bar, and a way to fill itself. Pages made of issues implement `IIssueContent` on
+top of that, which adds the click-to-open event and the live-update entry point. The project page is
+a form, not a list of issues, and implementing those two as no-ops to satisfy one interface would be
+a page pretending it can show something it cannot.
+
+### Leaving a page with unsaved work
+
+A modal cannot be navigated past. A page can, so the navigator asks first.
+
+A page that can be dirty implements `IUnsavedWork` — `HasUnsavedChanges`, and an `UnsavedSummary` that
+says what stands to be lost in the words the prompt will use. A board or a list does not implement it
+at all and is never interrupted. `WorkspaceViewModel.MayDiscardAsync` is the whole guard, and every
+route that replaces the content pane goes through it:
+
+| Route | Asks |
+| --- | --- |
+| A sidebar row, View ▸ My Issues / Board | Yes |
+| Project ▸ New Project, Project ▸ Settings, the sidebar ＋, the toolbar's Project button | Yes |
+| The project page's own **Close** button | Yes — it routes back through the same command |
+| Switching team | Yes, and the combo box goes back if the answer is no |
+| Refresh (F5) | Yes — reloading discards edits as thoroughly as leaving does |
+| Sign out | Yes |
+| Closing the window, or the updater restarting the app | **No** |
+
+The question reaches the user through `WorkspaceViewModel.ConfirmDiscard`, a `Func<string, Task<bool>>`
+the view sets — the same shape as `PlannerApiClient.OnUnauthorized`, and for the same reason: the view
+model knows when to ask, and only the layer above it can put a window on the screen. Left unset, in
+the previewer or a test, navigation is never interrupted; there is nobody to ask.
+
+`ConfirmWindow` is that window. Its safe answer is its default one: **Keep editing** is both the
+default and the cancel button, so Enter, Escape and the title-bar close all keep the work, and only a
+deliberate click on **Discard** throws it away.
 
 The sidebar is a real Grid column: drag its edge to resize it, or collapse it entirely with Ctrl+B.
 `WorkspaceView.axaml.cs` owns that — the column has to go to zero width *and* drop its MinWidth, which
@@ -139,13 +174,14 @@ and the two quick actions that stand in for it while it is folded — goes in th
 
 | Where | What it carries |
 | --- | --- |
-| Menu bar | File (new issue, refresh, sign out, exit), View (the two views, sidebar toggle), Help (about) |
-| Toolbar strip | The current view's name, and its actions: New Issue, Refresh |
+| Menu bar | File (new issue, refresh, sign out, exit), View (the two views, sidebar toggle), Project (new project, project settings), Help (about) |
+| Toolbar strip | The current view's name, and its actions: Project — only while one is on screen — New Issue, Refresh |
 | Status bar | What the current view holds, whether the socket is live, and the running version |
 
 | Gesture | Does |
 | --- | --- |
 | `Ctrl+N` | New issue |
+| `Ctrl+Shift+N` | New project |
 | `F5` | Refresh the current view |
 | `Ctrl+Shift+M` / `Ctrl+1` | My Issues |
 | `Ctrl+Shift+B` / `Ctrl+2` | The team board |
@@ -201,6 +237,62 @@ On success the result is applied to the current view immediately rather than wai
 echo it back. The upsert is idempotent, so the echo that follows changes nothing. Validation failures
 show the API's own wording — "You can only assign issues to members of the issue's team" beats anything
 the form could invent.
+
+## Creating and editing projects
+
+Projects get a **page**, not a dialog. An issue is one answer and a modal is the right shape for it; a
+project is a thing you create and then keep — it carries milestones, each its own resource on the
+server, and maintaining those is a session rather than a single answer. So `ProjectEditorViewModel`
+is content like any other view: it takes the content pane, sits under the same toolbar and status bar,
+and stays open while the work is done.
+
+Get there by the sidebar's ＋ on the PROJECTS header, **Project ▸ New Project** (Ctrl+Shift+N), or —
+for one that exists — the **Project** button in the toolbar strip, which appears only while a project
+is the thing on screen. **Project ▸ Project Settings** does the same from the keyboard and is disabled
+when nothing is selected.
+
+**Creating.** Only the name is required; status, health, lead, colour and the two dates all have
+defaults. A successful create turns the page into that project's settings page rather than closing it:
+the id arrives, the heading changes, and the milestone section — which needs something to POST to —
+comes to life underneath. That is the whole reason this is a page. **Close** then lands on the new
+project's board, empty and waiting for its first issue.
+
+**Editing.** Populated from `GET /api/v1/projects/{id}`, saved as a **diff** for the same reason the
+issue form sends one: only fields the user actually changed are included in the PATCH, so two people
+editing different fields of the same project do not overwrite each other. Renaming or recolouring
+refreshes the sidebar row and the toolbar heading without a reload.
+
+**Milestones** are listed on the same page and edited in place: name, target date and status, with the
+issue rollup the server computes beside them. Each row saves itself. A milestone is its own POST,
+PATCH and DELETE, and rolling them into the project's Save button would make one button stand for a
+batch of independent requests that can fail separately — so a row carries its own busy state and its
+own error, and its tick appears only once that row differs from what the server holds. The tick is
+therefore also the unsaved-changes mark. Deleting asks first, and says what it costs: the milestone
+goes, its issues stay in the project.
+
+**Colour** is ten swatches plus a hex box. The swatches are the quick answer and the box is the honest
+one, because the server takes any hex and a team may have a colour of its own. Selection is a ring
+around the swatch rather than a tick drawn on it, which would be invisible on the pale half of the
+palette.
+
+The footer says **Unsaved changes** whenever anything on the page differs from what the server holds:
+the form itself, a milestone row edited but not saved, or a milestone typed into the add row and never
+added. That is the same `HasUnsavedChanges` the navigator's guard reads, computed from the fields
+rather than tracked alongside them, so the mark and the prompt can never disagree. Rows are watched by
+virtue of being in the `Milestones` collection rather than by having been added through the right
+helper — one path appending a row directly would otherwise leave its edits invisible to both.
+
+Because it is computed, it is read at moments a form is not usually inspected: on *every* property
+change, including the ones a control makes on its own behalf. Emptying the collection a combo box
+draws from — which reloading the team's members does — makes that box write a null selection back
+down the binding, and clearing a text box writes null rather than `""`. So nothing in the dirty check
+dereferences a bound value directly; each control is read through one accessor that treats "holding
+nothing" as *unchanged*, and those same accessors build the request, so the check and the PATCH cannot
+drift apart. The one distinction that has to survive is the lead: no selection means unchanged, while
+the **No lead** option — a selection with no member behind it — means clear it.
+
+**Archiving a project** is deliberately not offered: the client only lists live projects, so archiving
+one from this page would strand it with no way back.
 
 ## Icons
 
@@ -372,12 +464,16 @@ name, so a `ContentControl` bound to a view model renders the right view with no
 
 The client is a working foundation, not the finished product. Present: sign-in, session resume, team
 switching, the sidebar, My Issues, team and project boards, creating and editing issues in a modal
-dialog, archiving, the menu bar and status bar, keyboard activation and a per-row context menu, live
-updates, and the full update pipeline. Absent, in rough order of what a user
-would miss first:
+dialog, creating and editing projects and their milestones on a page, archiving issues, the menu bar
+and status bar, keyboard activation and a per-row context menu, live updates, and the full update
+pipeline. Absent, in rough order of what a user would miss first:
 
 - **Comments, sub-issues, attachments and the activity feed.** The editor covers an issue's fields;
   everything around the conversation is still API-only (`docs/api.md`).
 - Filtering, search and saved views — the API's filter surface is much richer than the UI exposes.
-- Project and milestone management, and the document views.
+- Archiving and restoring projects, which needs somewhere to see archived ones first.
+- **Live updates for anything but issues.** The socket carries project, milestone, label and member
+  changes too; `RealtimeService` subscribes to `IssueChanged` alone, so a project someone else creates
+  appears on the next refresh rather than immediately.
+- The document views.
 - Offline queueing of writes.

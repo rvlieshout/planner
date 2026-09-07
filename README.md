@@ -109,13 +109,15 @@ Sign in with the same bootstrap owner. `PLANNER_SERVER_URL` overrides the stored
 process, which is how the Aspire app host points the client at the API and how a managed rollout can
 aim a machine at its own server without provisioning a settings file first. The client remembers the server and resumes the session on the
 next launch. The sidebar carries My Issues, the team board and one row per project; Ctrl+N files work
-into the current team, and everything stays live over SignalR.
+into the current team, Ctrl+Shift+N starts a project, and everything stays live over SignalR.
 
 It is built as a desktop application rather than a page in a window frame: menu bar, toolbar and status
 bar, a sidebar you can drag or collapse, dense selectable lists where Enter and double-click open the
 selected issue, drag-and-drop between board columns and My Issues groups, and the issue form as a real
-modal dialog. See [docs/desktop-client.md](docs/desktop-client.md) for the shortcut table and the
-design system behind it.
+modal dialog. Projects go the other way: they are a page in the content pane rather than a dialog,
+because a project is created, then filled in, and its milestones are maintained on the same page. See
+[docs/desktop-client.md](docs/desktop-client.md) for the shortcut table and the design system behind
+it.
 
 The look comes from [AtomUI](https://github.com/AtomUI/AtomUI), an Ant Design component system for
 Avalonia. The client uses its controls throughout and reads its design tokens directly, so both theme

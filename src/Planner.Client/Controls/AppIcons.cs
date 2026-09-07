@@ -55,6 +55,8 @@ public static class AppIcons
     public static Geometry? PriorityMedium => Get("IconSignalMedium");
     public static Geometry? PriorityLow => Get("IconSignalLow");
     public static Geometry? Label => Get("IconTag");
+
+    public static Geometry? Trash => Get("IconTrash");
     public static Geometry? Update => Get("IconCircleArrowUp");
     public static Geometry? Settings => Get("IconSettings");
 }

@@ -16,7 +16,7 @@ namespace Planner.Client.ViewModels;
 /// not line up: "In Review" in one team may not exist in another. Grouped by state type instead, which
 /// is the one thing every team's workflow agrees on.</summary>
 public sealed partial class MyIssuesViewModel(PlannerApiClient api, ILogger logger, Guid userId)
-    : ViewModelBase, IWorkspaceContent
+    : ViewModelBase, IIssueContent
 {
     /// <summary>Workflow states per team, so dropping onto a group does not refetch them every time.
     /// A team's states change rarely, and a stale entry costs nothing worse than one rejected move.</summary>

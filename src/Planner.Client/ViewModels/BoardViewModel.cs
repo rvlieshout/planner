@@ -9,7 +9,7 @@ using Planner.Contracts.Realtime;
 namespace Planner.Client.ViewModels;
 
 /// <summary>A column-per-workflow-state board, for a whole team or for one project within it.</summary>
-public sealed partial class BoardViewModel : ViewModelBase, IWorkspaceContent
+public sealed partial class BoardViewModel : ViewModelBase, IIssueContent
 {
     private readonly PlannerApiClient _api;
     private readonly ILogger _logger;

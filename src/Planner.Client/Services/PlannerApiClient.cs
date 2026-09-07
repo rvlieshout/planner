@@ -120,8 +120,50 @@ public sealed class PlannerApiClient(HttpClient http, ILogger<PlannerApiClient> 
     public Task<PagedResult<ProjectDto>> GetProjectsAsync(Guid teamId, CancellationToken ct) =>
         GetAsync<PagedResult<ProjectDto>>($"api/v1/projects?teamId={teamId}&pageSize=100", ct);
 
+    public Task<ProjectDto> GetProjectAsync(Guid projectId, CancellationToken ct) =>
+        GetAsync<ProjectDto>($"api/v1/projects/{projectId}", ct);
+
+    public Task<ProjectDto> CreateProjectAsync(CreateProjectRequest request, CancellationToken ct) =>
+        SendAsync<ProjectDto>(
+            () => new HttpRequestMessage(HttpMethod.Post, Resolve("api/v1/projects"))
+            {
+                Content = JsonContent.Create(request, options: Json)
+            },
+            ct);
+
+    /// <summary>Sends only the fields the caller actually set; see <see cref="OptionalJson"/>.</summary>
+    public Task<ProjectDto> UpdateProjectAsync(Guid projectId, UpdateProjectRequest request, CancellationToken ct) =>
+        SendAsync<ProjectDto>(
+            () => new HttpRequestMessage(HttpMethod.Patch, Resolve($"api/v1/projects/{projectId}"))
+            {
+                Content = JsonContent.Create(request, options: Json)
+            },
+            ct);
+
     public Task<IReadOnlyList<MilestoneDto>> GetMilestonesAsync(Guid projectId, CancellationToken ct) =>
         GetAsync<IReadOnlyList<MilestoneDto>>($"api/v1/projects/{projectId}/milestones", ct);
+
+    public Task<MilestoneDto> CreateMilestoneAsync(
+        Guid projectId, CreateMilestoneRequest request, CancellationToken ct) =>
+        SendAsync<MilestoneDto>(
+            () => new HttpRequestMessage(HttpMethod.Post, Resolve($"api/v1/projects/{projectId}/milestones"))
+            {
+                Content = JsonContent.Create(request, options: Json)
+            },
+            ct);
+
+    public Task<MilestoneDto> UpdateMilestoneAsync(
+        Guid milestoneId, UpdateMilestoneRequest request, CancellationToken ct) =>
+        SendAsync<MilestoneDto>(
+            () => new HttpRequestMessage(HttpMethod.Patch, Resolve($"api/v1/milestones/{milestoneId}"))
+            {
+                Content = JsonContent.Create(request, options: Json)
+            },
+            ct);
+
+    /// <summary>Removes a milestone. Its issues survive and fall back to the project.</summary>
+    public Task DeleteMilestoneAsync(Guid milestoneId, CancellationToken ct) =>
+        SendAsync(() => new HttpRequestMessage(HttpMethod.Delete, Resolve($"api/v1/milestones/{milestoneId}")), ct);
 
     /// <summary>Everything assigned to one person, across every team they can see. No teamId filter:
     /// "my issues" is a person's whole workload, not their workload in the team currently on screen.</summary>
@@ -179,10 +221,23 @@ public sealed class PlannerApiClient(HttpClient http, ILogger<PlannerApiClient> 
     private Task<T> GetAsync<T>(string path, CancellationToken ct) =>
         SendAsync<T>(() => new HttpRequestMessage(HttpMethod.Get, Resolve(path)), ct);
 
+    private async Task<T> SendAsync<T>(Func<HttpRequestMessage> factory, CancellationToken ct)
+    {
+        using var response = await SendCoreAsync(factory, ct);
+
+        return await response.Content.ReadFromJsonAsync<T>(Json, ct)
+               ?? throw new PlannerApiException(response.StatusCode, "The server returned an empty response.");
+    }
+
+    /// <summary>For the endpoints that answer 204: there is no body to read, and asking for one would
+    /// turn a successful delete into a deserialization failure.</summary>
+    private async Task SendAsync(Func<HttpRequestMessage> factory, CancellationToken ct) =>
+        (await SendCoreAsync(factory, ct)).Dispose();
+
     /// <summary>Sends a request, and on a 401 gives <see cref="OnUnauthorized"/> one chance to refresh
     /// before retrying. One retry only — a refresh token the server rejects will not start working on
     /// the third attempt, and a loop here would hammer the login endpoint.</summary>
-    private async Task<T> SendAsync<T>(Func<HttpRequestMessage> factory, CancellationToken ct)
+    private async Task<HttpResponseMessage> SendCoreAsync(Func<HttpRequestMessage> factory, CancellationToken ct)
     {
         for (var attempt = 0; ; attempt++)
         {
@@ -193,7 +248,7 @@ public sealed class PlannerApiClient(HttpClient http, ILogger<PlannerApiClient> 
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
             }
 
-            using var response = await http.SendAsync(request, ct);
+            var response = await http.SendAsync(request, ct);
 
             if (response.StatusCode == HttpStatusCode.Unauthorized && attempt == 0 && OnUnauthorized is not null)
             {
@@ -201,18 +256,23 @@ public sealed class PlannerApiClient(HttpClient http, ILogger<PlannerApiClient> 
 
                 if (await OnUnauthorized(ct))
                 {
+                    response.Dispose();
                     continue;
                 }
             }
 
             if (!response.IsSuccessStatusCode)
             {
-                var body = await response.Content.ReadAsStringAsync(ct);
-                throw new PlannerApiException(response.StatusCode, DescribeProblem(response.StatusCode, body));
+                using (response)
+                {
+                    var body = await response.Content.ReadAsStringAsync(ct);
+                    throw new PlannerApiException(response.StatusCode, DescribeProblem(response.StatusCode, body));
+                }
             }
 
-            return await response.Content.ReadFromJsonAsync<T>(Json, ct)
-                   ?? throw new PlannerApiException(response.StatusCode, "The server returned an empty response.");
+            // Handed to the caller still open: it owns the disposal, because it is the one that reads
+            // the body.
+            return response;
         }
     }
 

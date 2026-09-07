@@ -1,0 +1,385 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:atom="https://atomui.net"
+             xmlns:vm="using:Planner.Client.ViewModels"
+             xmlns:controls="using:Planner.Client.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="700"
+             x:Class="Planner.Client.Views.ProjectEditorView"
+             x:DataType="vm:ProjectEditorViewModel">
+
+    <UserControl.Styles>
+        <!-- The same right-aligned label column the issue form uses, so the two read as one app. -->
+        <Style Selector="TextBlock.formLabel">
+            <Setter Property="Foreground" Value="{atom:SharedTokenResource ColorTextSecondary}" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+        </Style>
+
+        <!-- Section rules rather than cards: this is a property sheet, not a dashboard. -->
+        <Style Selector="TextBlock.section">
+            <Setter Property="FontSize" Value="{atom:SharedTokenResource FontSizeSM}" />
+            <Setter Property="Foreground" Value="{atom:SharedTokenResource ColorTextSecondary}" />
+        </Style>
+
+        <Style Selector="TextBlock.columnHeader">
+            <Setter Property="FontSize" Value="{atom:SharedTokenResource FontSizeSM}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{atom:SharedTokenResource ColorTextSecondary}" />
+        </Style>
+
+        <!--
+            A colour is picked by clicking the colour, so the button is the swatch and brings no
+            chrome of its own.
+
+            The size lives on the swatch, not the button: AtomUI arranges a button's content at its
+            desired size, and a Border with no child desires nothing at all.
+        -->
+        <Style Selector="atom|Button.swatch">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <!-- AtomUI sizes a button to be clickable as a button; ten of those do not fit on one
+                 row, and the swatch is already a big enough target at 20px. -->
+            <Setter Property="MinWidth" Value="0" />
+        </Style>
+
+        <!-- Selection is a ring around the colour rather than a tick drawn on it, which would be
+             invisible on the pale half of the palette. -->
+        <Style Selector="Border.swatch">
+            <Setter Property="Padding" Value="2" />
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.swatch.selected">
+            <Setter Property="BorderBrush" Value="{atom:SharedTokenResource ColorText}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <Grid RowDefinitions="*,Auto">
+
+            <atom:ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+                <!-- Capped and centred rather than stretched across the whole pane: a form whose fields
+                     run the width of a maximised window is unreadable, and the cap is what keeps the
+                     new-project page and the settings page the same shape. -->
+                <StackPanel Margin="14,12,16,16" Spacing="10" MaxWidth="880">
+
+                    <TextBlock Text="DETAILS" Classes="section" />
+
+                    <Grid ColumnDefinitions="88,*,88,*"
+                          RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                          RowSpacing="7" ColumnSpacing="0">
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Name:" Classes="formLabel" />
+                        <atom:LineEdit Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="3"
+                                       Text="{Binding ProjectName}"
+                                       PlaceholderText="What this project is called" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Summary:" Classes="formLabel" />
+                        <atom:LineEdit Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
+                                       Text="{Binding Summary}"
+                                       PlaceholderText="One line, for the places a description will not fit" />
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Description:" Classes="formLabel"
+                                   VerticalAlignment="Top" Margin="0,4,8,0" />
+                        <!-- IsAutoSize, as on the issue form: without it AtomUI pins the editable
+                             region to two lines and centres it inside the frame. -->
+                        <atom:TextArea Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3"
+                                       Text="{Binding Description}"
+                                       PlaceholderText="Optional detail"
+                                       AcceptsReturn="True"
+                                       TextWrapping="Wrap"
+                                       AcceptsTab="False"
+                                       IsAutoSize="True"
+                                       MinHeight="96"
+                                       VerticalContentAlignment="Top" />
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Status:" Classes="formLabel" />
+                        <atom:ComboBox Grid.Row="3" Grid.Column="1"
+                                       HorizontalAlignment="Stretch"
+                                       Margin="0,0,10,0"
+                                       ItemsSource="{Binding Statuses}"
+                                       SelectedItem="{Binding SelectedStatus}">
+                            <atom:ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ProjectStatusOption">
+                                    <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                            </atom:ComboBox.ItemTemplate>
+                        </atom:ComboBox>
+
+                        <TextBlock Grid.Row="3" Grid.Column="2" Text="Health:" Classes="formLabel" />
+                        <atom:ComboBox Grid.Row="3" Grid.Column="3"
+                                       HorizontalAlignment="Stretch"
+                                       ItemsSource="{Binding Healths}"
+                                       SelectedItem="{Binding SelectedHealth}">
+                            <atom:ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ProjectHealthOption">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                                 Fill="{Binding Color, Converter={StaticResource HexBrush}}" />
+                                        <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </atom:ComboBox.ItemTemplate>
+                        </atom:ComboBox>
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Starts:" Classes="formLabel" />
+                        <atom:DatePicker Grid.Row="4" Grid.Column="1"
+                                         HorizontalAlignment="Stretch"
+                                         Margin="0,0,10,0"
+                                         SelectedDateTime="{Binding StartDate}"
+                                         PlaceholderText="No start date" />
+
+                        <TextBlock Grid.Row="4" Grid.Column="2" Text="Target:" Classes="formLabel" />
+                        <atom:DatePicker Grid.Row="4" Grid.Column="3"
+                                         HorizontalAlignment="Stretch"
+                                         SelectedDateTime="{Binding TargetDate}"
+                                         PlaceholderText="No target date" />
+
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Lead:" Classes="formLabel" />
+                        <atom:ComboBox Grid.Row="5" Grid.Column="1"
+                                       HorizontalAlignment="Stretch"
+                                       Margin="0,0,10,0"
+                                       ItemsSource="{Binding Leads}"
+                                       SelectedItem="{Binding SelectedLead}">
+                            <atom:ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:LeadOption">
+                                    <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                            </atom:ComboBox.ItemTemplate>
+                        </atom:ComboBox>
+
+                        <!-- The palette gets a row to itself: ten swatches and a hex box do not fit in
+                             half of one, and squeezing them there was the only thing on this form that
+                             had to be measured rather than laid out. -->
+                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Colour:" Classes="formLabel" />
+                        <StackPanel Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="3"
+                                    Orientation="Horizontal" Spacing="8">
+                            <ItemsControl ItemsSource="{Binding Swatches}" VerticalAlignment="Center">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="2" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ColorSwatchViewModel">
+                                        <atom:Button Classes="swatch"
+                                                     ButtonType="Text"
+                                                     Command="{Binding $parent[UserControl].((vm:ProjectEditorViewModel)DataContext).PickColorCommand}"
+                                                     CommandParameter="{Binding}"
+                                                     atom:ToolTip.Tip="{Binding Value}">
+                                            <Border Classes="swatch"
+                                                    Classes.selected="{Binding IsSelected}">
+                                                <Border Width="14" Height="14" CornerRadius="3"
+                                                        Background="{Binding Value, Converter={StaticResource HexBrush}}" />
+                                            </Border>
+                                        </atom:Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- The swatches are the quick answer; the box is the honest one, because
+                                 the server takes any hex and a team may have a colour of its own. -->
+                            <atom:LineEdit Text="{Binding ProjectColor}" Width="92"
+                                           VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Classes="rule" Margin="0,6,0,2" />
+
+                    <TextBlock Text="MILESTONES" Classes="section" />
+
+                    <!-- Milestones hang off a project id, so there is nothing to add them to until the
+                         project exists. Saving turns this page into that project's page and the section
+                         below comes to life. -->
+                    <TextBlock Text="Create the project first — milestones are added to a project that exists."
+                               Classes="caption"
+                               IsVisible="{Binding !IsEditing}" />
+
+                    <StackPanel IsVisible="{Binding IsEditing}" Spacing="0">
+
+                        <Grid ColumnDefinitions="*,132,124,72,28,28" ColumnSpacing="7"
+                              Height="20" Margin="0,0,0,3">
+                            <TextBlock Grid.Column="0" Text="Name" Classes="columnHeader" />
+                            <TextBlock Grid.Column="1" Text="Target" Classes="columnHeader" />
+                            <TextBlock Grid.Column="2" Text="Status" Classes="columnHeader" />
+                            <TextBlock Grid.Column="3" Text="Issues" Classes="columnHeader" />
+                        </Grid>
+
+                        <ItemsControl ItemsSource="{Binding Milestones}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:MilestoneRowViewModel">
+                                    <StackPanel Margin="0,0,0,4">
+                                        <Grid ColumnDefinitions="*,132,124,72,28,28" ColumnSpacing="7">
+                                            <atom:LineEdit Grid.Column="0" Text="{Binding Name}"
+                                                           IsEnabled="{Binding !IsBusy}" />
+
+                                            <atom:DatePicker Grid.Column="1"
+                                                             HorizontalAlignment="Stretch"
+                                                             SelectedDateTime="{Binding TargetDate}"
+                                                             IsEnabled="{Binding !IsBusy}"
+                                                             PlaceholderText="No date" />
+
+                                            <atom:ComboBox Grid.Column="2"
+                                                           HorizontalAlignment="Stretch"
+                                                           ItemsSource="{Binding Statuses}"
+                                                           SelectedItem="{Binding SelectedStatus}"
+                                                           IsEnabled="{Binding !IsBusy}">
+                                                <atom:ComboBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:MilestoneStatusOption">
+                                                        <TextBlock Text="{Binding Label}" />
+                                                    </DataTemplate>
+                                                </atom:ComboBox.ItemTemplate>
+                                            </atom:ComboBox>
+
+                                            <TextBlock Grid.Column="3" Text="{Binding ProgressLabel}"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Right"
+                                                       FontSize="{atom:SharedTokenResource FontSizeSM}"
+                                                       atom:ToolTip.Tip="Issues completed, of those in this milestone"
+                                                       Foreground="{atom:SharedTokenResource ColorTextSecondary}" />
+
+                                            <!-- Present only once the row differs from what the server
+                                                 holds, so the button is also the unsaved-changes mark. -->
+                                            <atom:Button Grid.Column="4" Classes="tool"
+                                                         ButtonType="Text"
+                                                         Padding="4,0"
+                                                         Command="{Binding SaveCommand}"
+                                                         IsVisible="{Binding IsDirty}"
+                                                         atom:ToolTip.Tip="Save this milestone">
+                                                <controls:Icon Data="{Binding $parent[UserControl].((vm:ProjectEditorViewModel)DataContext).CheckIcon}"
+                                                               Size="14" />
+                                            </atom:Button>
+
+                                            <atom:PopupConfirm Grid.Column="5"
+                                                               Title="Delete this milestone?"
+                                                               ConfirmContent="Its issues stay in the project."
+                                                               OkText="Delete"
+                                                               CancelText="Keep"
+                                                               ConfirmStatus="Warning"
+                                                               Confirmed="OnDeleteMilestoneConfirmed">
+                                                <atom:Button Classes="tool"
+                                                             ButtonType="Text"
+                                                             Padding="4,0"
+                                                             IsEnabled="{Binding !IsBusy}"
+                                                             atom:ToolTip.Tip="Delete this milestone">
+                                                    <controls:Icon Data="{Binding $parent[UserControl].((vm:ProjectEditorViewModel)DataContext).TrashIcon}"
+                                                                   Size="14" />
+                                                </atom:Button>
+                                            </atom:PopupConfirm>
+                                        </Grid>
+
+                                        <TextBlock Text="{Binding Error}"
+                                                   IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                   Margin="0,3,0,0"
+                                                   TextWrapping="Wrap"
+                                                   FontSize="{atom:SharedTokenResource FontSizeSM}"
+                                                   Foreground="{atom:SharedTokenResource ColorError}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="No milestones yet."
+                                   Classes="caption"
+                                   Margin="0,2,0,4"
+                                   IsVisible="{Binding !HasMilestones}" />
+
+                        <!-- The add row sits on the same column grid as the rows above it, so it reads
+                             as the next one rather than as a separate form. -->
+                        <Grid ColumnDefinitions="*,132,124,72,28,28" ColumnSpacing="7" Margin="0,6,0,0">
+                            <atom:LineEdit Grid.Column="0"
+                                           Text="{Binding NewMilestoneName}"
+                                           PlaceholderText="Add a milestone" />
+
+                            <atom:DatePicker Grid.Column="1"
+                                             HorizontalAlignment="Stretch"
+                                             SelectedDateTime="{Binding NewMilestoneTargetDate}"
+                                             PlaceholderText="No date" />
+
+                            <atom:ComboBox Grid.Column="2"
+                                           HorizontalAlignment="Stretch"
+                                           ItemsSource="{Binding MilestoneStatuses}"
+                                           SelectedItem="{Binding NewMilestoneStatus}">
+                                <atom:ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:MilestoneStatusOption">
+                                        <TextBlock Text="{Binding Label}" />
+                                    </DataTemplate>
+                                </atom:ComboBox.ItemTemplate>
+                            </atom:ComboBox>
+
+                            <atom:Button Grid.Column="4" Grid.ColumnSpan="2"
+                                         Classes="tool"
+                                         ButtonType="Text"
+                                         Padding="4,0"
+                                         Command="{Binding AddMilestoneCommand}"
+                                         IsEnabled="{Binding !IsBusy}"
+                                         atom:ToolTip.Tip="Add this milestone">
+                                <controls:Icon Data="{Binding PlusIcon}" Size="14" />
+                            </atom:Button>
+                        </Grid>
+                    </StackPanel>
+                </StackPanel>
+            </atom:ScrollViewer>
+
+            <!-- Command area, on the same footing as the issue dialog's: what went wrong on the left,
+                 what to do next on the right. -->
+            <Border Grid.Row="1"
+                    Background="{atom:SharedTokenResource ColorBgLayout}"
+                    BorderBrush="{atom:SharedTokenResource ColorBorderSecondary}"
+                    BorderThickness="0,1,0,0"
+                    Padding="12,9">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="7">
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding Error}"
+                               IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center"
+                               FontSize="{atom:SharedTokenResource FontSizeSM}"
+                               Foreground="{atom:SharedTokenResource ColorError}" />
+
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding Notice}"
+                               IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}"
+                               VerticalAlignment="Center"
+                               FontSize="{atom:SharedTokenResource FontSizeSM}"
+                               Foreground="{atom:SharedTokenResource ColorTextSecondary}" />
+
+                    <!-- Its own column rather than the message slot, so it can stand alongside an
+                         error instead of fighting it for the same space. -->
+                    <TextBlock Grid.Column="1"
+                               Text="Unsaved changes"
+                               IsVisible="{Binding HasUnsavedChanges}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,4,0"
+                               FontSize="{atom:SharedTokenResource FontSizeSM}"
+                               Foreground="{atom:SharedTokenResource ColorTextSecondary}" />
+
+                    <atom:Button Grid.Column="2"
+                                 ButtonType="Primary"
+                                 Command="{Binding SaveCommand}"
+                                 IsLoading="{Binding IsBusy}"
+                                 IsEnabled="{Binding !IsBusy}"
+                                 MinWidth="96"
+                                 HorizontalContentAlignment="Center">
+                        <TextBlock Text="{Binding SaveLabel}" />
+                    </atom:Button>
+
+                    <atom:Button Grid.Column="3" Content="Close"
+                                 Command="{Binding CloseCommand}"
+                                 IsEnabled="{Binding !IsBusy}"
+                                 MinWidth="84"
+                                 HorizontalContentAlignment="Center" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <atom:ProgressBar IsIndeterminate="True"
+                          IsVisible="{Binding IsLoading}"
+                          IsProgressInfoVisible="False"
+                          VerticalAlignment="Top" />
+    </Panel>
+</UserControl>

@@ -54,8 +54,8 @@ public sealed partial class NavItemViewModel : ViewModelBase
         new(NavKind.Project, name, null) { ProjectId = id, AccentColor = color };
 }
 
-/// <summary>What the main pane can show. Both implementations take live changes rather than refetching,
-/// so the view the user is looking at is the one that updates.</summary>
+/// <summary>What the main pane can show: a title and subtitle for the toolbar strip, a line for the
+/// status bar, and a way to fill itself.</summary>
 public interface IWorkspaceContent
 {
     string Title { get; }
@@ -68,11 +68,33 @@ public interface IWorkspaceContent
 
     bool IsLoading { get; }
 
+    Task LoadAsync(CancellationToken ct);
+}
+
+/// <summary>A page that can be holding edits the server has not seen.
+///
+/// The workspace asks before it replaces one. A page that cannot be dirty — a board, a list — does not
+/// implement this at all, so navigating away from it is never interrupted. This is what a modal used
+/// to provide for free: the issue form could not be navigated past, and a page can.</summary>
+public interface IUnsavedWork
+{
+    bool HasUnsavedChanges { get; }
+
+    /// <summary>What stands to be lost, phrased for the prompt that asks about it.</summary>
+    string UnsavedSummary { get; }
+}
+
+/// <summary>A page made of issues. These take live changes rather than refetching, so the view the
+/// user is looking at is the one that updates.
+///
+/// Split from <see cref="IWorkspaceContent"/> because not every page is a list of issues — the project
+/// editor is a form — and a page that cannot show an issue should not have to pretend it can by
+/// implementing these as no-ops.</summary>
+public interface IIssueContent : IWorkspaceContent
+{
     /// <summary>Raised when the user clicks an issue. The workspace opens the editor; the content view
     /// does not need to know that, which keeps each view bound only to its own view model.</summary>
     event Action<IssueCardViewModel>? IssueActivated;
-
-    Task LoadAsync(CancellationToken ct);
 
     void ApplyIssueChange(EntityChange<IssueSummary> change);
 }
