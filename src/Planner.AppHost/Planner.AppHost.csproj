@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Pinned rather than centrally managed: an MSBuild SDK is resolved before Directory.Packages.props
+       is read, so this version cannot come from there. Keep it in step with the Aspire.Hosting.*
+       package versions. -->
+  <Sdk Name="Aspire.AppHost.Sdk" Version="13.5.3" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsAspireHost>true</IsAspireHost>
+    <UserSecretsId>planner-apphost-8b3d51c7</UserSecretsId>
+
+    <!-- Ships the Aspire CLI alongside the host, so `aspire run` and `aspire exec` work in a clone
+         without a separate global tool install. -->
+    <AspireUseCliBundle>true</AspireUseCliBundle>
+  </PropertyGroup>
+
+  <!-- Properties/launchSettings.json is not optional furniture here. With no profile the host binds the
+       dashboard to a port chosen at random and nothing opens it, so pressing Start in an IDE looks
+       exactly like the project failing to launch. The profiles pin the dashboard's address and ask for
+       a browser. -->
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+  </ItemGroup>
+
+  <!-- IsAspireProjectResource generates the strongly typed `Projects.*` handles used below. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Planner.Api\Planner.Api.csproj" IsAspireProjectResource="true" />
+    <ProjectReference Include="..\Planner.Client\Planner.Client.csproj" IsAspireProjectResource="true" />
+  </ItemGroup>
+
+</Project>

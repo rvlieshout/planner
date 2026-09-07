@@ -1,26 +1,17 @@
-using Avalonia.Controls;
-using Avalonia.Input;
+using AtomUI.Desktop.Controls;
 using Avalonia.Interactivity;
 
 namespace Planner.Client.Views;
 
+/// <summary>The application window.
+///
+/// It derives from AtomUI's Window rather than Avalonia's, which is what puts the caption strip under
+/// the app's own control: the title bar, its buttons, the drag and double-click behaviour and the
+/// per-platform differences between them all come from the control theme. The window itself only has to
+/// say what else belongs up there, which it does in XAML.</summary>
 public partial class MainWindow : Window
 {
-    public MainWindow()
-    {
-        InitializeComponent();
-
-        // The maximise button shows what it will do next, so the glyph follows the state.
-        PropertyChanged += (_, e) =>
-        {
-            if (e.Property == WindowStateProperty)
-            {
-                ShowStateGlyph();
-            }
-        };
-
-        ShowStateGlyph();
-    }
+    public MainWindow() => InitializeComponent();
 
     /// <summary>Help ▸ About. A modal owned by this window, which is what makes it a dialog rather
     /// than a second application window in the taskbar.</summary>
@@ -28,44 +19,5 @@ public partial class MainWindow : Window
     {
         var about = new AboutWindow { DataContext = DataContext };
         await about.ShowDialog(this);
-    }
-
-    /// <summary>The window is dragged and maximised by its title bar like any other, except that this
-    /// title bar is our own content: the system one is gone, so nothing else is left to do it. Buttons
-    /// and the menu mark the press handled, so only the bare strip drags.</summary>
-    private void OnTitleBarPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-        {
-            return;
-        }
-
-        if (e.ClickCount == 2)
-        {
-            ToggleMaximised();
-            e.Handled = true;
-            return;
-        }
-
-        BeginMoveDrag(e);
-    }
-
-    private void OnMinimiseClick(object? sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
-
-    private void OnMaximiseClick(object? sender, RoutedEventArgs e) => ToggleMaximised();
-
-    private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
-
-    private void ToggleMaximised() =>
-        WindowState = WindowState is WindowState.Maximized
-            ? WindowState.Normal
-            : WindowState.Maximized;
-
-    private void ShowStateGlyph()
-    {
-        var maximised = WindowState is WindowState.Maximized;
-
-        MaximiseGlyph.IsVisible = !maximised;
-        RestoreGlyph.IsVisible = maximised;
     }
 }

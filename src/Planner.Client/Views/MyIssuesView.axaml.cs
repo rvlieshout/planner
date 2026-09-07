@@ -7,7 +7,7 @@ namespace Planner.Client.Views;
 
 public partial class MyIssuesView : UserControl
 {
-    private readonly RowDrag _drag = new();
+    private readonly RowDrag _drag;
 
     /// <summary>The row the context menu was opened over, captured before the menu shows.</summary>
     private IssueCardViewModel? _contextRow;
@@ -19,12 +19,20 @@ public partial class MyIssuesView : UserControl
     {
         InitializeComponent();
 
+        _drag = new RowDrag(this);
+
         // Tunnelling, and on the view rather than on each list: ListBox marks PointerPressed handled
         // while it moves the selection, so a bubbling handler attached in XAML is never called and the
         // drag could never start.
         AddHandler(PointerPressedEvent, OnRowPressed, RoutingStrategies.Tunnel);
         AddHandler(PointerMovedEvent, OnRowMoved, RoutingStrategies.Tunnel);
         AddHandler(PointerReleasedEvent, OnRowReleased, RoutingStrategies.Tunnel);
+
+        // The ghost keeps up with the cursor everywhere in the view, including the strip below the last
+        // group where no group will handle the event.
+        AddHandler(DragDrop.DragOverEvent, OnDragOverPreview, RoutingStrategies.Tunnel);
+        AddHandler(DragDrop.DropEvent, OnDragFinished, RoutingStrategies.Tunnel);
+        AddHandler(DragDrop.DragLeaveEvent, OnDragLeftView);
     }
 
     private void OnRowActivated(object? sender, TappedEventArgs e) => Open(IssueRows.From(e.Source));
@@ -65,6 +73,12 @@ public partial class MyIssuesView : UserControl
 
     private void OnRowReleased(object? sender, PointerReleasedEventArgs e) => _drag.Clear();
 
+    private void OnDragOverPreview(object? sender, DragEventArgs e) => _drag.Track(e.GetPosition(this));
+
+    private void OnDragFinished(object? sender, DragEventArgs e) => _drag.Clear();
+
+    private void OnDragLeftView(object? sender, DragEventArgs e) => Highlight(null);
+
     private void OnGroupDragOver(object? sender, DragEventArgs e)
     {
         var group = Group(sender);
@@ -75,10 +89,10 @@ public partial class MyIssuesView : UserControl
             ? DragDropEffects.Move
             : DragDropEffects.None;
 
-        if (e.DragEffects is DragDropEffects.Move)
-        {
-            Highlight(group);
-        }
+        // Deliberately asymmetric with the effect above: hovering the issue's own group clears the
+        // highlight rather than leaving the previous one lit, so "this drop would do nothing" is
+        // visible as the absence of a target and not only as a cursor glyph.
+        Highlight(e.DragEffects is DragDropEffects.Move ? group : null);
 
         e.Handled = true;
     }

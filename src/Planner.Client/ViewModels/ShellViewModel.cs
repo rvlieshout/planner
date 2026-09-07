@@ -64,14 +64,6 @@ public sealed partial class ShellViewModel : ViewModelBase
 
     public Avalonia.Media.Geometry? RefreshIcon => Controls.AppIcons.Refresh;
 
-    public Avalonia.Media.Geometry? MinimiseIcon => Controls.AppIcons.WindowMinimise;
-
-    public Avalonia.Media.Geometry? MaximiseIcon => Controls.AppIcons.WindowMaximise;
-
-    public Avalonia.Media.Geometry? RestoreIcon => Controls.AppIcons.WindowRestore;
-
-    public Avalonia.Media.Geometry? CloseIcon => Controls.AppIcons.Close;
-
     [RelayCommand]
     private void ToggleMenu() => IsMenuVisible = !IsMenuVisible;
 

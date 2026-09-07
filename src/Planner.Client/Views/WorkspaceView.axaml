@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:atom="https://atomui.net"
              xmlns:vm="using:Planner.Client.ViewModels"
              xmlns:controls="using:Planner.Client.Controls"
              xmlns:contracts="using:Planner.Contracts.Teams"
@@ -12,31 +13,18 @@
     <UserControl.Styles>
         <!--
             Navigation rows are 22px full-bleed strips, not floating pills: no corner radius, no
-            margin, no gap between them. That is what makes a tree read as a tree.
+            margin, no gap between them. That is what makes a tree read as a tree, and it is the one
+            place the app overrides AtomUI's button metrics outright rather than picking a variant.
         -->
-        <Style Selector="Button.nav">
+        <Style Selector="atom|Button.nav">
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="MinHeight" Value="22" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="0" />
-            <Setter Property="Foreground" Value="{DynamicResource AppForeground}" />
-        </Style>
-        <Style Selector="Button.nav /template/ ContentPresenter">
-            <Setter Property="Background" Value="Transparent" />
             <Setter Property="CornerRadius" Value="0" />
         </Style>
-        <Style Selector="Button.nav:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource HoverBackground}" />
-        </Style>
-        <Style Selector="Button.nav.selected /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource SelectedBackground}" />
-        </Style>
-
-        <Style Selector="Button.tool controls|Icon">
-            <Setter Property="Foreground" Value="{DynamicResource MutedForeground}" />
+        <Style Selector="atom|Button.nav.selected">
+            <Setter Property="CustomBackground" Value="{atom:SharedTokenResource ControlItemBgActive}" />
         </Style>
     </UserControl.Styles>
 
@@ -53,17 +41,17 @@
         <Border Grid.Column="0"
                 x:Name="Sidebar"
                 IsVisible="{Binding IsSidebarVisible}"
-                Background="{DynamicResource SidebarBackground}"
-                BorderBrush="{DynamicResource BorderBrush}"
+                Background="{atom:SharedTokenResource ColorBgLayout}"
+                BorderBrush="{atom:SharedTokenResource ColorBorderSecondary}"
                 BorderThickness="0,0,1,0">
             <Grid RowDefinitions="Auto,*,Auto">
 
-                <Border Grid.Row="0" Padding="6,6,6,6">
-                    <ComboBox ItemsSource="{Binding Teams}"
-                              SelectedItem="{Binding SelectedTeam}"
-                              HorizontalAlignment="Stretch"
-                              ToolTip.Tip="Switch team">
-                        <ComboBox.ItemTemplate>
+                <Border Grid.Row="0" Padding="6">
+                    <atom:ComboBox ItemsSource="{Binding Teams}"
+                                   SelectedItem="{Binding SelectedTeam}"
+                                   HorizontalAlignment="Stretch"
+                                   atom:ToolTip.Tip="Switch team">
+                        <atom:ComboBox.ItemTemplate>
                             <DataTemplate x:DataType="contracts:TeamDto">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <Ellipse Width="7" Height="7"
@@ -72,98 +60,96 @@
                                     <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
+                        </atom:ComboBox.ItemTemplate>
+                    </atom:ComboBox>
                 </Border>
 
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,2,0,0">
+                <atom:ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,2,0,0">
                     <StackPanel>
 
                         <ItemsControl ItemsSource="{Binding PrimaryNav}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:NavItemViewModel">
-                                    <Button Classes="nav"
-                                            Classes.selected="{Binding IsSelected}"
-                                            Command="{Binding $parent[UserControl].((vm:WorkspaceViewModel)DataContext).SelectCommand}"
-                                            CommandParameter="{Binding}">
-                                        <Grid ColumnDefinitions="2,Auto,*" ColumnSpacing="0" Height="22">
+                                    <atom:Button Classes="nav"
+                                                 Classes.selected="{Binding IsSelected}"
+                                                 ButtonType="Text"
+                                                 Command="{Binding $parent[UserControl].((vm:WorkspaceViewModel)DataContext).SelectCommand}"
+                                                 CommandParameter="{Binding}">
+                                        <Grid ColumnDefinitions="2,Auto,*" Height="22">
                                             <!-- The marker a native list uses for the current item. -->
                                             <Border Grid.Column="0"
-                                                    Background="{DynamicResource AccentBrush}"
+                                                    Background="{atom:SharedTokenResource ColorPrimary}"
                                                     IsVisible="{Binding IsSelected}" />
                                             <controls:Icon Grid.Column="1" Data="{Binding Icon}" Size="14"
                                                            Margin="8,0,7,0"
-                                                           Foreground="{DynamicResource MutedForeground}"
+                                                           Foreground="{atom:SharedTokenResource ColorTextSecondary}"
                                                            VerticalAlignment="Center" />
                                             <TextBlock Grid.Column="2" Text="{Binding Title}"
-                                                       FontSize="12" VerticalAlignment="Center"
+                                                       VerticalAlignment="Center"
                                                        Margin="0,0,8,0"
                                                        TextTrimming="CharacterEllipsis" />
                                         </Grid>
-                                    </Button>
+                                    </atom:Button>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
                         <TextBlock Text="PROJECTS"
                                    Classes="caption"
-                                   FontSize="10"
                                    Margin="10,14,0,4"
                                    IsVisible="{Binding HasProjects}" />
 
                         <ItemsControl ItemsSource="{Binding ProjectNav}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:NavItemViewModel">
-                                    <Button Classes="nav"
-                                            Classes.selected="{Binding IsSelected}"
-                                            Command="{Binding $parent[UserControl].((vm:WorkspaceViewModel)DataContext).SelectCommand}"
-                                            CommandParameter="{Binding}"
-                                            ToolTip.Tip="{Binding Title}">
+                                    <atom:Button Classes="nav"
+                                                 Classes.selected="{Binding IsSelected}"
+                                                 ButtonType="Text"
+                                                 Command="{Binding $parent[UserControl].((vm:WorkspaceViewModel)DataContext).SelectCommand}"
+                                                 CommandParameter="{Binding}"
+                                                 atom:ToolTip.Tip="{Binding Title}">
                                         <Grid ColumnDefinitions="2,Auto,*" Height="22">
                                             <Border Grid.Column="0"
-                                                    Background="{DynamicResource AccentBrush}"
+                                                    Background="{atom:SharedTokenResource ColorPrimary}"
                                                     IsVisible="{Binding IsSelected}" />
                                             <Ellipse Grid.Column="1" Width="7" Height="7"
                                                      Margin="12,0,10,0"
                                                      Fill="{Binding AccentColor, Converter={StaticResource HexBrush}}"
                                                      VerticalAlignment="Center" />
                                             <TextBlock Grid.Column="2" Text="{Binding Title}"
-                                                       FontSize="12" VerticalAlignment="Center"
+                                                       VerticalAlignment="Center"
                                                        Margin="0,0,8,0"
                                                        TextTrimming="CharacterEllipsis" />
                                         </Grid>
-                                    </Button>
+                                    </atom:Button>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </StackPanel>
-                </ScrollViewer>
+                </atom:ScrollViewer>
 
                 <!-- Who am I, and the way out -->
                 <Border Grid.Row="2"
-                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderBrush="{atom:SharedTokenResource ColorBorderSecondary}"
                         BorderThickness="0,1,0,0"
                         Padding="8,5">
                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="7">
-                        <Border Grid.Column="0" Width="20" Height="20" CornerRadius="3"
-                                Background="{DynamicResource AccentBrush}">
-                            <TextBlock Text="{Binding UserInitials}" FontSize="10"
-                                       Foreground="White"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
+                        <atom:Avatar Grid.Column="0"
+                                     Size="20"
+                                     Shape="Square"
+                                     Text="{Binding UserInitials}" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding UserName}" FontSize="12"
-                                       TextTrimming="CharacterEllipsis"
-                                       Foreground="{DynamicResource AppForeground}" />
-                            <TextBlock Text="{Binding UserRole}" FontSize="10"
-                                       Foreground="{DynamicResource MutedForeground}" />
+                            <TextBlock Text="{Binding UserName}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding UserRole}" Classes="caption" />
                         </StackPanel>
-                        <Button Grid.Column="2" Classes="tool"
-                                Command="{Binding SignOutCommand}"
-                                Padding="4,2"
-                                ToolTip.Tip="Sign out">
+                        <atom:Button Grid.Column="2" Classes="tool"
+                                     ButtonType="Text"
+                                     Command="{Binding SignOutCommand}"
+                                     Padding="4,2"
+                                     atom:ToolTip.Tip="Sign out">
                             <controls:Icon Data="{Binding SignOutIcon}" Size="14" />
-                        </Button>
+                        </atom:Button>
                     </Grid>
                 </Border>
             </Grid>
@@ -179,45 +165,43 @@
         <!-- Content -->
         <Grid Grid.Column="2" RowDefinitions="Auto,*">
 
-            <!-- Toolbar strip: the view's name on the left, its actions on the right, 30px tall. -->
+            <!-- Toolbar strip: the view's name on the left, its actions on the right, 31px tall. -->
             <Border Grid.Row="0"
                     Height="31"
-                    Background="{DynamicResource ChromeBackground}"
-                    BorderBrush="{DynamicResource BorderBrush}"
+                    Background="{atom:SharedTokenResource ColorBgLayout}"
+                    BorderBrush="{atom:SharedTokenResource ColorBorderSecondary}"
                     BorderThickness="0,0,0,1"
                     Padding="9,0">
                 <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="7">
                     <TextBlock Grid.Column="0"
                                Text="{Binding ContentTitle}"
-                               FontSize="12"
-                               VerticalAlignment="Center"
-                               Foreground="{DynamicResource AppForeground}" />
+                               VerticalAlignment="Center" />
 
                     <TextBlock Grid.Column="1"
                                Text="{Binding ContentSubtitle}"
                                IsVisible="{Binding ContentSubtitle, Converter={x:Static ObjectConverters.IsNotNull}}"
-                               FontSize="11"
-                               VerticalAlignment="Center"
-                               Foreground="{DynamicResource MutedForeground}" />
+                               Classes="caption"
+                               VerticalAlignment="Center" />
 
-                    <Button Grid.Column="3" Classes="tool"
-                            Command="{Binding NewIssueCommand}"
-                            ToolTip.Tip="New issue (Ctrl+N)">
+                    <atom:Button Grid.Column="3" Classes="tool"
+                                 ButtonType="Text"
+                                 Command="{Binding NewIssueCommand}"
+                                 atom:ToolTip.Tip="New issue (Ctrl+N)">
                         <StackPanel Orientation="Horizontal" Spacing="5">
                             <controls:Icon Data="{Binding PlusIcon}" Size="14" VerticalAlignment="Center" />
                             <TextBlock Text="New Issue" VerticalAlignment="Center" />
                         </StackPanel>
-                    </Button>
+                    </atom:Button>
 
-                    <Border Grid.Column="4" Width="1" Height="16"
-                            Background="{DynamicResource BorderBrush}"
-                            VerticalAlignment="Center" />
+                    <atom:Separator Grid.Column="4" Orientation="Vertical" Height="16"
+                                    VerticalAlignment="Center" />
 
-                    <Button Grid.Column="5" Classes="tool"
-                            Command="{Binding RefreshCommand}"
-                            ToolTip.Tip="Refresh (F5)">
+                    <atom:Button Grid.Column="5" Classes="tool"
+                                 ButtonType="Text"
+                                 Command="{Binding RefreshCommand}"
+                                 atom:ToolTip.Tip="Refresh (F5)">
                         <controls:Icon Data="{Binding RefreshIcon}" Size="14" />
-                    </Button>
+                    </atom:Button>
                 </Grid>
             </Border>
 

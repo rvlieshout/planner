@@ -1,3 +1,4 @@
+using AtomUI;
 using Avalonia;
 using Microsoft.Extensions.Logging;
 using Planner.Client.Infrastructure;
@@ -52,7 +53,12 @@ internal sealed class Program
 
     public static AppBuilder BuildAvaloniaApp(FileLoggerProvider loggerProvider) =>
         AppBuilder.Configure(() => new App(loggerProvider))
-            .UsePlatformDetect()
+            // AtomUI's own platform detection. It is `UsePlatformDetect` plus the windowing backends
+            // AtomUI draws its window chrome through; the stock call leaves those unregistered and the
+            // title bar falls back to the system caption.
+            .UseAtomUIPlatformDetect()
+            // Registers the render/motion defaults AtomUI's control themes are written against.
+            .WithAtomUIDefaultOptions()
 #if DEBUG
             .WithDeveloperTools()
 #endif

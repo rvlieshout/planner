@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:atom="https://atomui.net"
              xmlns:vm="using:Planner.Client.ViewModels"
              xmlns:controls="using:Planner.Client.Controls"
              xmlns:contracts="using:Planner.Contracts.Teams"
@@ -7,26 +8,82 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
              x:Class="Planner.Client.Views.BoardView"
-             x:DataType="vm:BoardViewModel">
+             x:DataType="vm:BoardViewModel"
+             DragDrop.AllowDrop="True">
 
     <UserControl.Styles>
-        <!-- The column being dragged over says so, so a drop is never a guess. -->
-        <Style Selector="Border.column.dropTarget">
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-            <Setter Property="Background" Value="{DynamicResource SelectedBackground}" />
+        <!--
+            What a drag looks like, in four parts.
+
+            A drop is a guess until the board answers three questions: what am I carrying, where would it
+            land, and would this column take it. The ghost under the cursor answers the first, the rule
+            inside a column answers the second, and the column's own outline answers the third. The
+            fourth part is the row left behind, which steps back so the ghost is the thing being
+            followed.
+
+            Note that the resting appearance of a column and of a card is set here rather than on the
+            elements themselves. It has to be: a value written on the element is a local value, and a
+            local value outranks every Style setter, including the drag states below — so a column with
+            Background="..." on it can never be lit up by a class.
+        -->
+
+        <!-- 1. The column, and the column that would take the drop. -->
+        <Style Selector="Border.column">
+            <Setter Property="Background" Value="{atom:SharedTokenResource ColorBgLayout}" />
+            <Setter Property="BorderBrush" Value="{atom:SharedTokenResource ColorBorderSecondary}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{atom:SharedTokenResource BorderRadius}" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.12" />
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.12" />
+                </Transitions>
+            </Setter>
         </Style>
 
-        <!-- A label is a 2px-cornered tag, not a pill: the same shape the rest of the window uses. -->
-        <Style Selector="Border.label">
-            <Setter Property="CornerRadius" Value="2" />
+        <!-- ColorPrimaryBg — the token this would normally reach for — is paler than the white cards
+             sitting on the column, so lighting a column made it look emptier rather than chosen. One
+             step up the ramp is the first tint that reads as a highlight against a grey column. -->
+        <Style Selector="Border.column.dropTarget">
+            <Setter Property="Background" Value="{atom:SharedTokenResource ColorPrimaryBgHover}" />
+            <Setter Property="BorderBrush" Value="{atom:SharedTokenResource ColorPrimary}" />
+        </Style>
+
+        <!-- 2. The gap the card would land in. Only ever drawn on the column under the cursor, so
+             there is exactly one of these on screen at a time. -->
+        <Style Selector="Border.dropLine">
+            <Setter Property="Height" Value="2" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="CornerRadius" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+            <Setter Property="Background" Value="{atom:SharedTokenResource ColorPrimary}" />
+        </Style>
+
+        <!-- 3. The card, and the card that was picked up. Faded and stripped of its fill: still there,
+             holding its place, but no longer the thing being moved. -->
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{atom:SharedTokenResource ColorBgContainer}" />
+            <Setter Property="BorderBrush" Value="{atom:SharedTokenResource ColorBorderSecondary}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="4,0" />
-            <Setter Property="Margin" Value="0,0,3,0" />
+            <Setter Property="CornerRadius" Value="{atom:SharedTokenResource BorderRadius}" />
+            <Setter Property="Margin" Value="0,0,0,3" />
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.12" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.card.dragging">
+            <Setter Property="Opacity" Value="0.4" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{atom:SharedTokenResource ColorPrimaryBorder}" />
         </Style>
     </UserControl.Styles>
 
     <Panel>
-        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <atom:ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
             <ItemsControl ItemsSource="{Binding Columns}" Margin="8">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -38,16 +95,12 @@
                     <DataTemplate x:DataType="vm:BoardColumnViewModel">
                         <Border Width="262"
                                 Classes="column"
-                                Classes.dropTarget="{Binding IsDropTarget}"
-                                Background="{DynamicResource ColumnBackground}"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="3">
+                                Classes.dropTarget="{Binding IsDropTarget}">
                             <Grid RowDefinitions="Auto,*">
 
                                 <!-- Column header, 24px, with the count where a native list puts it. -->
                                 <Border Grid.Row="0"
-                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderBrush="{atom:SharedTokenResource ColorBorderSecondary}"
                                         BorderThickness="0,0,0,1"
                                         Height="24"
                                         Padding="7,0">
@@ -56,140 +109,124 @@
                                                  VerticalAlignment="Center"
                                                  Fill="{Binding Color, Converter={StaticResource HexBrush}}" />
                                         <TextBlock Grid.Column="1" Text="{Binding Name}"
-                                                   FontSize="12"
                                                    VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   Foreground="{DynamicResource AppForeground}" />
+                                                   TextTrimming="CharacterEllipsis" />
                                         <TextBlock Grid.Column="2" Text="{Binding Count}"
-                                                   FontSize="11"
+                                                   FontSize="{atom:SharedTokenResource FontSizeSM}"
                                                    VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource MutedForeground}" />
+                                                   Foreground="{atom:SharedTokenResource ColorTextSecondary}" />
                                     </Grid>
                                 </Border>
 
-                                <ListBox Grid.Row="1"
-                                         ItemsSource="{Binding Issues}"
-                                         ItemContainerTheme="{StaticResource DenseRow}"
-                                         Background="Transparent"
-                                         BorderThickness="0"
-                                         Padding="4"
-                                         SelectionMode="Single"
-                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                         DoubleTapped="OnRowActivated"
-                                         KeyDown="OnRowKeyDown"
-                                         ContextRequested="OnContextRequested"
-                                         DragDrop.AllowDrop="True"
-                                         DragDrop.DragOver="OnColumnDragOver"
-                                         DragDrop.DragLeave="OnColumnDragLeave"
-                                         DragDrop.Drop="OnColumnDrop">
-                                    <ListBox.ContextMenu>
-                                        <ContextMenu>
-                                            <MenuItem Header="_Open" InputGesture="Enter"
-                                                      Click="OnOpenClick" />
-                                            <MenuItem Header="_Copy Issue Key" Click="OnCopyKeyClick" />
-                                        </ContextMenu>
-                                    </ListBox.ContextMenu>
+                                <!-- The list, and the rule drawn over it. The rule is a sibling rather
+                                     than an item so it can sit between two rows without being one. -->
+                                <Panel Grid.Row="1">
+                                    <atom:ListBox Classes="dense cards"
+                                                  ItemsSource="{Binding Issues}"
+                                                  Padding="4"
+                                                  SelectionMode="Single"
+                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                  DoubleTapped="OnRowActivated"
+                                                  KeyDown="OnRowKeyDown"
+                                                  ContextRequested="OnContextRequested"
+                                                  DragDrop.AllowDrop="True"
+                                                  DragDrop.DragOver="OnColumnDragOver"
+                                                  DragDrop.DragLeave="OnColumnDragLeave"
+                                                  DragDrop.Drop="OnColumnDrop">
+                                        <atom:ListBox.ContextMenu>
+                                            <atom:ContextMenu>
+                                                <atom:MenuItem Header="_Open" InputGesture="Enter"
+                                                               Click="OnOpenClick" />
+                                                <atom:MenuItem Header="_Copy Issue Key" Click="OnCopyKeyClick" />
+                                            </atom:ContextMenu>
+                                        </atom:ListBox.ContextMenu>
 
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:IssueCardViewModel">
-                                            <Border Background="{DynamicResource CardBackground}"
-                                                    BorderBrush="{DynamicResource BorderBrush}"
-                                                    BorderThickness="1"
-                                                    CornerRadius="3"
-                                                    Margin="0,0,0,3"
-                                                    Padding="6,4"
-                                                    ToolTip.Tip="{Binding UpdatedTooltip}">
-                                                <StackPanel Spacing="3">
+                                        <atom:ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:IssueCardViewModel">
+                                                <Border Classes="card"
+                                                        Classes.dragging="{Binding IsDragging}"
+                                                        atom:ToolTip.Tip="{Binding UpdatedTooltip}">
+                                                    <StackPanel Spacing="3">
 
-                                                    <!-- Metadata line: identifier, priority, size. -->
-                                                    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto"
-                                                          ColumnSpacing="5">
-                                                        <TextBlock Grid.Column="0" Text="{Binding Key}"
-                                                                   Classes="key"
-                                                                   VerticalAlignment="Center" />
-                                                        <controls:Icon Grid.Column="1"
-                                                                       Data="{Binding PriorityIcon}"
-                                                                       Size="13"
-                                                                       IsVisible="{Binding HasPriority}"
-                                                                       VerticalAlignment="Center"
-                                                                       ToolTip.Tip="{Binding PriorityLabel}"
-                                                                       Foreground="{Binding PriorityColor, Converter={StaticResource HexBrush}}" />
-                                                        <TextBlock Grid.Column="3"
-                                                                   Text="{Binding EstimateLabel}"
-                                                                   IsVisible="{Binding HasEstimate}"
-                                                                   FontSize="11"
-                                                                   VerticalAlignment="Center"
-                                                                   ToolTip.Tip="Estimate"
-                                                                   Foreground="{DynamicResource MutedForeground}" />
-                                                        <Border Grid.Column="4"
-                                                                Width="16" Height="16"
-                                                                CornerRadius="2"
-                                                                IsVisible="{Binding AssigneeInitials, Converter={x:Static ObjectConverters.IsNotNull}}"
-                                                                Background="{DynamicResource AccentBrush}"
-                                                                ToolTip.Tip="{Binding AssigneeName}">
-                                                            <TextBlock Text="{Binding AssigneeInitials}"
-                                                                       FontSize="9"
-                                                                       Foreground="White"
-                                                                       HorizontalAlignment="Center"
+                                                        <!-- Metadata line: identifier, priority, size. -->
+                                                        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto"
+                                                              ColumnSpacing="5">
+                                                            <TextBlock Grid.Column="0" Text="{Binding Key}"
+                                                                       Classes="key"
                                                                        VerticalAlignment="Center" />
-                                                        </Border>
-                                                    </Grid>
+                                                            <controls:Icon Grid.Column="1"
+                                                                           Data="{Binding PriorityIcon}"
+                                                                           Size="13"
+                                                                           IsVisible="{Binding HasPriority}"
+                                                                           VerticalAlignment="Center"
+                                                                           atom:ToolTip.Tip="{Binding PriorityLabel}"
+                                                                           Foreground="{Binding PriorityColor, Converter={StaticResource HexBrush}}" />
+                                                            <TextBlock Grid.Column="3"
+                                                                       Text="{Binding EstimateLabel}"
+                                                                       IsVisible="{Binding HasEstimate}"
+                                                                       FontSize="{atom:SharedTokenResource FontSizeSM}"
+                                                                       VerticalAlignment="Center"
+                                                                       atom:ToolTip.Tip="Estimate"
+                                                                       Foreground="{atom:SharedTokenResource ColorTextSecondary}" />
+                                                            <atom:Avatar Grid.Column="4"
+                                                                         Size="16"
+                                                                         Shape="Square"
+                                                                         Text="{Binding AssigneeInitials}"
+                                                                         IsVisible="{Binding AssigneeInitials, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                         atom:ToolTip.Tip="{Binding AssigneeName}" />
+                                                        </Grid>
 
-                                                    <TextBlock Text="{Binding Title}"
-                                                               TextWrapping="Wrap"
-                                                               MaxLines="2"
-                                                               TextTrimming="CharacterEllipsis"
-                                                               FontSize="12"
-                                                               Foreground="{DynamicResource AppForeground}" />
+                                                        <TextBlock Text="{Binding Title}"
+                                                                   TextWrapping="Wrap"
+                                                                   MaxLines="2"
+                                                                   TextTrimming="CharacterEllipsis" />
 
-                                                    <ItemsControl ItemsSource="{Binding Labels}"
-                                                                  IsVisible="{Binding HasLabels}">
-                                                        <ItemsControl.ItemsPanel>
-                                                            <ItemsPanelTemplate>
-                                                                <WrapPanel />
-                                                            </ItemsPanelTemplate>
-                                                        </ItemsControl.ItemsPanel>
-                                                        <ItemsControl.ItemTemplate>
-                                                            <DataTemplate x:DataType="contracts:LabelDto">
-                                                                <Border Classes="label"
-                                                                        BorderBrush="{Binding Color, Converter={StaticResource HexBrush}}">
-                                                                    <TextBlock Text="{Binding Name}"
-                                                                               FontSize="10"
-                                                                               Foreground="{Binding Color, Converter={StaticResource HexBrush}}" />
-                                                                </Border>
-                                                            </DataTemplate>
-                                                        </ItemsControl.ItemTemplate>
-                                                    </ItemsControl>
-                                                </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
+                                                        <ItemsControl ItemsSource="{Binding Labels}"
+                                                                      IsVisible="{Binding HasLabels}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="contracts:LabelDto">
+                                                                    <atom:Tag Text="{Binding Name}"
+                                                                              TagColor="{Binding Color}"
+                                                                              Variant="Outlined"
+                                                                              Margin="0,0,3,0" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </atom:ListBox.ItemTemplate>
+                                    </atom:ListBox>
+
+                                    <Border Classes="dropLine"
+                                            IsVisible="{Binding IsDropTarget}"
+                                            Margin="{Binding DropIndicatorMargin}" />
+                                </Panel>
                             </Grid>
                         </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-        </ScrollViewer>
+        </atom:ScrollViewer>
 
-        <ProgressBar IsIndeterminate="True"
-                     IsVisible="{Binding IsLoading}"
-                     VerticalAlignment="Top"
-                     Height="2" />
+        <atom:ProgressBar IsIndeterminate="True"
+                          IsVisible="{Binding IsLoading}"
+                          IsProgressInfoVisible="False"
+                          VerticalAlignment="Top" />
 
         <TextBlock IsVisible="{Binding IsEmpty}"
                    Text="No issues. Ctrl+N creates one."
                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                   FontSize="12"
-                   Foreground="{DynamicResource MutedForeground}" />
+                   Foreground="{atom:SharedTokenResource ColorTextSecondary}" />
 
-        <Border IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}"
-                VerticalAlignment="Bottom" HorizontalAlignment="Stretch"
-                Background="{DynamicResource DangerBackground}"
-                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0"
-                Padding="9,5">
-            <TextBlock Text="{Binding Error}" FontSize="11"
-                       Foreground="{DynamicResource DangerBrush}" />
-        </Border>
+        <atom:Alert IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    Type="Error"
+                    Message="{Binding Error}"
+                    VerticalAlignment="Bottom" HorizontalAlignment="Stretch" />
     </Panel>
 </UserControl>

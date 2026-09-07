@@ -1,92 +1,76 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:Planner.Client.ViewModels"
-        xmlns:contracts="using:Planner.Contracts.Teams"
-        xmlns:projects="using:Planner.Contracts.Projects"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="560" d:DesignHeight="560"
-        x:Class="Planner.Client.Views.IssueEditorWindow"
-        x:DataType="vm:IssueEditorViewModel"
-        Icon="/Assets/planner.ico"
-        Title="{Binding WindowTitle}"
-        Width="560" Height="560"
-        MinWidth="460" MinHeight="420"
-        ShowInTaskbar="False"
-        WindowStartupLocation="CenterOwner"
-        Background="{DynamicResource AppBackground}">
+<atom:Window xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:atom="https://atomui.net"
+             xmlns:vm="using:Planner.Client.ViewModels"
+             xmlns:contracts="using:Planner.Contracts.Teams"
+             xmlns:projects="using:Planner.Contracts.Projects"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="560" d:DesignHeight="560"
+             x:Class="Planner.Client.Views.IssueEditorWindow"
+             x:DataType="vm:IssueEditorViewModel"
+             Icon="/Assets/planner.ico"
+             Title="{Binding WindowTitle}"
+             Width="560" Height="560"
+             MinWidth="460" MinHeight="420"
+             ShowInTaskbar="False"
+             WindowStartupLocation="CenterOwner"
+             LogoVisibility="Never"
+             IsMinimizeCaptionButtonVisible="False">
 
-    <Window.Styles>
+    <atom:Window.Styles>
         <!-- Right-aligned label column, the way a native property sheet lines its fields up. -->
         <Style Selector="TextBlock.formLabel">
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="{DynamicResource MutedForeground}" />
+            <Setter Property="Foreground" Value="{atom:SharedTokenResource ColorTextSecondary}" />
             <Setter Property="HorizontalAlignment" Value="Right" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Margin" Value="0,0,8,0" />
         </Style>
-
-        <!-- Let the chip keep its own colour in every state; the default template would repaint the
-             checked and hovered states with the system accent. -->
-        <Style Selector="ToggleButton.chip">
-            <Setter Property="MinHeight" Value="20" />
-            <Setter Property="Padding" Value="7,1" />
-            <Setter Property="CornerRadius" Value="2" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Margin" Value="0,0,4,4" />
-        </Style>
-        <Style Selector="ToggleButton.chip /template/ ContentPresenter">
-            <Setter Property="Background" Value="{Binding $parent[ToggleButton].Background}" />
-            <Setter Property="BorderBrush" Value="{Binding $parent[ToggleButton].BorderBrush}" />
-        </Style>
-    </Window.Styles>
+    </atom:Window.Styles>
 
     <Grid RowDefinitions="Auto,*,Auto">
 
         <!-- Identity strip: which team, and which issue. -->
         <Border Grid.Row="0"
-                Background="{DynamicResource ChromeBackground}"
-                BorderBrush="{DynamicResource BorderBrush}"
+                Background="{atom:SharedTokenResource ColorBgLayout}"
+                BorderBrush="{atom:SharedTokenResource ColorBorderSecondary}"
                 BorderThickness="0,0,0,1"
                 Padding="12,7">
             <StackPanel Orientation="Horizontal" Spacing="7">
                 <TextBlock Text="{Binding TeamName}" Classes="key" VerticalAlignment="Center" />
-                <Border Width="1" Height="12" Background="{DynamicResource BorderBrush}"
-                        VerticalAlignment="Center" />
-                <TextBlock Text="{Binding Heading}" FontSize="12" VerticalAlignment="Center"
-                           Foreground="{DynamicResource AppForeground}" />
+                <atom:Separator Orientation="Vertical" Height="12" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Heading}" VerticalAlignment="Center" />
             </StackPanel>
         </Border>
 
         <Grid Grid.Row="1"
-          Margin="12,12,14,12"
-          ColumnDefinitions="72,*,72,*"
-          RowDefinitions="Auto,*,Auto,Auto,Auto,Auto"
-          RowSpacing="7" ColumnSpacing="0">
+              Margin="12,12,14,12"
+              ColumnDefinitions="72,*,72,*"
+              RowDefinitions="Auto,*,Auto,Auto,Auto,Auto"
+              RowSpacing="7" ColumnSpacing="0">
 
             <TextBlock Grid.Row="0" Grid.Column="0" Text="Title:" Classes="formLabel" />
-            <TextBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="3"
-                     Text="{Binding IssueTitle}"
-                     PlaceholderText="Short summary of the work"
-                     AcceptsReturn="False" />
+            <atom:LineEdit Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="3"
+                           Text="{Binding IssueTitle}"
+                           PlaceholderText="Short summary of the work" />
 
             <TextBlock Grid.Row="1" Grid.Column="0" Text="Description:" Classes="formLabel"
                        VerticalAlignment="Top" Margin="0,4,8,0" />
-            <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
-                     Text="{Binding Description}"
-                     PlaceholderText="Optional detail"
-                     AcceptsReturn="True"
-                     TextWrapping="Wrap"
-                     AcceptsTab="False"
-                     MinHeight="84"
-                     VerticalContentAlignment="Top" />
+            <atom:TextArea Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
+                           Text="{Binding Description}"
+                           PlaceholderText="Optional detail"
+                           AcceptsReturn="True"
+                           TextWrapping="Wrap"
+                           AcceptsTab="False"
+                           MinHeight="84"
+                           VerticalContentAlignment="Top" />
 
             <TextBlock Grid.Row="2" Grid.Column="0" Text="Status:" Classes="formLabel" />
-            <ComboBox Grid.Row="2" Grid.Column="1"
-                      HorizontalAlignment="Stretch"
-                      Margin="0,0,10,0"
-                      ItemsSource="{Binding States}" SelectedItem="{Binding SelectedState}">
-                <ComboBox.ItemTemplate>
+            <atom:ComboBox Grid.Row="2" Grid.Column="1"
+                           HorizontalAlignment="Stretch"
+                           Margin="0,0,10,0"
+                           ItemsSource="{Binding States}" SelectedItem="{Binding SelectedState}">
+                <atom:ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="contracts:WorkflowStateDto">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <Ellipse Width="8" Height="8" VerticalAlignment="Center"
@@ -94,50 +78,50 @@
                             <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
                         </StackPanel>
                     </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
+                </atom:ComboBox.ItemTemplate>
+            </atom:ComboBox>
 
             <TextBlock Grid.Row="2" Grid.Column="2" Text="Priority:" Classes="formLabel" />
-            <ComboBox Grid.Row="2" Grid.Column="3"
-                      HorizontalAlignment="Stretch"
-                      ItemsSource="{Binding Priorities}" SelectedItem="{Binding SelectedPriority}">
-                <ComboBox.ItemTemplate>
+            <atom:ComboBox Grid.Row="2" Grid.Column="3"
+                           HorizontalAlignment="Stretch"
+                           ItemsSource="{Binding Priorities}" SelectedItem="{Binding SelectedPriority}">
+                <atom:ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:PriorityOption">
                         <TextBlock Text="{Binding Label}" />
                     </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
+                </atom:ComboBox.ItemTemplate>
+            </atom:ComboBox>
 
             <TextBlock Grid.Row="3" Grid.Column="0" Text="Assignee:" Classes="formLabel" />
-            <ComboBox Grid.Row="3" Grid.Column="1"
-                      HorizontalAlignment="Stretch"
-                      Margin="0,0,10,0"
-                      ItemsSource="{Binding Assignees}"
-                      SelectedItem="{Binding SelectedAssignee}"
-                      PlaceholderText="Unassigned">
-                <ComboBox.ItemTemplate>
+            <atom:ComboBox Grid.Row="3" Grid.Column="1"
+                           HorizontalAlignment="Stretch"
+                           Margin="0,0,10,0"
+                           ItemsSource="{Binding Assignees}"
+                           SelectedItem="{Binding SelectedAssignee}"
+                           PlaceholderText="Unassigned">
+                <atom:ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="contracts:TeamMemberDto">
                         <TextBlock Text="{Binding DisplayName}" />
                     </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
+                </atom:ComboBox.ItemTemplate>
+            </atom:ComboBox>
 
             <TextBlock Grid.Row="3" Grid.Column="2" Text="Estimate:" Classes="formLabel" />
-            <NumericUpDown Grid.Row="3" Grid.Column="3"
-                           HorizontalAlignment="Stretch"
-                           Value="{Binding Estimate}"
-                           Minimum="0" Maximum="1000" Increment="1"
-                           FormatString="0"
-                           PlaceholderText="—" />
+            <atom:NumericUpDown Grid.Row="3" Grid.Column="3"
+                                HorizontalAlignment="Stretch"
+                                Value="{Binding Estimate}"
+                                Minimum="0" Maximum="1000" Increment="1"
+                                FormatString="0"
+                                PlaceholderText="—" />
 
             <TextBlock Grid.Row="4" Grid.Column="0" Text="Project:" Classes="formLabel" />
-            <ComboBox Grid.Row="4" Grid.Column="1"
-                      HorizontalAlignment="Stretch"
-                      Margin="0,0,10,0"
-                      ItemsSource="{Binding Projects}"
-                      SelectedItem="{Binding SelectedProject}"
-                      PlaceholderText="No project">
-                <ComboBox.ItemTemplate>
+            <atom:ComboBox Grid.Row="4" Grid.Column="1"
+                           HorizontalAlignment="Stretch"
+                           Margin="0,0,10,0"
+                           ItemsSource="{Binding Projects}"
+                           SelectedItem="{Binding SelectedProject}"
+                           PlaceholderText="No project">
+                <atom:ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="projects:ProjectDto">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <Ellipse Width="8" Height="8" VerticalAlignment="Center"
@@ -145,27 +129,34 @@
                             <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
                         </StackPanel>
                     </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
+                </atom:ComboBox.ItemTemplate>
+            </atom:ComboBox>
 
             <TextBlock Grid.Row="4" Grid.Column="2" Text="Milestone:" Classes="formLabel"
                        IsVisible="{Binding SelectedProject, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            <ComboBox Grid.Row="4" Grid.Column="3"
-                      HorizontalAlignment="Stretch"
-                      IsVisible="{Binding SelectedProject, Converter={x:Static ObjectConverters.IsNotNull}}"
-                      ItemsSource="{Binding Milestones}"
-                      SelectedItem="{Binding SelectedMilestone}"
-                      PlaceholderText="No milestone">
-                <ComboBox.ItemTemplate>
+            <atom:ComboBox Grid.Row="4" Grid.Column="3"
+                           HorizontalAlignment="Stretch"
+                           IsVisible="{Binding SelectedProject, Converter={x:Static ObjectConverters.IsNotNull}}"
+                           ItemsSource="{Binding Milestones}"
+                           SelectedItem="{Binding SelectedMilestone}"
+                           PlaceholderText="No milestone">
+                <atom:ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="projects:MilestoneDto">
                         <TextBlock Text="{Binding Name}" />
                     </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
+                </atom:ComboBox.ItemTemplate>
+            </atom:ComboBox>
 
             <TextBlock Grid.Row="5" Grid.Column="0" Text="Labels:" Classes="formLabel"
                        VerticalAlignment="Top" Margin="0,2,8,0"
                        IsVisible="{Binding HasLabels}" />
+
+            <!-- A label is picked, not typed, and the tag that shows it on a card is the same shape as
+                 the one that toggles it here — which is the whole reason to use AtomUI's checkable tag
+                 rather than a toggle button dressed up to look like one.
+
+                 The colours are set locally so that they survive being checked: the theme paints the
+                 checked state through a selector, and a local value outranks one. -->
             <ItemsControl Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="3"
                           ItemsSource="{Binding Labels}"
                           IsVisible="{Binding HasLabels}">
@@ -176,13 +167,12 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:LabelChipViewModel">
-                        <ToggleButton Classes="chip"
-                                      IsChecked="{Binding IsSelected}"
-                                      BorderBrush="{Binding Color, Converter={StaticResource HexBrush}}"
-                                      Background="{Binding ChipBackground, Converter={StaticResource HexBrush}}">
-                            <TextBlock Text="{Binding Name}" FontSize="11"
-                                       Foreground="{Binding ChipForeground, Converter={StaticResource HexBrush}}" />
-                        </ToggleButton>
+                        <atom:CheckableTag Content="{Binding Name}"
+                                           IsChecked="{Binding IsSelected}"
+                                           Background="{Binding ChipBackground, Converter={StaticResource HexBrush}}"
+                                           BorderBrush="{Binding Color, Converter={StaticResource HexBrush}}"
+                                           Foreground="{Binding ChipForeground, Converter={StaticResource HexBrush}}"
+                                           Margin="0,0,4,4" />
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
@@ -190,16 +180,18 @@
 
         <!-- Command area. Buttons bottom-right, destructive action kept far away on the left. -->
         <Border Grid.Row="2"
-                Background="{DynamicResource ChromeBackground}"
-                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0"
+                Background="{atom:SharedTokenResource ColorBgLayout}"
+                BorderBrush="{atom:SharedTokenResource ColorBorderSecondary}"
+                BorderThickness="0,1,0,0"
                 Padding="12,9">
             <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="7">
-                <Button Grid.Column="0" Content="Archive"
-                        Command="{Binding ArchiveCommand}"
-                        IsVisible="{Binding IsEditing}"
-                        IsEnabled="{Binding !IsBusy}"
-                        MinWidth="80"
-                        HorizontalContentAlignment="Center" />
+                <atom:Button Grid.Column="0" Content="Archive"
+                             IsDanger="True"
+                             Command="{Binding ArchiveCommand}"
+                             IsVisible="{Binding IsEditing}"
+                             IsEnabled="{Binding !IsBusy}"
+                             MinWidth="80"
+                             HorizontalContentAlignment="Center" />
 
                 <TextBlock Grid.Column="1"
                            Text="{Binding Error}"
@@ -207,26 +199,27 @@
                            TextWrapping="Wrap"
                            VerticalAlignment="Center"
                            Margin="8,0"
-                           FontSize="11"
-                           Foreground="{DynamicResource DangerBrush}" />
+                           FontSize="{atom:SharedTokenResource FontSizeSM}"
+                           Foreground="{atom:SharedTokenResource ColorError}" />
 
-                <Button Grid.Column="2"
-                        Classes="accent"
-                        Command="{Binding SubmitCommand}"
-                        IsEnabled="{Binding !IsBusy}"
-                        IsDefault="True"
-                        MinWidth="84"
-                        HorizontalContentAlignment="Center">
+                <atom:Button Grid.Column="2"
+                             ButtonType="Primary"
+                             Command="{Binding SubmitCommand}"
+                             IsLoading="{Binding IsBusy}"
+                             IsEnabled="{Binding !IsBusy}"
+                             IsDefault="True"
+                             MinWidth="84"
+                             HorizontalContentAlignment="Center">
                     <TextBlock Text="{Binding SubmitLabel}" />
-                </Button>
+                </atom:Button>
 
-                <Button Grid.Column="3" Content="Cancel"
-                        Command="{Binding CancelCommand}"
-                        IsEnabled="{Binding !IsBusy}"
-                        IsCancel="True"
-                        MinWidth="84"
-                        HorizontalContentAlignment="Center" />
+                <atom:Button Grid.Column="3" Content="Cancel"
+                             Command="{Binding CancelCommand}"
+                             IsEnabled="{Binding !IsBusy}"
+                             IsCancel="True"
+                             MinWidth="84"
+                             HorizontalContentAlignment="Center" />
             </Grid>
         </Border>
     </Grid>
-</Window>
+</atom:Window>

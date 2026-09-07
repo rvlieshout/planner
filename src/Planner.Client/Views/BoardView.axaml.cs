@@ -7,7 +7,7 @@ namespace Planner.Client.Views;
 
 public partial class BoardView : UserControl
 {
-    private readonly RowDrag _drag = new();
+    private readonly RowDrag _drag;
 
     /// <summary>The row the context menu was opened over, captured before the menu shows.</summary>
     private IssueCardViewModel? _contextRow;
@@ -20,12 +20,22 @@ public partial class BoardView : UserControl
     {
         InitializeComponent();
 
+        _drag = new RowDrag(this);
+
         // Tunnelling, and on the view rather than on each list: ListBox marks PointerPressed handled
         // while it moves the selection, so a bubbling handler attached in XAML is never called and the
         // drag could never start.
         AddHandler(PointerPressedEvent, OnRowPressed, RoutingStrategies.Tunnel);
         AddHandler(PointerMovedEvent, OnRowMoved, RoutingStrategies.Tunnel);
         AddHandler(PointerReleasedEvent, OnRowReleased, RoutingStrategies.Tunnel);
+
+        // The ghost has to keep up with the cursor everywhere on the board, including the gaps between
+        // columns where no column will handle the event. Tunnelling reaches this view before the
+        // column that will mark the event handled, and the view itself allows the drop so that the
+        // empty space still raises one.
+        AddHandler(DragDrop.DragOverEvent, OnDragOverPreview, RoutingStrategies.Tunnel);
+        AddHandler(DragDrop.DropEvent, OnDragFinished, RoutingStrategies.Tunnel);
+        AddHandler(DragDrop.DragLeaveEvent, OnDragLeftBoard);
     }
 
     private void OnRowActivated(object? sender, TappedEventArgs e) => Open(IssueRows.From(e.Source));
@@ -67,6 +77,14 @@ public partial class BoardView : UserControl
 
     private void OnRowReleased(object? sender, PointerReleasedEventArgs e) => _drag.Clear();
 
+    private void OnDragOverPreview(object? sender, DragEventArgs e) => _drag.Track(e.GetPosition(this));
+
+    private void OnDragFinished(object? sender, DragEventArgs e) => _drag.Clear();
+
+    /// <summary>The pointer has left the board altogether — another view, or outside the window. Nothing
+    /// here would take the drop, so nothing here should still be claiming it would.</summary>
+    private void OnDragLeftBoard(object? sender, DragEventArgs e) => Highlight(null, 0);
+
     private void OnColumnDragOver(object? sender, DragEventArgs e)
     {
         var column = Column(sender);
@@ -76,9 +94,10 @@ public partial class BoardView : UserControl
             ? DragDropEffects.Move
             : DragDropEffects.None;
 
-        if (e.DragEffects is DragDropEffects.Move)
+        if (e.DragEffects is DragDropEffects.Move && sender is ListBox list)
         {
-            Highlight(column);
+            // The same call the drop itself will make, so what is drawn is what will happen.
+            Highlight(column, IssueRows.DropTarget(list, e).Offset);
         }
 
         e.Handled = true;
@@ -88,13 +107,13 @@ public partial class BoardView : UserControl
     {
         if (ReferenceEquals(_hovered, Column(sender)))
         {
-            Highlight(null);
+            Highlight(null, 0);
         }
     }
 
     private async void OnColumnDrop(object? sender, DragEventArgs e)
     {
-        Highlight(null);
+        Highlight(null, 0);
         e.Handled = true;
 
         if (sender is not ListBox list ||
@@ -105,20 +124,17 @@ public partial class BoardView : UserControl
             return;
         }
 
-        await board.MoveAsync(card, column, IssueRows.DropIndex(list, e));
+        await board.MoveAsync(card, column, IssueRows.DropTarget(list, e).Index);
     }
 
     private static BoardColumnViewModel? Column(object? sender) =>
         (sender as Control)?.DataContext as BoardColumnViewModel;
 
-    private void Highlight(BoardColumnViewModel? column)
+    /// <summary>Points the whole drop indication — the lit column and the rule inside it — at one place,
+    /// or at nowhere.</summary>
+    private void Highlight(BoardColumnViewModel? column, double offset)
     {
-        if (ReferenceEquals(_hovered, column))
-        {
-            return;
-        }
-
-        if (_hovered is not null)
+        if (!ReferenceEquals(_hovered, column) && _hovered is not null)
         {
             _hovered.IsDropTarget = false;
         }
@@ -127,6 +143,7 @@ public partial class BoardView : UserControl
 
         if (_hovered is not null)
         {
+            _hovered.DropIndicatorOffset = offset;
             _hovered.IsDropTarget = true;
         }
     }

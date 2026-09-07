@@ -14,6 +14,10 @@ Planner.Contracts      Planner.Infrastructure     DbContext, EF configurations, 
       +------ Planner.Api -----+                  endpoints, authorization, OpenIddict, SignalR hub
 ```
 
+`Planner.AppHost` sits outside that graph. It references the API and the client, but only to start
+them: it is the Aspire description of the development stack — Postgres, the API wired to it, and the
+desktop client on explicit start — and nothing in the running system depends on it.
+
 `Planner.Contracts` is the only project the Avalonia client needs to reference. It holds every request
 and response DTO plus `IPlannerClient`, the SignalR interface — so the client binds to hub method
 names and payload shapes at compile time instead of by convention.

@@ -41,11 +41,7 @@ public static class AppIcons
     public static Geometry? Project => Get("IconFolder");
     public static Geometry? Inbox => Get("IconInbox");
     public static Geometry? Menu => Get("IconMenu");
-    public static Geometry? WindowMinimise => Get("IconWindowMinimise");
-    public static Geometry? WindowMaximise => Get("IconWindowMaximise");
-    public static Geometry? WindowRestore => Get("IconWindowRestore");
     public static Geometry? Plus => Get("IconPlus");
-    public static Geometry? Close => Get("IconX");
     public static Geometry? Check => Get("IconCheck");
     public static Geometry? Search => Get("IconSearch");
     public static Geometry? SignOut => Get("IconLogOut");

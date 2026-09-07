@@ -40,8 +40,8 @@ public sealed partial class LabelChipViewModel(LabelDto label) : ViewModelBase
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
 
-    /// <summary>Filled with the label's own colour when picked. Left to the theme, a checked
-    /// ToggleButton takes the system accent, so every selected label would look identical.</summary>
+    /// <summary>Filled with the label's own colour when picked. Left to the theme, a checked tag takes
+    /// the primary colour, so every selected label would look identical.</summary>
     public string ChipBackground => IsSelected ? Color : "#00FFFFFF";
 
     public string ChipForeground => IsSelected ? "#FFFFFF" : Color;

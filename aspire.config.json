@@ -1,0 +1,5 @@
+{
+  "appHost": {
+    "path": "src/Planner.AppHost/Planner.AppHost.csproj"
+  }
+}

@@ -14,6 +14,10 @@ keys/
 # Build output: publish intermediates and packaged client releases
 artifacts/
 
+# Aspire's per-developer CLI state. aspire.config.json is checked in — it is what lets `aspire run`
+# find the app host from the repository root — but nothing under this folder is.
+.aspire/
+
 # Test and coverage output
 TestResults/
 coverage/

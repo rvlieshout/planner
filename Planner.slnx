@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Planner.AppHost/Planner.AppHost.csproj" />
     <Project Path="src/Planner.Api/Planner.Api.csproj" />
     <Project Path="src/Planner.Client/Planner.Client.csproj" />
     <Project Path="src/Planner.Contracts/Planner.Contracts.csproj" />

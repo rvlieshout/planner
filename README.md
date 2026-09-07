@@ -29,6 +29,31 @@ issues, sub-issues, relations, comments, attachments, users and the activity fee
 
 Docker Desktop is the only prerequisite.
 
+### While developing: Aspire
+
+```bash
+dotnet run --project src/Planner.AppHost      # or `aspire run` from the repository root
+```
+
+Or set `Planner.AppHost` as the startup project in Visual Studio or Rider and press Start.
+
+One command brings up Postgres in a container, waits for it, runs the API against it — migrations,
+OAuth client and bootstrap owner included — and opens a dashboard with the logs, traces and endpoints
+of everything it started. The dashboard is at <https://localhost:17200> (or
+<http://localhost:15200> if you have not trusted the development certificate with
+`dotnet dev-certs https --trust` — pick the `http` launch profile for that), and the login link is
+printed on startup.
+
+The desktop client is registered there too, as a resource you start explicitly: press **Start** on
+`client` in the dashboard and it launches pointed at whatever port the API landed on. It is not
+launched automatically, because a window appearing every time you start the API is rarely what you
+wanted.
+
+`Ctrl+C` stops everything. The database keeps its data in a named volume between runs; delete the
+`planner-aspire-pgdata` volume to go back to a clean seed.
+
+### As deployed: compose
+
 ```bash
 cp .env.example .env          # then edit the three change-me passwords
 docker compose up -d --build
@@ -59,6 +84,9 @@ curl -s -X POST http://localhost:8080/connect/token \
 Then send `Authorization: Bearer <access_token>` to any endpoint. `tools/planner.http` has a worked
 sequence for VS Code / Rider.
 
+`docker-compose.yml` describes the deployed system and stays the reference for it; the app host
+describes the one you develop against. They deliberately do not share a database volume.
+
 ## Run it without Docker
 
 ```bash
@@ -77,7 +105,9 @@ HTTP and seeds demo data.
 dotnet run --project src/Planner.Client
 ```
 
-Sign in with the same bootstrap owner. The client remembers the server and resumes the session on the
+Sign in with the same bootstrap owner. `PLANNER_SERVER_URL` overrides the stored server address for one
+process, which is how the Aspire app host points the client at the API and how a managed rollout can
+aim a machine at its own server without provisioning a settings file first. The client remembers the server and resumes the session on the
 next launch. The sidebar carries My Issues, the team board and one row per project; Ctrl+N files work
 into the current team, and everything stays live over SignalR.
 
@@ -86,6 +116,11 @@ bar, a sidebar you can drag or collapse, dense selectable lists where Enter and 
 selected issue, drag-and-drop between board columns and My Issues groups, and the issue form as a real
 modal dialog. See [docs/desktop-client.md](docs/desktop-client.md) for the shortcut table and the
 design system behind it.
+
+The look comes from [AtomUI](https://github.com/AtomUI/AtomUI), an Ant Design component system for
+Avalonia. The client uses its controls throughout and reads its design tokens directly, so both theme
+variants, and the density the window is tuned to, follow from a handful of token overrides in
+`App.axaml.cs` rather than from per-control styling.
 
 To build a release of it:
 
@@ -107,6 +142,7 @@ src/
   Planner.Infrastructure  DbContext, EF configurations, migrations, seeding
   Planner.Api             minimal API endpoints, authorization, OpenIddict, the hub, the update feed
   Planner.Client          Avalonia desktop client
+  Planner.AppHost         Aspire app host — the development stack as one command
 build/release.ps1         packages and publishes a client release
 releases/                 the Velopack update feed (git-ignored contents)
 docs/                     architecture, database, roles, API, realtime, client and release references

@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:atom="https://atomui.net"
              xmlns:vm="using:Planner.Client.ViewModels"
              xmlns:controls="using:Planner.Client.Controls"
              xmlns:contracts="using:Planner.Contracts.Teams"
@@ -7,24 +8,60 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
              x:Class="Planner.Client.Views.MyIssuesView"
-             x:DataType="vm:MyIssuesViewModel">
+             x:DataType="vm:MyIssuesViewModel"
+             DragDrop.AllowDrop="True">
 
     <UserControl.Styles>
         <Style Selector="TextBlock.columnHeader">
-            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontSize" Value="{atom:SharedTokenResource FontSizeSM}" />
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="{DynamicResource MutedForeground}" />
-        </Style>
-        <!-- The group being dragged over says so; dropping on it is what changes an issue's state. -->
-        <Style Selector="Border.group.dropTarget">
-            <Setter Property="Background" Value="{DynamicResource SelectedBackground}" />
+            <Setter Property="Foreground" Value="{atom:SharedTokenResource ColorTextSecondary}" />
         </Style>
 
-        <Style Selector="Border.label">
-            <Setter Property="CornerRadius" Value="2" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="4,0" />
-            <Setter Property="Margin" Value="0,0,3,0" />
+        <!--
+            The drag feedback this view can honestly give.
+
+            A drop here sets an issue's state; it does not choose a position, so there is no gap to point
+            at and no insertion rule. What it can say is which group would take the issue, and which row
+            is the one in flight — the rest of the answer is the ghost under the cursor.
+
+            As on the board, the resting appearance lives in these styles rather than on the elements:
+            a value written on the element is a local value and would outrank the drag state below.
+        -->
+        <Style Selector="Border.group">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.12" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.group.dropTarget">
+            <Setter Property="Background" Value="{atom:SharedTokenResource ColorPrimaryBgHover}" />
+        </Style>
+
+        <Style Selector="Border.groupHeader">
+            <Setter Property="Background" Value="{atom:SharedTokenResource ColorFillQuaternary}" />
+            <Setter Property="BorderBrush" Value="{atom:SharedTokenResource ColorBorderSecondary}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+        </Style>
+
+        <!-- The group header carries the outline, so the lit group reads as one block rather than as a
+             tinted rectangle with a loose caption on top. Declared after the base style, which is what
+             makes it win when both match. -->
+        <Style Selector="Border.group.dropTarget Border.groupHeader">
+            <Setter Property="BorderBrush" Value="{atom:SharedTokenResource ColorPrimary}" />
+        </Style>
+
+        <Style Selector="Grid.row">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.12" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Grid.row.dragging">
+            <Setter Property="Opacity" Value="0.4" />
         </Style>
     </UserControl.Styles>
 
@@ -38,8 +75,8 @@
             -->
             <Border Grid.Row="0"
                     Height="22"
-                    Background="{DynamicResource ChromeBackground}"
-                    BorderBrush="{DynamicResource BorderBrush}"
+                    Background="{atom:SharedTokenResource ColorBgLayout}"
+                    BorderBrush="{atom:SharedTokenResource ColorBorderSecondary}"
                     BorderThickness="0,0,0,1"
                     Padding="8,0,14,0">
                 <Grid ColumnDefinitions="20,74,14,*,Auto,46" ColumnSpacing="8">
@@ -50,147 +87,126 @@
                 </Grid>
             </Border>
 
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <atom:ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                 <ItemsControl ItemsSource="{Binding Groups}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:IssueGroupViewModel">
                             <Border Classes="group"
                                     Classes.dropTarget="{Binding IsDropTarget}"
-                                    Background="Transparent"
                                     DragDrop.AllowDrop="True"
                                     DragDrop.DragOver="OnGroupDragOver"
                                     DragDrop.DragLeave="OnGroupDragLeave"
                                     DragDrop.Drop="OnGroupDrop">
-                            <StackPanel>
+                                <StackPanel>
 
-                                <Border Background="{DynamicResource AlternateRowBackground}"
-                                        BorderBrush="{DynamicResource BorderBrush}"
-                                        BorderThickness="0,0,0,1"
-                                        Height="21"
-                                        Padding="8,0">
-                                    <StackPanel Orientation="Horizontal" Spacing="6"
-                                                VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Title}"
-                                                   FontSize="11"
-                                                   Foreground="{DynamicResource AppForeground}" />
-                                        <TextBlock Text="{Binding Count}"
-                                                   FontSize="11"
-                                                   Foreground="{DynamicResource MutedForeground}" />
-                                    </StackPanel>
-                                </Border>
+                                    <Border Classes="groupHeader"
+                                            Height="21"
+                                            Padding="8,0">
+                                        <StackPanel Orientation="Horizontal" Spacing="6"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontSize="{atom:SharedTokenResource FontSizeSM}" />
+                                            <TextBlock Text="{Binding Count}"
+                                                       FontSize="{atom:SharedTokenResource FontSizeSM}"
+                                                       Foreground="{atom:SharedTokenResource ColorTextSecondary}" />
+                                        </StackPanel>
+                                    </Border>
 
-                                <ListBox ItemsSource="{Binding Issues}"
-                                         ItemContainerTheme="{StaticResource DenseRow}"
-                                         Background="Transparent"
-                                         BorderThickness="0"
-                                         Padding="0"
-                                         SelectionMode="Single"
-                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                         DoubleTapped="OnRowActivated"
-                                         KeyDown="OnRowKeyDown"
-                                         ContextRequested="OnContextRequested">
-                                    <ListBox.ContextMenu>
-                                        <ContextMenu>
-                                            <MenuItem Header="_Open" InputGesture="Enter"
-                                                      Click="OnOpenClick" />
-                                            <MenuItem Header="_Copy Issue Key" Click="OnCopyKeyClick" />
-                                        </ContextMenu>
-                                    </ListBox.ContextMenu>
+                                    <atom:ListBox Classes="dense"
+                                                  ItemsSource="{Binding Issues}"
+                                                  SelectionMode="Single"
+                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                  DoubleTapped="OnRowActivated"
+                                                  KeyDown="OnRowKeyDown"
+                                                  ContextRequested="OnContextRequested">
+                                        <atom:ListBox.ContextMenu>
+                                            <atom:ContextMenu>
+                                                <atom:MenuItem Header="_Open" InputGesture="Enter"
+                                                               Click="OnOpenClick" />
+                                                <atom:MenuItem Header="_Copy Issue Key" Click="OnCopyKeyClick" />
+                                            </atom:ContextMenu>
+                                        </atom:ListBox.ContextMenu>
 
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:IssueCardViewModel">
-                                            <Grid ColumnDefinitions="20,74,14,*,Auto,46"
-                                                  ColumnSpacing="8"
-                                                  Height="22"
-                                                  Margin="8,0,14,0">
+                                        <atom:ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:IssueCardViewModel">
+                                                <Grid Classes="row"
+                                                      Classes.dragging="{Binding IsDragging}"
+                                                      ColumnDefinitions="20,74,14,*,Auto,46"
+                                                      ColumnSpacing="8"
+                                                      Height="22"
+                                                      Margin="8,0,14,0">
 
-                                                <controls:Icon Grid.Column="0"
-                                                               Data="{Binding PriorityIcon}"
-                                                               Size="14"
-                                                               IsVisible="{Binding HasPriority}"
-                                                               HorizontalAlignment="Left"
+                                                    <controls:Icon Grid.Column="0"
+                                                                   Data="{Binding PriorityIcon}"
+                                                                   Size="14"
+                                                                   IsVisible="{Binding HasPriority}"
+                                                                   HorizontalAlignment="Left"
+                                                                   VerticalAlignment="Center"
+                                                                   atom:ToolTip.Tip="{Binding PriorityLabel}"
+                                                                   Foreground="{Binding PriorityColor, Converter={StaticResource HexBrush}}" />
+
+                                                    <TextBlock Grid.Column="1" Text="{Binding Key}"
+                                                               Classes="key"
+                                                               VerticalAlignment="Center" />
+
+                                                    <Ellipse Grid.Column="2" Width="8" Height="8"
+                                                             VerticalAlignment="Center"
+                                                             atom:ToolTip.Tip="{Binding StateName}"
+                                                             Fill="{Binding StateColor, Converter={StaticResource HexBrush}}" />
+
+                                                    <TextBlock Grid.Column="3" Text="{Binding Title}"
                                                                VerticalAlignment="Center"
-                                                               ToolTip.Tip="{Binding PriorityLabel}"
-                                                               Foreground="{Binding PriorityColor, Converter={StaticResource HexBrush}}" />
+                                                               TextTrimming="CharacterEllipsis" />
 
-                                                <TextBlock Grid.Column="1" Text="{Binding Key}"
-                                                           Classes="key"
-                                                           VerticalAlignment="Center" />
+                                                    <ItemsControl Grid.Column="4" ItemsSource="{Binding Labels}"
+                                                                  IsVisible="{Binding HasLabels}"
+                                                                  VerticalAlignment="Center">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <StackPanel Orientation="Horizontal" />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="contracts:LabelDto">
+                                                                <atom:Tag Text="{Binding Name}"
+                                                                          TagColor="{Binding Color}"
+                                                                          Variant="Outlined"
+                                                                          VerticalAlignment="Center"
+                                                                          Margin="0,0,3,0" />
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
 
-                                                <Ellipse Grid.Column="2" Width="8" Height="8"
-                                                         VerticalAlignment="Center"
-                                                         ToolTip.Tip="{Binding StateName}"
-                                                         Fill="{Binding StateColor, Converter={StaticResource HexBrush}}" />
-
-                                                <TextBlock Grid.Column="3" Text="{Binding Title}"
-                                                           FontSize="12"
-                                                           VerticalAlignment="Center"
-                                                           TextTrimming="CharacterEllipsis"
-                                                           Foreground="{DynamicResource AppForeground}" />
-
-                                                <ItemsControl Grid.Column="4" ItemsSource="{Binding Labels}"
-                                                              IsVisible="{Binding HasLabels}"
-                                                              VerticalAlignment="Center">
-                                                    <ItemsControl.ItemsPanel>
-                                                        <ItemsPanelTemplate>
-                                                            <StackPanel Orientation="Horizontal" />
-                                                        </ItemsPanelTemplate>
-                                                    </ItemsControl.ItemsPanel>
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate x:DataType="contracts:LabelDto">
-                                                            <Border Classes="label"
-                                                                    BorderBrush="{Binding Color, Converter={StaticResource HexBrush}}">
-                                                                <TextBlock Text="{Binding Name}"
-                                                                           FontSize="10"
-                                                                           Foreground="{Binding Color, Converter={StaticResource HexBrush}}" />
-                                                            </Border>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
-
-                                                <TextBlock Grid.Column="5" Text="{Binding UpdatedLabel}"
-                                                           FontSize="11"
-                                                           HorizontalAlignment="Right"
-                                                           VerticalAlignment="Center"
-                                                           ToolTip.Tip="{Binding UpdatedTooltip}"
-                                                           Foreground="{DynamicResource MutedForeground}" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                            </StackPanel>
+                                                    <TextBlock Grid.Column="5" Text="{Binding UpdatedLabel}"
+                                                               FontSize="{atom:SharedTokenResource FontSizeSM}"
+                                                               HorizontalAlignment="Right"
+                                                               VerticalAlignment="Center"
+                                                               atom:ToolTip.Tip="{Binding UpdatedTooltip}"
+                                                               Foreground="{atom:SharedTokenResource ColorTextSecondary}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </atom:ListBox.ItemTemplate>
+                                    </atom:ListBox>
+                                </StackPanel>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-            </ScrollViewer>
+            </atom:ScrollViewer>
         </Grid>
 
-        <ProgressBar IsIndeterminate="True"
-                     IsVisible="{Binding IsLoading}"
-                     VerticalAlignment="Top"
-                     Height="2" />
+        <atom:ProgressBar IsIndeterminate="True"
+                          IsVisible="{Binding IsLoading}"
+                          IsProgressInfoVisible="False"
+                          VerticalAlignment="Top" />
 
-        <StackPanel IsVisible="{Binding IsEmpty}"
-                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Spacing="4">
-            <TextBlock Text="Nothing assigned to you"
-                       FontSize="13"
-                       HorizontalAlignment="Center"
-                       Foreground="{DynamicResource AppForeground}" />
-            <TextBlock Text="Issues assigned to you across all your teams show up here."
-                       FontSize="11"
-                       HorizontalAlignment="Center"
-                       Foreground="{DynamicResource MutedForeground}" />
-        </StackPanel>
+        <atom:Empty IsVisible="{Binding IsEmpty}"
+                    Description="Issues assigned to you across all your teams show up here."
+                    HorizontalAlignment="Center" VerticalAlignment="Center" />
 
-        <Border IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}"
-                VerticalAlignment="Bottom" HorizontalAlignment="Stretch"
-                Background="{DynamicResource DangerBackground}"
-                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0"
-                Padding="9,5">
-            <TextBlock Text="{Binding Error}" FontSize="11"
-                       Foreground="{DynamicResource DangerBrush}" />
-        </Border>
+        <atom:Alert IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    Type="Error"
+                    Message="{Binding Error}"
+                    VerticalAlignment="Bottom" HorizontalAlignment="Stretch" />
     </Panel>
 </UserControl>

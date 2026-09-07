@@ -1,9 +1,22 @@
 # Desktop client
 
-An Avalonia 12 client on .NET 10, in `src/Planner.Client`. It signs in against the on-prem API, shows
-a team's board, keeps it live over SignalR, and keeps itself up to date through Velopack.
+An Avalonia 12 client on .NET 10, in `src/Planner.Client`, dressed in
+[AtomUI](https://github.com/AtomUI/AtomUI) — an Ant Design component system for Avalonia. It signs in
+against the on-prem API, shows a team's board, keeps it live over SignalR, and keeps itself up to date
+through Velopack.
 
 ## Running it in development
+
+```bash
+dotnet run --project src/Planner.AppHost
+```
+
+That is the whole stack: database, API and this client, the last as a resource you press **Start** on
+in the Aspire dashboard, which opens at <https://localhost:17200>. Setting `Planner.AppHost` as the
+startup project in an IDE does the same thing. It launches with `PLANNER_SERVER_URL` pointed at whatever port the API landed
+on, so nothing has to be configured by hand.
+
+To run the client on its own against an API you started some other way:
 
 ```bash
 docker compose up -d           # the API and database
@@ -11,7 +24,8 @@ dotnet run --project src/Planner.Client
 ```
 
 Sign in with the bootstrap owner from your `.env` (`PLANNER_OWNER_EMAIL` /
-`PLANNER_OWNER_PASSWORD`). The server field defaults to `http://localhost:8080` and is remembered.
+`PLANNER_OWNER_PASSWORD`). The server field defaults to `http://localhost:8080`, is remembered between
+runs, and is overridden for one process by `PLANNER_SERVER_URL`.
 
 Development builds are not Velopack installs, so the update service reports that updates are managed
 by your IDE and does not run its loop. Everything else behaves identically. To exercise updates for
@@ -21,11 +35,12 @@ real, see [releasing.md](releasing.md).
 
 ```
 Program.cs            VelopackApp.Run() first, then Avalonia
-App.axaml.cs          DI container, theme resources, window
+App.axaml.cs          AtomUI registration and the design tokens, then the DI container and window
 Services/             the parts with no UI: settings, session, API, realtime, updates
 ViewModels/           shell, login, workspace, navigation, board, my issues, new issue, update banner
 Views/                one .axaml per view model, matched by ViewLocator; plus the two real
-                      windows — MainWindow and the IssueEditorWindow dialog
+                      windows — MainWindow and the IssueEditorWindow dialog — and DragGhostView,
+                      the card that follows the cursor during a drag
 Controls/             the Icon control and the named Lucide geometries
 Converters/           hex colour to brush
 Infrastructure/       app paths, file logging, the Velopack logging bridge
@@ -113,7 +128,14 @@ is not something a view model can express.
 
 This is a desktop application, so it wears the furniture of one: a menu bar, a 31px toolbar strip over
 the content, a status bar, and modal dialogs in their own windows. Nothing is a floating card, and the
-whole shell is built on 22-24px rows rather than the 40px touch targets Fluent ships with.
+whole shell is built on 22-24px rows rather than the touch targets a stock component library ships
+with.
+
+The windows derive from `atom:Window`, which draws its own caption strip: the title, the
+minimise / maximise / close buttons, the drag and double-click behaviour and the differences between
+platforms all come from the control theme. What the app adds to that strip — the hamburger, the menu,
+and the two quick actions that stand in for it while it is folded — goes in the title bar's
+`LeftAddOn`.
 
 | Where | What it carries |
 | --- | --- |
@@ -199,46 +221,62 @@ the same geometry.
 
 ## Density and palette
 
-`App.axaml` is the whole design system, and it exists because Fluent's defaults are sized for fingers:
-32-40px controls, 8px corners, wide padding. Left alone they make a tracker look like a web page in a
-frame. The overrides pull everything to desktop proportions — 24px buttons and inputs, 22px list rows,
-3px corners, 12px text, 2px progress bars — with a few named pieces the views reuse:
+The design system is AtomUI's, configured in one place: `App.axaml.cs`. Ant Design's stock metrics are
+sized for a web page — 32px controls, 6px corners, 14px text — which on a mouse-driven window reads as
+a browser rendered inside a frame. Three seed tokens and the Compact algorithm pull the whole system
+back to desktop proportions:
 
-| Resource / class | Used for |
+```csharp
+new ThemeConfigBuilder()
+    .WithAlgorithms(appearance, ThemeAlgorithm.Compact)
+    .WithToken("ColorPrimary", appearance is ThemeAlgorithm.Dark ? "#6E79F1" : "#5E6AD2")
+    .WithToken("FontSize", "12")
+    .WithToken("BorderRadius", "3")
+```
+
+Because those are *seeds*, everything derived from them follows: every control, every state colour,
+both theme variants. There is no palette to maintain — the hand-written light and dark dictionaries the
+client used to carry are gone, and `WithFollowSystemThemes` swaps variants with the OS setting while
+the app is running.
+
+Views read tokens directly, with the `{atom:SharedTokenResource ...}` markup extension:
+
+| Token | Used for |
 | --- | --- |
-| `DenseRow` (ControlTheme) | The list row: full-bleed rectangle, hover tint, real selection. Both issue views set it as their `ItemContainerTheme` |
-| `Button.tool` | Toolbar buttons: flat until pointed at |
+| `ColorBgContainer` / `ColorBgLayout` | Content surfaces / the chrome behind them: sidebar, toolbar, status bar, board columns |
+| `ColorText` / `ColorTextSecondary` | Body text / captions, counts, labels |
+| `ColorBorderSecondary` / `ColorSplit` | Panel edges / the one-pixel rules in the status bar |
+| `ColorPrimary`, `ColorPrimaryBgHover`, `ColorPrimaryBorder` | Selection, the current-row marker, and all three parts of the drag feedback |
+| `ColorError`, `ColorSuccess`, `ColorInfoBg` | Failures, the live indicator, the update banner |
+
+A handful of app classes sit on top, in `App.axaml`:
+
+| Class | Used for |
+| --- | --- |
+| `atom:ListBox.dense` | The list row reduced to the rectangle around its content, with AtomUI's per-column "No data" placeholder turned off |
+| `atom:Button.tool` / `.caption` | Toolbar and title-bar buttons, on AtomUI's `Text` button type |
 | `TextBlock.key` | Issue identifiers, in the mono font so a column of them lines up |
 | `TextBlock.caption` | Section labels in the sidebar and forms |
-| `ChromeBackground` | Menu bar, toolbar strip, status bar, dialog headers and footers |
-| `{x:Type NumericUpDown}`, `{x:Type ButtonSpinner}` | The estimate field, retemplated so it sits on the same 24px line as the ComboBox beside it — see below |
 
-The font is the shell font (`Segoe UI Variable Text`, then `Segoe UI`), with the bundled Inter only as
-the fallback for machines that have neither.
+The font is the shell font (`Segoe UI Variable Text`, then `Segoe UI`), set through
+`WithDefaultFontFamily`, with the bundled Inter as the fallback for machines that have neither. Only
+issue keys deviate, and only because they need fixed advance widths.
 
-Two colours are deliberately *not* the app's own. The default button on a dialog carries Fluent's
-`accent` class, which paints it in whatever accent the user picked in Windows personalisation — that is
-what a native default button does. The app's indigo is kept for the things that are the app's own
-vocabulary: selection, the current-row marker, avatars.
+## The one theming rule to remember
 
-## Two theme fixes worth knowing about
+**A local value beats every style setter.** A value written on the element —
+`<Border Background="{atom:SharedTokenResource ColorBgLayout}">` — is a local value, and local values
+outrank Style setters, *including* the ones a class turns on. So a column written that way can never
+be lit up by adding a class to it, and the highlight silently does nothing.
 
-**A style cannot override a local value.** Fluent's `NumericUpDown` and `ButtonSpinner` templates set
-the parts that make the estimate field look wrong — 34px spin buttons, a chevron twice the size of the
-ComboBox's, a divider beside each button, and `10,6,6,5` padding on the inner TextBox that leaves the
-control 29px tall beside 24px neighbours — as *local values* inside the template. Local values beat
-style setters, so those two controls are retemplated in `App.axaml` rather than restyled. It is the
-only place in the app that owns a template, and the reason is worth remembering before trying to style
-one of the other composite controls.
+This is why the resting appearance of the board column, the board card, and the My Issues group is set
+in `<UserControl.Styles>` rather than on the elements themselves. Both the default and the drag state
+are then Style setters, and the more specific one wins. It is the first thing to check when a class
+appears to have no effect.
 
-**Fluent sets the focused TextBox border to 2px** regardless of the control's own
-`BorderThickness`, and the text presenter fills that same rectangle. On the issue title and
-description — deliberately borderless, with no padding — that stroke lands directly on the text,
-clipping descenders; on a normal input it also shifts the content by a pixel as focus comes and goes.
-
-`App.axaml` pins the focused border to whatever thickness the control asked for and keeps the theme's
-colour change, which is what actually signals focus. The focus ring uses the app's accent rather than
-the Windows one, so it does not read as someone else's blue.
+The same rule cuts the other way and is used deliberately in the issue form: the label chips set their
+colours locally on `atom:CheckableTag` precisely so that being checked cannot repaint them in the
+primary colour, and each label keeps its own.
 
 ## The board
 
@@ -275,6 +313,32 @@ Two Avalonia details make the drag work at all, and both are easy to trip over a
 - **`DragDrop.DoDragDropAsync` wants the originating `PointerPressedEventArgs`**, not a position. The
   press is therefore remembered — never handled, so clicking still selects and double-clicking still
   opens — and the drag starts from it once the pointer has travelled 4px.
+
+### What a drag looks like
+
+A drop is a guess until the board answers three questions, so it answers all three at once:
+
+| What you see | Answers | Where it comes from |
+| --- | --- | --- |
+| A card following the cursor | *What am I carrying?* | `DragGhostView`, parented to the window's overlay layer |
+| A rule between two rows | *Where would it land?* | `BoardColumnViewModel.DropIndicatorOffset`, drawn over the list |
+| The column tinted and outlined in the primary colour | *Would this column take it?* | `IsDropTarget`, as a class on the column |
+| The original row faded to 40% | *Which one is in flight?* | `IssueCardViewModel.IsDragging`, as a class on the card |
+
+The ghost exists because a platform drag owns the cursor: the only thing an app can put underneath it
+is something it draws itself. It lives in the overlay layer — above every view, outside every clip —
+and is moved from the drag events the views already receive. `BoardView` allows the drop on itself and
+listens on the tunnel, so the ghost keeps up even over the gaps between columns, where no column will
+raise an event.
+
+The rule and the move come from the same call. `IssueRows.DropTarget` returns the index *and* the
+offset the rule is drawn at, out of one walk of the realised containers, so what is shown can never
+point at a different gap from the one that is used.
+
+My Issues gets three of the four. A drop there sets an issue's state and does not choose a position, so
+there is no gap to point at and no rule to draw. Hovering the group an issue is already in clears the
+highlight rather than leaving the last one lit, so "this would do nothing" is visible as the absence of
+a target and not only as a cursor glyph.
 
 The dot in the status bar is green while the socket is up and grey when it is not. The board still
 works when it is grey — it is simply as fresh as the last fetch. `WorkspaceViewModel` forwards the

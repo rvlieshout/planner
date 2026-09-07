@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Planner.Client.Controls;
@@ -14,6 +15,11 @@ public sealed partial class IssueCardViewModel(IssueSummary issue) : ViewModelBa
 {
     [ObservableProperty]
     public partial IssueSummary Issue { get; set; } = issue;
+
+    /// <summary>Set while this issue is the one being dragged, so the row it came from can step back
+    /// and let the card under the cursor be the thing the eye follows.</summary>
+    [ObservableProperty]
+    public partial bool IsDragging { get; set; }
 
     public Guid Id => Issue.Id;
 
@@ -136,6 +142,18 @@ public sealed partial class BoardColumnViewModel(WorkflowStateDto state) : ViewM
     /// <summary>Set while a drag is hovering this column, so it can say it would take the drop.</summary>
     [ObservableProperty]
     public partial bool IsDropTarget { get; set; }
+
+    /// <summary>Where the dragged card would land, in pixels down the column's list.
+    ///
+    /// The column already knows it would take the drop; this is the other half of the answer, and the
+    /// half that matters when the drop also decides an order. The view draws a rule at this offset.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DropIndicatorMargin))]
+    public partial double DropIndicatorOffset { get; set; }
+
+    /// <summary>The offset as a margin, because a full-width rule pinned to the top of the list is a
+    /// Border with a top margin — no canvas, no width binding, no converter.</summary>
+    public Thickness DropIndicatorMargin => new(4, DropIndicatorOffset, 4, 0);
 
     public int Count => Issues.Count;
 
