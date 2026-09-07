@@ -26,14 +26,22 @@
     <Application.Styles>
 
         <!--
-            Ant Design's own text control, wired to the token palette. TextBlock is used in far more
-            places than any other control here, and the alternative is repeating a Foreground binding on
-            every one of them.
+            There is deliberately no `Style Selector="TextBlock"` here, and adding one back would be a
+            mistake worth recognising.
+
+            Foreground and FontSize are inherited properties. The window is an atom:Window, whose theme
+            sets both from the tokens, so every TextBlock under it already reads ColorText at the
+            token's font size without being told — which is why an app-wide setter looks free.
+
+            It is not free. A Style beats inheritance, and AtomUI's own templates rely on inheritance:
+            a tooltip paints a dark box and sets Foreground on it, expecting the plain TextBlock the
+            ContentPresenter builds to pick that up. An app-wide setter overwrites it, and the tooltip
+            becomes near-black text on a near-black box. The same is true of anything else AtomUI
+            colours on its own background — menu hover states, notifications, popups — so the blast
+            radius is every surface the app does not own.
+
+            Text that should not be body text says so for itself, in the classes below.
         -->
-        <Style Selector="TextBlock">
-            <Setter Property="Foreground" Value="{atom:SharedTokenResource ColorText}" />
-            <Setter Property="FontSize" Value="{atom:SharedTokenResource FontSize}" />
-        </Style>
 
         <!-- Toolbar buttons: flat until pointed at, the way a native toolstrip behaves. AtomUI's Text
              button type is exactly that, so this only has to hold the metrics. -->

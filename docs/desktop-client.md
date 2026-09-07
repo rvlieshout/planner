@@ -370,6 +370,26 @@ The same rule cuts the other way and is used deliberately in the issue form: the
 colours locally on `atom:CheckableTag` precisely so that being checked cannot repaint them in the
 primary colour, and each label keeps its own.
 
+### And its corollary: a style beats inheritance
+
+Which is why there is no app-wide `Style Selector="TextBlock"` in `App.axaml`, and why adding one back
+would break more than it fixes.
+
+Foreground and FontSize are inherited properties, and the window is an `atom:Window` whose theme sets
+both from the tokens — so every `TextBlock` under it already reads `ColorText` at the token's size
+without being told. An app-wide setter therefore looks free while changing nothing you can see.
+
+It is not free. AtomUI's own templates rely on that same inheritance: a tooltip paints a dark box, sets
+`Foreground` on it, and expects the plain `TextBlock` its `ContentPresenter` builds to pick the colour
+up. A Style setter outranks inheritance, so an app-wide one repaints that text in body colour and the
+tooltip becomes near-black on near-black. Everything AtomUI colours against its own background is
+exposed the same way — menu hover states, notifications, popups — which is to say every surface the app
+does not draw itself.
+
+The rule to take from it: style the controls this app puts on screen, by class or by type, and leave
+bare `TextBlock` alone. Text that should not be body text says so for itself — `TextBlock.caption`,
+`.key`, `.field`.
+
 ## The board
 
 The workspace loads the team's workflow states and issues (`?sort=board`), builds one column per

@@ -2,29 +2,34 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:atom="https://atomui.net"
              xmlns:vm="using:Planner.Client.ViewModels"
-             xmlns:auth="using:Planner.Contracts.Auth"
              x:Class="Planner.Client.Views.UsersView"
              x:DataType="vm:UsersViewModel">
+    <UserControl.Styles>
+        <Style Selector="atom|Button.userRow.selected">
+            <Setter Property="CustomBackground" Value="{atom:SharedTokenResource ControlItemBgActive}" />
+        </Style>
+    </UserControl.Styles>
     <Grid RowDefinitions="Auto,*" Margin="12" RowSpacing="10">
         <StackPanel Spacing="5">
             <TextBlock Text="{Binding Error}" Foreground="{atom:SharedTokenResource ColorError}"
                        TextWrapping="Wrap" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
             <TextBlock Text="{Binding Message}" TextWrapping="Wrap"
                        IsVisible="{Binding Message, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            <TextBlock Text="Loading / saving…" Classes="caption" IsVisible="{Binding IsLoading}" />
         </StackPanel>
-        <Grid Grid.Row="1" ColumnDefinitions="240,*" ColumnSpacing="16" IsEnabled="{Binding !IsLoading}">
+        <!-- Keep the current content and its colours steady while requests finish. -->
+        <Grid Grid.Row="1" ColumnDefinitions="260,*" ColumnSpacing="20" IsHitTestVisible="{Binding !IsLoading}">
             <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
                 <atom:Button Content="New user" Command="{Binding NewUserCommand}" HorizontalAlignment="Stretch" />
                 <atom:LineEdit Grid.Row="1" Text="{Binding Search}" PlaceholderText="Search name or email" />
                 <atom:ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding Users}">
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="auth:UserSummary">
-                                <atom:Button ButtonType="Text" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                            <DataTemplate x:DataType="vm:UserDirectoryRow">
+                                <atom:Button Classes="userRow" Classes.selected="{Binding IsSelected}"
+                                             ButtonType="Text" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                              Command="{Binding $parent[UserControl].((vm:UsersViewModel)DataContext).SelectUserCommand}"
-                                             CommandParameter="{Binding}" Padding="6" Margin="0,0,0,2">
-                                    <StackPanel Spacing="2">
+                                             CommandParameter="{Binding}" Height="76" Padding="12,10" Margin="0,0,4,8">
+                                    <StackPanel Spacing="4" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
                                         <TextBlock Text="{Binding Email}" Classes="caption" TextTrimming="CharacterEllipsis" />
                                         <TextBlock Text="Inactive" Classes="caption" IsVisible="{Binding !IsActive}" />

@@ -20,7 +20,7 @@ public sealed partial class UsersViewModel(PlannerApiClient api, MeResponse call
     public string Subtitle => "Organisation accounts and team rights";
     public string StatusSummary => $"{Users.Count} of {_directory.Count} users";
     public Func<string, Task<bool>>? ConfirmDiscard { get; init; }
-    public ObservableCollection<UserSummary> Users { get; } = [];
+    public ObservableCollection<UserDirectoryRow> Users { get; } = [];
     public ObservableCollection<UserTeamRow> Teams { get; } = [];
     public IReadOnlyList<string> Roles { get; } = caller.Role == "owner"
         ? ["member", "guest", "admin", "owner"] : ["member", "guest", "admin"];
@@ -70,7 +70,7 @@ public sealed partial class UsersViewModel(PlannerApiClient api, MeResponse call
         Users.Clear();
         foreach (var user in _directory.Where(u => u.DisplayName.Contains(Search.Trim(), StringComparison.OrdinalIgnoreCase) ||
                      u.Email.Contains(Search.Trim(), StringComparison.OrdinalIgnoreCase)).OrderBy(u => u.DisplayName))
-            Users.Add(user);
+            Users.Add(new UserDirectoryRow(user) { IsSelected = HasEditor && user.Id == _original?.Id });
         OnPropertyChanged(nameof(StatusSummary));
     }
 
@@ -92,6 +92,7 @@ public sealed partial class UsersViewModel(PlannerApiClient api, MeResponse call
             _directory.AddRange(users);
             Filter();
             HasEditor = false;
+            UpdateSelection();
             Password = PasswordConfirmation = "";
             Teams.Clear();
         }
@@ -104,8 +105,9 @@ public sealed partial class UsersViewModel(PlannerApiClient api, MeResponse call
         (!HasUnsavedChanges || ConfirmDiscard is null || await ConfirmDiscard(UnsavedSummary));
 
     [RelayCommand]
-    private async Task SelectUserAsync(UserSummary? user)
+    private async Task SelectUserAsync(UserDirectoryRow? user)
     {
+        if (HasEditor && user?.Id == _original?.Id) return;
         if (user is null || !await MayReplaceAsync()) return;
         IsLoading = true;
         Error = Message = null;
@@ -173,8 +175,15 @@ public sealed partial class UsersViewModel(PlannerApiClient api, MeResponse call
 
     private void NotifyEditor()
     {
+        UpdateSelection();
         foreach (var name in new[] { nameof(IsNew), nameof(IsExisting), nameof(EditorTitle), nameof(CanChangeRole), nameof(CanChangeActive) })
             OnPropertyChanged(name);
+    }
+
+    private void UpdateSelection()
+    {
+        foreach (var row in Users)
+            row.IsSelected = HasEditor && row.Id == _original?.Id;
     }
 
     private bool ValidPassword()
@@ -260,6 +269,15 @@ public sealed partial class UsersViewModel(PlannerApiClient api, MeResponse call
         catch (Exception ex) { Error = ex.Message; }
         finally { IsLoading = false; }
     }
+}
+
+public sealed partial class UserDirectoryRow(UserSummary user) : ViewModelBase
+{
+    public Guid Id => user.Id;
+    public string DisplayName => user.DisplayName;
+    public string Email => user.Email;
+    public bool IsActive => user.IsActive;
+    [ObservableProperty] public partial bool IsSelected { get; set; }
 }
 
 public sealed partial class UserTeamRow(TeamDto team, TeamRole? role) : ViewModelBase
