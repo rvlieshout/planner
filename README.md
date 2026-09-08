@@ -13,7 +13,7 @@ The client ships and updates itself through Velopack, from a feed the API serves
 | Piece | Choice |
 | --- | --- |
 | Runtime | .NET 10, minimal APIs |
-| Database | PostgreSQL 17, EF Core 10 (Npgsql) |
+| Database | PostgreSQL 18, EF Core 10 (Npgsql) |
 | Identity | ASP.NET Core Identity, users and roles in the same database |
 | Tokens | OpenIddict 7 — self-hosted OAuth 2.0 / OIDC, password + refresh grants, plain JWTs |
 | Realtime | SignalR hub at `/hubs/planner`, strongly typed against a shared interface |
@@ -53,6 +53,11 @@ wanted.
 `planner-aspire-pgdata` volume to go back to a clean seed.
 
 ### As deployed: compose
+
+Fresh deployments use PostgreSQL 18. If you already have a PostgreSQL 17 volume, dump it using
+the old running stack and restore into a fresh PostgreSQL 18 volume before switching over;
+changing the image tag and mount path does not upgrade the database. See the
+[VPS recovery instructions](docs/deploy-vps-demo.md#7-upgrade-or-recover).
 
 ```bash
 cp .env.example .env          # then edit the three change-me passwords
@@ -158,6 +163,8 @@ tools/planner.http        example requests
 
 | Document | What it covers |
 | --- | --- |
+| [docs/deploy-vps-demo.md](docs/deploy-vps-demo.md) | Small VPS demo: HTTPS, database, installer hosting, updates, backups and recovery |
+| [website/README.md](website/README.md) | Astro download homepage, live release list, and changelog authoring |
 | [docs/architecture.md](docs/architecture.md) | Layering, the decisions worth knowing about, and why |
 | [docs/database.md](docs/database.md) | Schema, relationships, indexes and the conventions behind them |
 | [docs/roles-and-permissions.md](docs/roles-and-permissions.md) | Organisation roles, team roles, and the full permission matrix |

@@ -1,0 +1,141 @@
+---
+import notes from '../data/changelog.json';
+import '../styles/global.css';
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Download Planner for Windows, connect to your team's workspace, and catch up on the latest releases." />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Download Planner · Releases</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <div class="shell">
+      <header>
+        <a class="brand" href="/" aria-label="Planner home"><img src="/favicon.svg" width="32" height="32" alt="" />Planner<span class="demo">Demo</span></a>
+        <nav aria-label="Main navigation"><a href="#download">Download</a><a href="#changelog">Changelog</a></nav>
+      </header>
+      <main id="main">
+        <section id="download" class="download-section" aria-labelledby="download-title">
+          <div class="intro">
+            <p class="eyebrow"><span class="dot"></span> PLANNER FOR WINDOWS</p>
+            <h1>A home for<br />your team's work.</h1>
+            <p class="lede">Projects, issues, and conversations.<br class="desktop-break" /> Together in one desktop workspace.</p>
+            <div class="download-actions">
+              <a class="button" id="download-link" href="/updates/Planner-win-Setup.exe">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5" /></svg>
+                Download for Windows
+              </a>
+              <p class="download-meta">Windows x64 <span aria-hidden="true">·</span> No .NET installation needed</p>
+              <p id="release-status" class="release-status" role="status">Use the installer to get the latest published version.</p>
+              <noscript><p class="release-status">Enable JavaScript to see published versions and release notes.</p></noscript>
+            </div>
+          </div>
+          <aside class="setup" aria-labelledby="setup-title">
+            <div class="setup-heading"><span class="eyebrow">QUICK START</span><span class="small-label">Three steps. You're in.</span></div>
+            <h2 id="setup-title">Make yourself at home.</h2>
+            <ol>
+              <li><span class="step-number">01</span><div><h3>Install Planner</h3><p>Download and run the Windows installer.</p></div></li>
+              <li><span class="step-number">02</span><div><h3>Connect your workspace</h3><p>Enter this server address on the sign-in screen.</p><div class="server-address"><code id="server-url">This website's HTTPS address</code><button id="copy-server" type="button" hidden aria-label="Copy server address">Copy</button></div><span id="copy-status" class="sr-only" role="status"></span></div></li>
+              <li><span class="step-number">03</span><div><h3>Sign in with your account</h3><p>Ask your demo host for your sign-in details.</p></div></li>
+            </ol>
+            <p class="setup-note">Already installed? Planner checks for updates automatically and lets you choose when to restart.</p>
+          </aside>
+        </section>
+        <section class="changelog-section" id="changelog" aria-labelledby="changelog-title">
+          <div class="section-heading"><div><p class="eyebrow">RELEASE NOTES</p><h2 id="changelog-title">What's changed</h2></div><span class="channel">Windows · Stable</span></div>
+          <div id="release-list" aria-live="polite"><p class="empty">Published releases will appear here when the update feed is available.</p></div>
+          <template id="release-template">
+            <article class="release"><div class="release-label"><span class="version"></span><span class="latest-tag" hidden>Latest</span><time hidden></time></div><div class="release-body"><h3></h3><ul></ul><p class="no-notes" hidden>Release notes have not been added for this version.</p></div></article>
+          </template>
+        </section>
+        <p class="demo-note">Demo installers are currently unsigned. Windows may display an unknown-publisher prompt; check with your demo host if you're unsure.</p>
+      </main>
+      <footer><span class="footer-brand">Planner</span><span>A little more clarity. A little less busywork.</span><a href="#download">Back to download ↑</a></footer>
+    </div>
+    <script is:inline type="application/json" id="release-notes" set:html={JSON.stringify(notes).replace(/</g, '\\u003c')} />
+    <script>
+      type Note = { version: string; title: string; date?: string; changes: string[] };
+      const serverUrl = document.querySelector<HTMLElement>('#server-url')!;
+      const copy = document.querySelector<HTMLButtonElement>('#copy-server')!;
+      serverUrl.textContent = window.location.origin;
+      copy.hidden = false;
+      copy.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(window.location.origin);
+          document.querySelector('#copy-status')!.textContent = 'Server address copied.';
+          copy.textContent = 'Copied';
+          window.setTimeout(() => { copy.textContent = 'Copy'; }, 2000);
+        } catch {
+          document.querySelector('#copy-status')!.textContent = 'Copy unavailable. Select the server address and copy it manually.';
+          copy.textContent = 'Select address';
+          const range = document.createRange();
+          range.selectNodeContents(serverUrl);
+          window.getSelection()?.removeAllRanges();
+          window.getSelection()?.addRange(range);
+        }
+      });
+
+      async function loadReleases() {
+        const status = document.querySelector<HTMLElement>('#release-status')!;
+        const list = document.querySelector<HTMLElement>('#release-list')!;
+        const download = document.querySelector<HTMLAnchorElement>('#download-link')!;
+        try {
+          const response = await fetch('/updates/releases.win.json', { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+          if (!response.ok) throw new Error('Feed unavailable');
+          const feed = await response.json();
+          if (!Array.isArray(feed.Assets)) throw new Error('Invalid feed');
+          // Only stable full Planner releases can be installed by this page's audience.
+          const versions = [...new Set<string>(feed.Assets
+            .filter((asset: { PackageId?: unknown; Type?: unknown; Version?: unknown }) =>
+              asset.PackageId === 'Planner' && asset.Type === 'Full' && typeof asset.Version === 'string' && /^\d+\.\d+\.\d+$/.test(asset.Version))
+            .map((asset: { Version: string }) => asset.Version))]
+            .sort((a, b) => {
+              const left = a.split('.').map(Number), right = b.split('.').map(Number);
+              return right[0] - left[0] || right[1] - left[1] || right[2] - left[2];
+            });
+          if (!versions.length) {
+            status.textContent = 'The first Windows release is on its way.';
+            download.removeAttribute('href');
+            download.setAttribute('aria-disabled', 'true');
+            list.textContent = 'No Windows releases have been published yet.';
+            return;
+          }
+          status.textContent = `Latest release · ${versions[0]}`;
+          const notes: Note[] = JSON.parse(document.querySelector('#release-notes')!.textContent!);
+          const template = document.querySelector<HTMLTemplateElement>('#release-template')!;
+          list.replaceChildren();
+          versions.forEach((version, index) => {
+            const fragment = template.content.cloneNode(true) as DocumentFragment;
+            fragment.querySelector('.version')!.textContent = `v${version}`;
+            (fragment.querySelector('.latest-tag') as HTMLElement).hidden = index !== 0;
+            const note = notes.find(entry => entry.version === version);
+            fragment.querySelector('h3')!.textContent = note?.title ?? 'Planner for Windows';
+            if (note?.date) {
+              const time = fragment.querySelector('time')!;
+              time.dateTime = note.date;
+              time.textContent = new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(note.date));
+              time.hidden = false;
+            }
+            const changes = note?.changes ?? [];
+            (fragment.querySelector('.no-notes') as HTMLElement).hidden = changes.length > 0;
+            changes.forEach(change => {
+              const item = document.createElement('li');
+              item.textContent = change;
+              fragment.querySelector('ul')!.append(item);
+            });
+            list.append(fragment);
+          });
+        } catch {
+          status.textContent = 'Version information is unavailable. You can still try the installer link.';
+          list.textContent = 'Release history is temporarily unavailable. Please try again later.';
+        }
+      }
+      void loadReleases();
+    </script>
+  </body>
+</html>

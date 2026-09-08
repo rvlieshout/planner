@@ -1,6 +1,8 @@
 # Issue details
 
-Opening a board card or My Issues row opens a workspace detail page. The page and the creation dialog share IssueFormView, including the borderless writing surfaces, property pills, and label chips.
+Opening a board card or My Issues row opens a workspace detail page. A separate breadcrumb and save toolbar stays above two independently scrolling columns. The main column contains the title, description, sub-issues, related issues, and comments. The right column contains the editable properties, labels, and attachments. Both the page and creation dialog use the same issue editor view model.
+
+Sub-issues use the dense My Issues row layout, with priority, issue key, status, title, labels, and updated time. Click to select; double-click or press Enter to open the selected issue.
 
 Members and leads can edit the issue and its relationships. Guests with team access can comment and attach files; ordinary team viewers have read access. The API remains responsible for authorization. Navigation warns before discarding issue edits, an unposted comment, or an unfinished attachment link.
 

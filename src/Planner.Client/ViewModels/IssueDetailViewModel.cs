@@ -59,6 +59,8 @@ public sealed partial class IssueDetailViewModel(
     [ObservableProperty] public partial IssueRelationType SelectedRelationType { get; set; }
     public IReadOnlyList<IssueRelationType> RelationTypes { get; } = Enum.GetValues<IssueRelationType>();
     public ObservableCollection<IssueSummary> Children { get; } = [];
+    public ObservableCollection<IssueCardViewModel> ChildRows { get; } = [];
+    public bool HasChildren => Children.Count > 0;
     public ObservableCollection<CommentDto> Comments { get; } = [];
     public ObservableCollection<AttachmentDto> Attachments { get; } = [];
     public ObservableCollection<RelatedIssueRow> Relations { get; } = [];
@@ -111,6 +113,8 @@ public sealed partial class IssueDetailViewModel(
             ct.ThrowIfCancellationRequested();
             Detail = detail;
             Replace(Children, detail.Children);
+            Replace(ChildRows, detail.Children.Select(issue => new IssueCardViewModel(issue)));
+            OnPropertyChanged(nameof(HasChildren));
             Replace(Relations, detail.Relations.Select(r => new RelatedIssueRow(r)));
             Replace(Attachments, detail.Attachments);
             Replace(Comments, comments);

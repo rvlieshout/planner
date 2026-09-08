@@ -1,6 +1,6 @@
 # Database design
 
-PostgreSQL 17, EF Core 10 via Npgsql. One database, one schema (`public`), 24 tables plus EF's migration history: 13 domain
+PostgreSQL 18, EF Core 10 via Npgsql. One database, one schema (`public`), 24 tables plus EF's migration history: 13 domain
 tables, 7 from ASP.NET Core Identity, 4 from OpenIddict.
 
 ## Conventions

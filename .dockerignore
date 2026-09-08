@@ -13,3 +13,8 @@ tools/
 .env.*
 !.env.example
 docker-compose*.yml
+**/node_modules/
+website/dist/
+website/.astro/
+artifacts/
+releases/

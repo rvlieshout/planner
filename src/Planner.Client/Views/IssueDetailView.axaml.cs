@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Planner.Client.ViewModels;
@@ -9,6 +10,22 @@ namespace Planner.Client.Views;
 public partial class IssueDetailView : UserControl
 {
     public IssueDetailView() => InitializeComponent();
+
+    private void OnChildActivated(object? sender, TappedEventArgs e)
+    {
+        if (IssueRows.From(e.Source) is { } card && DataContext is IssueDetailViewModel model)
+            model.OpenIssueCommand.Execute(card.Id);
+    }
+
+    private void OnChildKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && sender is ListBox { SelectedItem: IssueCardViewModel card } &&
+            DataContext is IssueDetailViewModel model)
+        {
+            model.OpenIssueCommand.Execute(card.Id);
+            e.Handled = true;
+        }
+    }
 
     private async void UploadFile(object? sender, RoutedEventArgs e)
     {

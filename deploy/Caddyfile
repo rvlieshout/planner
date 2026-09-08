@@ -1,0 +1,15 @@
+{$PLANNER_DOMAIN} {
+    @updates path /updates /updates/*
+    header @updates >Cache-Control "no-store"
+
+    # Only website paths are handled here. API, auth, health and update paths
+    # keep their existing routes, including paths added to the API later.
+    @website path / /index.html /favicon.svg /_astro/*
+    handle @website {
+        root * /srv/site
+        file_server
+    }
+    handle {
+        reverse_proxy api:8080
+    }
+}

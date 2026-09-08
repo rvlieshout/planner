@@ -1,140 +1,201 @@
-<UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:atom="https://atomui.net"
-             xmlns:vm="using:Planner.Client.ViewModels"
-             xmlns:views="using:Planner.Client.Views"
-             xmlns:issues="using:Planner.Contracts.Issues"
-             x:Class="Planner.Client.Views.IssueDetailView"
-             x:DataType="vm:IssueDetailViewModel">
-    <UserControl.Styles>
-        <Style Selector="TextBlock.section">
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Margin" Value="0,12,0,4" />
-        </Style>
-        <Style Selector="atom|Button.issueLink">
-            <Setter Property="ButtonType" Value="Text" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Left" />
-        </Style>
-    </UserControl.Styles>
-    <ScrollViewer>
-        <StackPanel MaxWidth="960" Margin="24,12,24,32" Spacing="10">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <atom:Button Content="Back" ButtonType="Text" Command="{Binding BackCommand}" />
-                <atom:Button Content="{Binding Detail.ParentKey}" ButtonType="Text"
-                             IsVisible="{Binding HasParent}" Command="{Binding OpenParentCommand}" />
-                <TextBlock Text="{Binding Detail.Key}" VerticalAlignment="Center" Classes="key" />
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:atom="https://atomui.net" xmlns:vm="using:Planner.Client.ViewModels" xmlns:views="using:Planner.Client.Views" xmlns:controls="using:Planner.Client.Controls" xmlns:contracts="using:Planner.Contracts.Teams" xmlns:issues="using:Planner.Contracts.Issues" x:Class="Planner.Client.Views.IssueDetailView" x:DataType="vm:IssueDetailViewModel">
+  <UserControl.Styles>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="atom|Button.issueLink">
+      <Setter Property="ButtonType" Value="Text" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+    <Style Selector="atom|Button.crumb">
+      <Setter Property="ButtonType" Value="Text" />
+      <Setter Property="SizeType" Value="Small" />
+      <Setter Property="Padding" Value="4,2" />
+    </Style>
+    <Style Selector="TextBlock.crumb">
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Foreground" Value="{atom:SharedTokenResource ColorTextSecondary}" />
+    </Style>
+    <Style Selector="atom|LineEdit.title">
+      <Setter Property="StyleVariant" Value="Borderless" />
+      <Setter Property="IsCustomFontSize" Value="True" />
+      <Setter Property="FontSize" Value="{atom:SharedTokenResource FontSizeHeading3}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+  </UserControl.Styles>
+  <Grid RowDefinitions="Auto,Auto,*">
+    <!-- One breadcrumb baseline, independent of both scrolling columns. -->
+    <Border Padding="20,10" BorderThickness="0,0,0,1" BorderBrush="{atom:SharedTokenResource ColorBorderSecondary}">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <atom:Button Content="Back" Classes="crumb" Command="{Binding BackCommand}" />
+          <atom:Separator Orientation="Vertical" Height="16" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding Editor.TeamName}" Classes="crumb" MaxWidth="160" TextTrimming="CharacterEllipsis" />
+          <TextBlock Text="/" Classes="crumb" />
+          <atom:Button Content="{Binding Detail.ParentKey}" Classes="crumb" IsVisible="{Binding HasParent}" Command="{Binding OpenParentCommand}" />
+          <TextBlock Text="/" Classes="crumb" IsVisible="{Binding HasParent}" />
+          <TextBlock Text="{Binding Detail.Key}" VerticalAlignment="Center" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" IsVisible="{Binding CanEdit}" IsEnabled="{Binding !IsLoading}">
+          <atom:Button Content="Archive" ButtonType="Text" SizeType="Small" IsDanger="True" Command="{Binding Editor.ArchiveCommand}" IsEnabled="{Binding !Editor.IsBusy}" />
+          <atom:Button Content="Save changes" ButtonType="Primary" SizeType="Small" Command="{Binding Editor.SubmitCommand}" IsLoading="{Binding Editor.IsBusy}" IsEnabled="{Binding !Editor.IsBusy}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+    <StackPanel Grid.Row="1" Margin="24,0" Spacing="4">
+      <TextBlock Text="{Binding Error}" TextWrapping="Wrap" Margin="0,8" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" Foreground="{atom:SharedTokenResource ColorError}" />
+      <TextBlock Text="{Binding Editor.Error}" TextWrapping="Wrap" Margin="0,8" IsVisible="{Binding Editor.Error, Converter={x:Static ObjectConverters.IsNotNull}}" Foreground="{atom:SharedTokenResource ColorError}" />
+    </StackPanel>
+    <Grid Grid.Row="2" ColumnDefinitions="*,300">
+      <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="24,24,24,32" Spacing="24">
+          <StackPanel Spacing="12" IsEnabled="{Binding CanEdit}">
+            <StackPanel Spacing="12" IsEnabled="{Binding !Editor.IsBusy}">
+              <atom:LineEdit Classes="title" Text="{Binding Editor.IssueTitle}" PlaceholderText="Issue title" />
+              <atom:TextArea Text="{Binding Editor.Description}" PlaceholderText="Add description…" StyleVariant="Borderless" Padding="0" AcceptsReturn="True" TextWrapping="Wrap" IsAutoSize="True" MinHeight="110" VerticalContentAlignment="Top" />
             </StackPanel>
-            <TextBlock Text="{Binding Error}" TextWrapping="Wrap"
-                       Foreground="{atom:SharedTokenResource ColorError}" />
-            <views:IssueFormView DataContext="{Binding Editor}" MinHeight="340"
-                                 IsEnabled="{Binding $parent[views:IssueDetailView].((vm:IssueDetailViewModel)DataContext).CanEdit}" />
-            <atom:Separator />
-
+          </StackPanel>
+          <StackPanel Spacing="12">
             <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <TextBlock Text="Sub-issues" Classes="section" />
-                <atom:Button Grid.Column="1" Content="Create sub-issue" SizeType="Small"
-                             IsVisible="{Binding CanEdit}" Command="{Binding CreateChildCommand}" />
+                <TextBlock Text="{Binding Children.Count}" Classes="key" VerticalAlignment="Center" />
+              </StackPanel>
+              <atom:Button Grid.Column="1" Content="Create sub-issue" SizeType="Small" ButtonType="Text" IsVisible="{Binding CanEdit}" Command="{Binding CreateChildCommand}" />
             </Grid>
-            <ItemsControl ItemsSource="{Binding Children}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="issues:IssueSummary">
-                        <atom:Button Classes="issueLink"
-                                     Command="{Binding $parent[views:IssueDetailView].((vm:IssueDetailViewModel)DataContext).OpenIssueCommand}"
-                                     CommandParameter="{Binding Id}">
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                                <TextBlock Text="{Binding Key}" Classes="key" />
-                                <TextBlock Grid.Column="1" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Grid.Column="2" Text="{Binding StateName}" />
-                            </Grid>
-                        </atom:Button>
+            <Border BorderThickness="0,1,0,1" BorderBrush="{atom:SharedTokenResource ColorBorderSecondary}">
+              <StackPanel>
+                <Grid ColumnDefinitions="20,74,14,*,Auto,46" ColumnSpacing="8" Margin="8,6,14,6">
+                  <TextBlock Grid.Column="1" Text="Issue" Classes="key" />
+                  <TextBlock Grid.Column="3" Text="Title" Classes="key" />
+                  <TextBlock Grid.Column="5" Text="Updated" Classes="key" HorizontalAlignment="Right" />
+                </Grid>
+                <atom:ListBox Classes="dense" ItemsSource="{Binding ChildRows}" SelectionMode="Single" ScrollViewer.HorizontalScrollBarVisibility="Disabled" DoubleTapped="OnChildActivated" KeyDown="OnChildKeyDown">
+                  <atom:ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:IssueCardViewModel">
+                      <Grid Classes="row" ColumnDefinitions="20,74,14,*,Auto,46" ColumnSpacing="8" Height="30" Margin="8,0,14,0">
+                        <controls:Icon Grid.Column="0" Data="{Binding PriorityIcon}" Size="14" IsVisible="{Binding HasPriority}" HorizontalAlignment="Left" VerticalAlignment="Center" atom:ToolTip.Tip="{Binding PriorityLabel}" Foreground="{Binding PriorityColor, Converter={StaticResource HexBrush}}" />
+                        <TextBlock Grid.Column="1" Text="{Binding Key}" Classes="key" VerticalAlignment="Center" />
+                        <Ellipse Grid.Column="2" Width="8" Height="8" VerticalAlignment="Center" atom:ToolTip.Tip="{Binding StateName}" Fill="{Binding StateColor, Converter={StaticResource HexBrush}}" />
+                        <TextBlock Grid.Column="3" Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <ItemsControl Grid.Column="4" MaxWidth="120" ClipToBounds="True" ItemsSource="{Binding Labels}" IsVisible="{Binding HasLabels}" VerticalAlignment="Center">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="contracts:LabelDto">
+                              <atom:Tag Text="{Binding Name}" TagColor="{Binding Color}" Variant="Outlined" VerticalAlignment="Center" Margin="0,0,3,0" />
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Grid.Column="5" Text="{Binding UpdatedLabel}" FontSize="{atom:SharedTokenResource FontSizeSM}" HorizontalAlignment="Right" VerticalAlignment="Center" atom:ToolTip.Tip="{Binding UpdatedTooltip}" Foreground="{atom:SharedTokenResource ColorTextSecondary}" />
+                      </Grid>
                     </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-
+                  </atom:ListBox.ItemTemplate>
+                </atom:ListBox>
+                <TextBlock Text="No sub-issues yet." Classes="key" Margin="8,8,8,12" IsVisible="{Binding !HasChildren}" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+          <StackPanel Spacing="12">
             <TextBlock Text="Related issues" Classes="section" />
             <ItemsControl ItemsSource="{Binding Relations}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:RelatedIssueRow">
-                        <Grid ColumnDefinitions="100,*,Auto" ColumnSpacing="8">
-                            <TextBlock Text="{Binding Relationship}" VerticalAlignment="Center" />
-                            <atom:Button Grid.Column="1" Classes="issueLink" Content="{Binding Caption}"
-                                         Command="{Binding $parent[views:IssueDetailView].((vm:IssueDetailViewModel)DataContext).OpenIssueCommand}"
-                                         CommandParameter="{Binding IssueId}" />
-                            <atom:Button Grid.Column="2" Content="Remove" ButtonType="Text"
-                                         IsVisible="{Binding $parent[views:IssueDetailView].((vm:IssueDetailViewModel)DataContext).CanEdit}"
-                                         Command="{Binding $parent[views:IssueDetailView].((vm:IssueDetailViewModel)DataContext).RemoveRelationCommand}"
-                                         CommandParameter="{Binding}" />
-                        </Grid>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:RelatedIssueRow">
+                  <Grid ColumnDefinitions="100,*,Auto" ColumnSpacing="8">
+                    <TextBlock Text="{Binding Relationship}" VerticalAlignment="Center" />
+                    <atom:Button Grid.Column="1" Classes="issueLink" Content="{Binding Caption}" Command="{Binding $parent[views:IssueDetailView].((vm:IssueDetailViewModel)DataContext).OpenIssueCommand}" CommandParameter="{Binding IssueId}" />
+                    <atom:Button Grid.Column="2" Content="Remove" ButtonType="Text" IsVisible="{Binding $parent[views:IssueDetailView].((vm:IssueDetailViewModel)DataContext).CanEdit}" Command="{Binding $parent[views:IssueDetailView].((vm:IssueDetailViewModel)DataContext).RemoveRelationCommand}" CommandParameter="{Binding}" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
             </ItemsControl>
             <StackPanel Spacing="8" IsVisible="{Binding CanEdit}" IsEnabled="{Binding !IsBusy}">
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                    <atom:LineEdit Text="{Binding SearchText}" PlaceholderText="Find an issue by title or key…" />
-                    <atom:Button Grid.Column="1" Content="Search" Command="{Binding SearchCommand}" />
-                </Grid>
-                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                    <atom:ComboBox ItemsSource="{Binding RelationTypes}" SelectedItem="{Binding SelectedRelationType}" />
-                    <atom:ComboBox Grid.Column="1" ItemsSource="{Binding SearchResults}" SelectedItem="{Binding SelectedRelatedIssue}"
-                                   HorizontalAlignment="Stretch">
-                        <atom:ComboBox.ItemTemplate>
-                            <DataTemplate x:DataType="issues:IssueSummary">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="{Binding Key}" />
-                                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </atom:ComboBox.ItemTemplate>
-                    </atom:ComboBox>
-                    <atom:Button Grid.Column="2" Content="Add relation" Command="{Binding AddRelationCommand}" />
-                </Grid>
-            </StackPanel>
-
-            <atom:Separator />
-            <TextBlock Text="Attachments" Classes="section" />
-            <ItemsControl ItemsSource="{Binding Attachments}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="issues:AttachmentDto">
-                        <StackPanel Margin="0,4" Spacing="2">
-                            <atom:Button Classes="issueLink" Content="{Binding FileName}" Click="OpenAttachment" Tag="{Binding}" />
-                            <TextBlock Text="{Binding UploadedBy.DisplayName}" Classes="key" Margin="12,0" />
-                        </StackPanel>
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <atom:LineEdit Text="{Binding SearchText}" PlaceholderText="Find an issue by title or key…" />
+                <atom:Button Grid.Column="1" Content="Search" Command="{Binding SearchCommand}" />
+              </Grid>
+              <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                <atom:ComboBox ItemsSource="{Binding RelationTypes}" SelectedItem="{Binding SelectedRelationType}" />
+                <atom:ComboBox Grid.Column="1" ItemsSource="{Binding SearchResults}" SelectedItem="{Binding SelectedRelatedIssue}" HorizontalAlignment="Stretch">
+                  <atom:ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="issues:IssueSummary">
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding Key}" />
+                        <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
                     </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-            <StackPanel Spacing="8" IsVisible="{Binding CanComment}" IsEnabled="{Binding !IsBusy}">
-                <atom:Button Content="Upload file…" Click="UploadFile" HorizontalAlignment="Left" /><TextBlock Text="Or attach a link to a shared file" Classes="key" />
-                <Grid ColumnDefinitions="2*,3*,Auto" ColumnSpacing="8">
-                    <atom:LineEdit Text="{Binding AttachmentName}" PlaceholderText="File name" />
-                    <atom:LineEdit Grid.Column="1" Text="{Binding AttachmentUrl}" PlaceholderText="https://…" />
-                    <atom:Button Grid.Column="2" Content="Attach" Command="{Binding AddAttachmentCommand}" />
-                </Grid>
+                  </atom:ComboBox.ItemTemplate>
+                </atom:ComboBox>
+                <atom:Button Grid.Column="2" Content="Add relation" Command="{Binding AddRelationCommand}" />
+              </Grid>
             </StackPanel>
-
-            <atom:Separator />
+          </StackPanel>
+          <atom:Separator />
+          <StackPanel Spacing="14">
             <TextBlock Text="Comments" Classes="section" />
             <ItemsControl ItemsSource="{Binding Comments}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="issues:CommentDto">
-                        <StackPanel Spacing="6" Margin="0,8">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <TextBlock Text="{Binding Author.DisplayName}" FontWeight="SemiBold" />
-                                <TextBlock Text="{Binding CreatedAt, StringFormat='{}{0:g}'}" Classes="key" />
-                            </StackPanel>
-                            <TextBlock Text="{Binding Body}" TextWrapping="Wrap" />
-                        </StackPanel>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="issues:CommentDto">
+                  <StackPanel Spacing="6" Margin="0,8">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                      <TextBlock Text="{Binding Author.DisplayName}" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding CreatedAt, StringFormat='{}{0:g}'}" Classes="key" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Body}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
             </ItemsControl>
             <StackPanel Spacing="8" IsVisible="{Binding CanComment}" IsEnabled="{Binding !IsBusy}">
-                <atom:TextArea Text="{Binding CommentBody}" PlaceholderText="Leave a comment…"
-                               AcceptsReturn="True" TextWrapping="Wrap" IsAutoSize="True" MinHeight="90"
-                               StyleVariant="Filled" />
-                <atom:Button Content="Post comment" ButtonType="Primary" HorizontalAlignment="Right"
-                             Command="{Binding PostCommentCommand}" />
+              <atom:TextArea Text="{Binding CommentBody}" PlaceholderText="Leave a comment…" AcceptsReturn="True" TextWrapping="Wrap" IsAutoSize="True" MinHeight="90" StyleVariant="Filled" />
+              <atom:Button Content="Post comment" ButtonType="Primary" HorizontalAlignment="Right" Command="{Binding PostCommentCommand}" />
             </StackPanel>
+          </StackPanel>
         </StackPanel>
-    </ScrollViewer>
+      </ScrollViewer>
+      <Border Grid.Column="1" BorderThickness="1,0,0,0" BorderBrush="{atom:SharedTokenResource ColorBorderSecondary}" Background="{atom:SharedTokenResource ColorBgLayout}">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Margin="20,24,20,32" Spacing="24">
+            <StackPanel Spacing="16">
+              <TextBlock Text="Properties" Classes="section" />
+              <Border IsEnabled="{Binding CanEdit}">
+                <views:IssuePropertiesView DataContext="{Binding Editor}" />
+              </Border>
+            </StackPanel>
+            <atom:Separator />
+            <StackPanel Spacing="12">
+              <TextBlock Text="Attachments" Classes="section" />
+              <ItemsControl ItemsSource="{Binding Attachments}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="issues:AttachmentDto">
+                    <StackPanel Margin="0,4" Spacing="2">
+                      <atom:Button Classes="issueLink" Click="OpenAttachment" Tag="{Binding}">
+                        <TextBlock Text="{Binding FileName}" TextTrimming="CharacterEllipsis" atom:ToolTip.Tip="{Binding FileName}" />
+                      </atom:Button>
+                      <TextBlock Text="{Binding UploadedBy.DisplayName}" Classes="key" Margin="12,0" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <StackPanel Spacing="8" IsVisible="{Binding CanComment}" IsEnabled="{Binding !IsBusy}">
+                <atom:Button Content="Upload file…" Click="UploadFile" HorizontalAlignment="Left" />
+                <TextBlock Text="Or attach a link to a shared file" Classes="key" />
+                <StackPanel Spacing="8">
+                  <atom:LineEdit Text="{Binding AttachmentName}" PlaceholderText="File name" />
+                  <atom:LineEdit Text="{Binding AttachmentUrl}" PlaceholderText="https://…" />
+                  <atom:Button HorizontalAlignment="Right" Content="Attach" Command="{Binding AddAttachmentCommand}" />
+                </StackPanel>
+              </StackPanel>
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+    </Grid>
+  </Grid>
 </UserControl>
-

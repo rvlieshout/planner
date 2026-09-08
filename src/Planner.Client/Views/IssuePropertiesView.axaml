@@ -1,0 +1,103 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:atom="https://atomui.net" xmlns:vm="using:Planner.Client.ViewModels" xmlns:controls="using:Planner.Client.Controls" xmlns:contracts="using:Planner.Contracts.Teams" x:Class="Planner.Client.Views.IssuePropertiesView" x:DataType="vm:IssueEditorViewModel">
+  <UserControl.Styles>
+    <Style Selector="atom|ComboBox.property">
+      <Setter Property="SizeType" Value="Small" />
+      <Setter Property="StyleVariant" Value="Borderless" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="MinWidth" Value="0" />
+    </Style>
+    <Style Selector="TextBlock.caption">
+      <Setter Property="Foreground" Value="{atom:SharedTokenResource ColorTextSecondary}" />
+    </Style>
+  </UserControl.Styles>
+  <StackPanel Spacing="10" IsEnabled="{Binding !IsBusy}">
+    <Grid ColumnDefinitions="82,*" ColumnSpacing="8">
+      <TextBlock Text="Status" Classes="caption" VerticalAlignment="Center" />
+      <atom:ComboBox Grid.Column="1" Classes="property" ItemsSource="{Binding States}" SelectedItem="{Binding SelectedState}" atom:ToolTip.Tip="Status">
+        <atom:ComboBox.ItemTemplate>
+          <DataTemplate x:DataType="contracts:WorkflowStateDto">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="{Binding Color, Converter={StaticResource HexBrush}}" />
+              <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+            </StackPanel>
+          </DataTemplate>
+        </atom:ComboBox.ItemTemplate>
+      </atom:ComboBox>
+    </Grid>
+    <Grid ColumnDefinitions="82,*" ColumnSpacing="8">
+      <TextBlock Text="Priority" Classes="caption" VerticalAlignment="Center" />
+      <atom:ComboBox Grid.Column="1" Classes="property" ItemsSource="{Binding Priorities}" SelectedItem="{Binding SelectedPriority}" atom:ToolTip.Tip="Priority">
+        <atom:ComboBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:PriorityOption">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <controls:Icon Data="{Binding Icon}" Size="13" VerticalAlignment="Center" Foreground="{Binding Color, Converter={StaticResource HexBrush}}" />
+              <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+            </StackPanel>
+          </DataTemplate>
+        </atom:ComboBox.ItemTemplate>
+      </atom:ComboBox>
+    </Grid>
+    <Grid ColumnDefinitions="82,*" ColumnSpacing="8">
+      <TextBlock Text="Assignee" Classes="caption" VerticalAlignment="Center" />
+      <atom:ComboBox Grid.Column="1" Classes="property" ItemsSource="{Binding Assignees}" SelectedItem="{Binding SelectedAssignee}" atom:ToolTip.Tip="Assignee">
+        <atom:ComboBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:AssigneeOption">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <atom:Avatar Classes="xs" Shape="Circle" Text="{Binding Initials}" IsVisible="{Binding HasMember}" VerticalAlignment="Center" />
+              <controls:Icon Data="{Binding Icon}" Size="14" IsVisible="{Binding !HasMember}" VerticalAlignment="Center" Foreground="{atom:SharedTokenResource ColorTextTertiary}" />
+              <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+            </StackPanel>
+          </DataTemplate>
+        </atom:ComboBox.ItemTemplate>
+      </atom:ComboBox>
+    </Grid>
+    <Grid ColumnDefinitions="82,*" ColumnSpacing="8">
+      <TextBlock Text="Project" Classes="caption" VerticalAlignment="Center" />
+      <atom:ComboBox Grid.Column="1" Classes="property" ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}" atom:ToolTip.Tip="Project">
+        <atom:ComboBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:ProjectOption">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="{Binding Color, Converter={StaticResource HexBrush}}" />
+              <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+            </StackPanel>
+          </DataTemplate>
+        </atom:ComboBox.ItemTemplate>
+      </atom:ComboBox>
+    </Grid>
+    <Grid ColumnDefinitions="82,*" ColumnSpacing="8" IsVisible="{Binding HasProject}">
+      <TextBlock Text="Milestone" Classes="caption" VerticalAlignment="Center" />
+      <atom:ComboBox Grid.Column="1" Classes="property" ItemsSource="{Binding Milestones}" SelectedItem="{Binding SelectedMilestone}" IsVisible="{Binding HasProject}" atom:ToolTip.Tip="Milestone">
+        <atom:ComboBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:MilestoneOption">
+            <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+          </DataTemplate>
+        </atom:ComboBox.ItemTemplate>
+      </atom:ComboBox>
+    </Grid>
+    <Grid ColumnDefinitions="82,*" ColumnSpacing="8">
+      <TextBlock Text="Estimate" Classes="caption" VerticalAlignment="Center" />
+      <atom:ComboBox Grid.Column="1" Classes="property" ItemsSource="{Binding Estimates}" SelectedItem="{Binding SelectedEstimate}" atom:ToolTip.Tip="Estimate">
+        <atom:ComboBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:EstimateOption">
+            <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+          </DataTemplate>
+        </atom:ComboBox.ItemTemplate>
+      </atom:ComboBox>
+    </Grid>
+    <StackPanel Spacing="8" IsVisible="{Binding HasLabels}" Margin="0,8,0,0">
+      <TextBlock Text="Labels" Classes="caption" />
+      <ItemsControl ItemsSource="{Binding Labels}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <WrapPanel />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:LabelChipViewModel">
+            <atom:CheckableTag Content="{Binding Name}" IsChecked="{Binding IsSelected}" Background="{Binding ChipBackground, Converter={StaticResource HexBrush}}" BorderBrush="{Binding Color, Converter={StaticResource HexBrush}}" Foreground="{Binding ChipForeground, Converter={StaticResource HexBrush}}" Margin="0,0,4,4" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </StackPanel>
+</UserControl>

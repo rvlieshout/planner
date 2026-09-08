@@ -23,3 +23,8 @@ TestResults/
 coverage/
 
 App_Data/
+
+# Astro download website
+website/node_modules/
+website/dist/
+website/.astro/
