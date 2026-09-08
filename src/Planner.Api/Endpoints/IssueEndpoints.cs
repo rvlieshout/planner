@@ -15,6 +15,7 @@ public static class IssueEndpoints
 {
     public static IEndpointRouteBuilder MapIssueEndpoints(this IEndpointRouteBuilder app)
     {
+        app.MapIssueFiles();
         var issues = app.MapGroup("/api/v1/issues").WithTags("Issues");
 
         issues.MapGet("/", ListAsync)

@@ -8,7 +8,10 @@ using Planner.Client.ViewModels;
 using Planner.Contracts.Auth;
 using Planner.Contracts.Common;
 using Planner.Contracts.Enums;
+using Planner.Contracts.Issues;
 using Planner.Contracts.Teams;
+
+await IssueDetailChecks.RunAsync();
 
 var handler = new AdministrationServer();
 using var http = new HttpClient(handler);
@@ -154,7 +157,46 @@ await leadTeams.SaveCommand.ExecuteAsync(null);
 Check(leadTeams.Teams.Count == 0 && !leadTeams.HasEditor,
     "A lead who demotes themselves loses the team from the page");
 
-Console.WriteLine("All client administration checks passed.");
+// How the board lays its columns out: one per lane, except the unstarted and backlog states, which
+// share one — unstarted on top, because that is the direction work is promoted in.
+var boardHandler = new BoardServer();
+using var boardHttp = new HttpClient(boardHandler);
+var boardApi = new PlannerApiClient(boardHttp, NullLogger<PlannerApiClient>.Instance);
+boardApi.UseServer("http://planner.test");
+
+var board = new BoardViewModel(boardApi, NullLogger<BoardViewModel>.Instance, boardHandler.TeamId, "Engineering");
+await board.LoadAsync(CancellationToken.None);
+
+Check(board.Error is null && board.Lanes.Count == 5 && board.Columns.Count() == 6,
+    "The six default states are drawn as five lanes");
+Check(board.Lanes[0].Columns.Select(c => c.Name).SequenceEqual(["Todo", "Backlog"]),
+    "Todo sits above Backlog in the lane they share");
+Check(board.Lanes[0].Columns[0].IsFirstInLane && !board.Lanes[0].Columns[1].IsFirstInLane,
+    "Only the column below draws a rule above itself");
+Check(board.Lanes.Skip(1).Select(l => l.Columns.Single().Name)
+        .SequenceEqual(["In Progress", "In Review", "Done", "Canceled"]),
+    "Every other state keeps its own lane, in the order the team put them in");
+Check(board.Lanes[0].Columns[0].Count == 1 && board.Lanes[0].Columns[1].Count == 2,
+    "Issues land in their own state's column, not in the lane's first");
+Check(board.StatusSummary == "3 issues in 6 columns", "The status bar still counts columns");
+
+var lane = board.Lanes[0];
+Check(!lane.IsDropTarget, "A lane is not a drop target until one of its columns is");
+lane.Columns[1].IsDropTarget = true;
+Check(lane.IsDropTarget, "A lane follows the column the drag is over");
+
+// A team that renamed its states, and has no backlog at all: nothing to share a lane with.
+var plainHandler = new BoardServer(withBacklog: false);
+using var plainHttp = new HttpClient(plainHandler);
+var plainApi = new PlannerApiClient(plainHttp, NullLogger<PlannerApiClient>.Instance);
+plainApi.UseServer("http://planner.test");
+
+var plain = new BoardViewModel(plainApi, NullLogger<BoardViewModel>.Instance, plainHandler.TeamId, "Ops");
+await plain.LoadAsync(CancellationToken.None);
+Check(plain.Lanes.Count == 5 && plain.Lanes.All(l => l.Columns.Count == 1),
+    "A team with no backlog state gets the board it always had");
+
+Console.WriteLine("All client checks passed.");
 
 static void Check(bool condition, string description)
 {
@@ -396,4 +438,70 @@ sealed class TeamServer : HttpMessageHandler
 
     private static HttpResponseMessage Problem(HttpStatusCode status, string detail) =>
         new(status) { Content = JsonContent.Create(new { detail }) };
+}
+
+/// <summary>A team's board: the six states a team starts with, and three issues sitting in the two
+/// that share a lane.</summary>
+sealed class BoardServer(bool withBacklog = true) : HttpMessageHandler
+{
+    private static readonly JsonSerializerOptions Json = OptionalJson.CreateOptions(new JsonStringEnumConverter());
+
+    public Guid TeamId { get; } = Guid.NewGuid();
+
+    private WorkflowStateDto[]? _states;
+    private IssueSummary[]? _issues;
+
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+    {
+        var path = request.RequestUri!.AbsolutePath;
+
+        if (request.Method == HttpMethod.Get && path == $"/api/v1/teams/{TeamId}/states")
+        {
+            return Task.FromResult(Ok(States()));
+        }
+
+        if (request.Method == HttpMethod.Get && path == "/api/v1/issues")
+        {
+            var issues = Issues();
+            return Task.FromResult(Ok(new PagedResult<IssueSummary>(issues, 1, 200, issues.Length)));
+        }
+
+        throw new InvalidOperationException($"Unexpected request: {request.Method} {request.RequestUri}");
+    }
+
+    /// <summary>Deliberately in the order and at the positions a new team is given them, backlog
+    /// first — the lane the two of them share has to end up where backlog would have been.</summary>
+    private WorkflowStateDto[] States() => _states ??=
+    [
+        ..withBacklog ? new[] { State("Backlog", WorkflowStateType.Backlog, 0) } : [],
+        State("Todo", WorkflowStateType.Unstarted, 1),
+        State("In Progress", WorkflowStateType.Started, 2),
+        State("In Review", WorkflowStateType.Started, 3),
+        State("Done", WorkflowStateType.Completed, 4),
+        State("Canceled", WorkflowStateType.Canceled, 5)
+    ];
+
+    private IssueSummary[] Issues()
+    {
+        if (_issues is not null)
+        {
+            return _issues;
+        }
+
+        var states = States();
+        var todo = states.First(s => s.Type == WorkflowStateType.Unstarted);
+        var backlog = states.FirstOrDefault(s => s.Type == WorkflowStateType.Backlog) ?? todo;
+
+        return _issues = [Issue("ENG-1", todo, 1), Issue("ENG-2", backlog, 2), Issue("ENG-3", backlog, 3)];
+    }
+
+    private WorkflowStateDto State(string name, WorkflowStateType type, int position) =>
+        new(Guid.NewGuid(), TeamId, name, type, "#95A2B3", position, position == 1);
+
+    private IssueSummary Issue(string key, WorkflowStateDto state, double sortOrder) =>
+        new(Guid.NewGuid(), key, TeamId, 1, key, state.Id, state.Name, state.Type, state.Color,
+            IssuePriority.None, null, null, null, null, null, null, sortOrder, [], 0, 0,
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, null);
+
+    private static HttpResponseMessage Ok<T>(T body) => new(HttpStatusCode.OK) { Content = JsonContent.Create(body, options: Json) };
 }

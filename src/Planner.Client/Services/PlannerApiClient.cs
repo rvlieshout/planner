@@ -244,6 +244,38 @@ public sealed class PlannerApiClient(HttpClient http, ILogger<PlannerApiClient> 
     public Task<IssueDetail> GetIssueAsync(Guid issueId, CancellationToken ct) =>
         GetAsync<IssueDetail>($"api/v1/issues/{issueId}", ct);
 
+    public Task<PagedResult<CommentDto>> GetCommentsAsync(Guid id, int page, CancellationToken ct) =>
+        GetAsync<PagedResult<CommentDto>>($"api/v1/issues/{id}/comments?page={page}&pageSize=200", ct);
+
+    public Task<CommentDto> CreateCommentAsync(Guid id, string body, CancellationToken ct) =>
+        SendJsonAsync<CommentDto>(HttpMethod.Post, $"api/v1/issues/{id}/comments", new CreateCommentRequest(body), ct);
+
+    public Task<AttachmentDto> CreateAttachmentAsync(Guid id, CreateAttachmentRequest request, CancellationToken ct) =>
+        SendJsonAsync<AttachmentDto>(HttpMethod.Post, $"api/v1/issues/{id}/attachments", request, ct);
+
+    public Task<AttachmentDto> UploadAttachmentAsync(Guid id, string fileName, byte[] bytes, CancellationToken ct) =>
+        SendAsync<AttachmentDto>(() => new HttpRequestMessage(HttpMethod.Post,
+            Resolve($"api/v1/issues/{id}/files?fileName={Uri.EscapeDataString(fileName)}"))
+        {
+            Content = new ByteArrayContent(bytes)
+        }, ct);
+
+    public async Task<byte[]> DownloadAttachmentAsync(Guid id, CancellationToken ct)
+    {
+        using var response = await SendCoreAsync(() => new HttpRequestMessage(HttpMethod.Get,
+            Resolve($"api/v1/attachments/{id}/content")), ct);
+        return await response.Content.ReadAsByteArrayAsync(ct);
+    }
+
+    public Task<PagedResult<IssueSummary>> SearchIssuesAsync(string search, CancellationToken ct) =>
+        GetAsync<PagedResult<IssueSummary>>($"api/v1/issues?search={Uri.EscapeDataString(search)}&pageSize=50", ct);
+
+    public Task<IssueRelationDto> CreateRelationAsync(Guid id, CreateIssueRelationRequest request, CancellationToken ct) =>
+        SendJsonAsync<IssueRelationDto>(HttpMethod.Post, $"api/v1/issues/{id}/relations", request, ct);
+
+    public Task DeleteRelationAsync(Guid id, Guid relationId, CancellationToken ct) =>
+        SendAsync(() => new HttpRequestMessage(HttpMethod.Delete, Resolve($"api/v1/issues/{id}/relations/{relationId}")), ct);
+
     /// <summary>Sends only the fields the caller actually set; see <see cref="OptionalJson"/>.</summary>
     public Task<IssueSummary> UpdateIssueAsync(Guid issueId, UpdateIssueRequest request, CancellationToken ct) =>
         SendAsync<IssueSummary>(

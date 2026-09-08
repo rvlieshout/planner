@@ -156,7 +156,7 @@
                         Padding="8,5">
                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="7">
                         <atom:Avatar Grid.Column="0"
-                                     Size="20"
+                                     Classes="sm"
                                      Shape="Square"
                                      Text="{Binding UserInitials}" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">

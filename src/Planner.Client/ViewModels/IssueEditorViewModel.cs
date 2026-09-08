@@ -121,6 +121,17 @@ public sealed partial class IssueEditorViewModel : ViewModelBase
 
     private Guid? DefaultProjectId { get; init; }
 
+    public Guid? DefaultParentId { get; set; }
+
+    public bool IsReady { get; private set; }
+
+    public bool HasUnsavedChanges => IsReady && (TitleValue != _originalTitle ||
+        DescriptionValue != _originalDescription || StateId != _originalStateId ||
+        PriorityValue != _originalPriority || AssigneeId != _originalAssigneeId ||
+        ProjectId != _originalProjectId || MilestoneId != _originalMilestoneId ||
+        EstimateValue != _originalEstimate ||
+        !SelectedLabelIds().OrderBy(x => x).SequenceEqual(_originalLabelIds.OrderBy(x => x)));
+
     [ObservableProperty]
     public partial string IssueKey { get; set; } = string.Empty;
 
@@ -319,6 +330,7 @@ public sealed partial class IssueEditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(Heading));
         OnPropertyChanged(nameof(WindowTitle));
         OnPropertyChanged(nameof(HasProject));
+        IsReady = true;
     }
 
     /// <summary>The estimate the issue actually carries, adding it to the scale when it is not on it —
@@ -391,6 +403,8 @@ public sealed partial class IssueEditorViewModel : ViewModelBase
     {
         Error = null;
 
+        if (IsEditing && !IsReady) return;
+
         if (string.IsNullOrEmpty(TitleValue))
         {
             Error = "Give the issue a title.";
@@ -406,6 +420,15 @@ public sealed partial class IssueEditorViewModel : ViewModelBase
                 : await _api.CreateIssueAsync(BuildCreate(), ct);
 
             _logger.LogInformation("{Action} {Key}", IsEditing ? "Updated" : "Created", saved.Key);
+            _originalTitle = TitleValue;
+            _originalDescription = DescriptionValue;
+            _originalStateId = StateId;
+            _originalPriority = PriorityValue;
+            _originalAssigneeId = AssigneeId;
+            _originalProjectId = ProjectId;
+            _originalMilestoneId = MilestoneId;
+            _originalEstimate = EstimateValue;
+            _originalLabelIds = SelectedLabelIds();
             Saved?.Invoke(saved);
         }
         catch (PlannerApiException ex)
@@ -431,7 +454,7 @@ public sealed partial class IssueEditorViewModel : ViewModelBase
     [RelayCommand]
     private async Task ArchiveAsync(CancellationToken ct)
     {
-        if (_issueId is not { } issueId)
+        if (_issueId is not { } issueId || !IsReady)
         {
             return;
         }
@@ -473,7 +496,7 @@ public sealed partial class IssueEditorViewModel : ViewModelBase
             AssigneeId,
             ProjectId,
             MilestoneId,
-            null,
+            DefaultParentId,
             EstimateValue,
             null,
             labelIds.Count == 0 ? null : labelIds);

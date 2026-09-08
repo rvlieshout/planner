@@ -89,6 +89,48 @@
         </Style>
 
         <!--
+            Monogram avatars: a diameter and the font that fits inside it, decided together.
+
+            AtomUI's Avatar carries Ant Design's fit-to-width behaviour — when the initials are wider
+            than the avatar less its Gap at each end, it scales them down and nudges them sideways.
+            That transform is what put initials off centre here. This app's avatars are small (16–22px)
+            while the base font is 12, so a one-letter monogram slipped under the threshold and was
+            drawn full size and centred, while a two-letter one was scaled and shifted — two avatars
+            side by side in the same row, one right and one wrong.
+
+            Pairing each diameter with a font that fits, and taking the gap out of the reckoning, keeps
+            the scale at exactly 1. Nothing is transformed, and every monogram sits where the template
+            puts it. Both halves of the pair have to be set together, which is why they are a class
+            rather than two attributes at each call site.
+
+            Half the diameter is the ratio, and it is measured rather than guessed: in this app's font
+            the widest monogram two capitals can make — WW — is 1.87 times the font size, so a font of
+            half the diameter keeps even that inside the circle. Anything larger puts WW back over the
+            threshold and the scaling back on screen.
+        -->
+        <Style Selector="atom|Avatar">
+            <Setter Property="Gap" Value="0" />
+        </Style>
+
+        <!-- 16px: the assignee on a board card and in the assignee picker. -->
+        <Style Selector="atom|Avatar.xs">
+            <Setter Property="Size" Value="16" />
+            <Setter Property="FontSize" Value="8" />
+        </Style>
+
+        <!-- 20px: who you are signed in as, in the sidebar footer. -->
+        <Style Selector="atom|Avatar.sm">
+            <Setter Property="Size" Value="20" />
+            <Setter Property="FontSize" Value="10" />
+        </Style>
+
+        <!-- 22px: a person on a two-line row — a team member and their address. -->
+        <Style Selector="atom|Avatar.md">
+            <Setter Property="Size" Value="22" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+
+        <!--
             Dense rows.
 
             AtomUI's list item is sized for a menu — token padding, a minimum height, a rounded

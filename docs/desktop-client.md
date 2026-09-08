@@ -110,7 +110,7 @@ The left sidebar is the whole app's map:
 | --- | --- |
 | Team switcher | Every team the caller can read. Switching rebuilds the rest of the sidebar. |
 | **My Issues** | Everything assigned to you, across *every* team — not just the one on screen. |
-| *Team name* | The team board: one column per workflow state. |
+| *Team name* | The team board: one column per workflow state, with Todo and Backlog sharing a lane. |
 | **Projects** | One row per project in the current team, each with the project's own colour. Opens that project's board. The ＋ on the section header starts a new one. |
 | Footer | Who you are signed in as, and the way out. |
 
@@ -399,10 +399,26 @@ A handful of app classes sit on top, in `App.axaml`:
 | `atom:Button.tool` / `.caption` | Toolbar and title-bar buttons, on AtomUI's `Text` button type |
 | `TextBlock.key` | Issue identifiers, in the mono font so a column of them lines up |
 | `TextBlock.caption` | Section labels in the sidebar and forms |
+| `atom:Avatar.xs` / `.sm` / `.md` | Monogram avatars at 16 / 20 / 22px, each with the font size that fits inside it |
 
 The font is the shell font (`Segoe UI Variable Text`, then `Segoe UI`), set through
 `WithDefaultFontFamily`, with the bundled Inter as the fallback for machines that have neither. Only
 issue keys deviate, and only because they need fixed advance widths.
+
+### Why avatars carry a size class rather than a `Size`
+
+AtomUI's `Avatar` brings Ant Design's fit-to-width behaviour: when the initials are wider than the
+avatar less its `Gap` at each end, it scales them down and translates them sideways. The translation
+is written for a left-edge transform origin, so under Avalonia it lands the monogram off centre — and
+because the threshold is a width comparison, whether an avatar was affected depended on the initials
+in it. At this app's sizes the same row could hold `IL` pushed right, `RV` pushed left and `WW`
+clipped against the edge, next to a single-letter monogram sitting perfectly centred.
+
+The classes set `Gap` to 0 and pair each diameter with a font of half that diameter. In this font the
+widest monogram two capitals can make — `WW` — measures 1.87 times the font size, so half the diameter
+keeps even that inside the circle, the scale stays exactly 1, and no transform is applied at all. The
+pair has to be set together, which is why it is one class rather than two attributes at each call
+site: a new avatar written with a bare `Size="24"` brings the old behaviour back.
 
 ## The one theming rule to remember
 
@@ -411,7 +427,7 @@ issue keys deviate, and only because they need fixed advance widths.
 outrank Style setters, *including* the ones a class turns on. So a column written that way can never
 be lit up by adding a class to it, and the highlight silently does nothing.
 
-This is why the resting appearance of the board column, the board card, and the My Issues group is set
+This is why the resting appearance of the board lane and column, the board card, and the My Issues group is set
 in `<UserControl.Styles>` rather than on the elements themselves. Both the default and the drag state
 are then Style setters, and the more specific one wins. It is the first thing to check when a class
 appears to have no effect.
@@ -444,6 +460,26 @@ bare `TextBlock` alone. Text that should not be body text says so for itself —
 
 The workspace loads the team's workflow states and issues (`?sort=board`), builds one column per
 state, and then subscribes to the hub.
+
+### Lanes, and the one that holds two columns
+
+Columns are laid out one per **lane** — one column wide, one column deep — with a single exception:
+**Todo sits on top of Backlog in one lane**. What a board is asked to do most often is promote
+something out of the backlog, and stacking the two makes that a drag straight up into the column above
+rather than a hunt for one somewhere off to the right; the arrangement says where the work is going
+before the drag starts.
+
+The two stay two columns while they do it — their own headers, their own counts, their own drop
+targets — because they are still two workflow states and a drop has to land in one of them. They split
+the lane's height evenly rather than sizing to their contents, so both halves stay on screen and the
+drag always has somewhere to go.
+
+The pairing is by `WorkflowStateType` rather than by name (a team may rename its states but cannot
+change what they mean), it covers every state of those two types rather than just the two a team starts
+with, and the lane takes the leftmost of the positions those states hold — so the rest of the board
+keeps the order the team gave it. A team with only one of the two types gets an ordinary
+single-column lane, which is exactly what it had before. `BoardViewModel.Lay` is the whole rule, and
+`tests/Planner.Client.Checks` pins it.
 
 Live changes are applied in place rather than by refetching. `Created` and `Updated` are handled as
 the same upsert, which makes the client idempotent: a duplicate delivery or a replay after
@@ -484,7 +520,7 @@ A drop is a guess until the board answers three questions, so it answers all thr
 | --- | --- | --- |
 | A card following the cursor | *What am I carrying?* | `DragGhostView`, parented to the window's overlay layer |
 | A rule between two rows | *Where would it land?* | `BoardColumnViewModel.DropIndicatorOffset`, drawn over the list |
-| The column tinted and outlined in the primary colour | *Would this column take it?* | `IsDropTarget`, as a class on the column |
+| The lane outlined and the column inside it tinted, both in the primary colour | *Would this column take it?* | `IsDropTarget`, as a class on each — the lane's follows its columns' |
 | The original row faded to 40% | *Which one is in flight?* | `IssueCardViewModel.IsDragging`, as a class on the card |
 
 The ghost exists because a platform drag owns the cursor: the only thing an app can put underneath it
@@ -562,12 +598,12 @@ API does not offer that and neither does this page; an archived team says so, an
 back. Anything that changes the team list — a create, a rename, a recolour, an archive or a restore —
 refreshes the switcher and the sidebar around the page without navigating away from it.
 
-Run the simulated-API regression checks for both administration pages with
-`dotnet run --project tests/Planner.Client.Checks`. They cover directory pagination, draft protection,
-partial-save recovery, membership operations, password validation, PATCH omission, effective rights,
-who may administer which teams, key validation and upper-casing, create-then-fill-in, the last-lead
-refusal, archive and restore, and a lead demoting themselves. They do not replace an interactive
-desktop check against a running API.
+Run the simulated-API regression checks with `dotnet run --project tests/Planner.Client.Checks`. They
+cover directory pagination, draft protection, partial-save recovery, membership operations, password
+validation, PATCH omission, effective rights, who may administer which teams, key validation and
+upper-casing, create-then-fill-in, the last-lead refusal, archive and restore, a lead demoting
+themselves, and the board's lane layout. They do not replace an interactive desktop check against a
+running API.
 
 ## Updates
 

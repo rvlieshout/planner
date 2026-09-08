@@ -3,12 +3,16 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Planner.Client.Services;
+using Planner.Contracts.Enums;
 using Planner.Contracts.Issues;
 using Planner.Contracts.Realtime;
+using Planner.Contracts.Teams;
 
 namespace Planner.Client.ViewModels;
 
-/// <summary>A column-per-workflow-state board, for a whole team or for one project within it.</summary>
+/// <summary>A column-per-workflow-state board, for a whole team or for one project within it. The
+/// columns are laid out one per lane, except Todo and Backlog, which share one — see
+/// <see cref="Lay"/>.</summary>
 public sealed partial class BoardViewModel : ViewModelBase, IIssueContent
 {
     private readonly PlannerApiClient _api;
@@ -37,7 +41,14 @@ public sealed partial class BoardViewModel : ViewModelBase, IIssueContent
 
     public string? Subtitle { get; }
 
-    public ObservableCollection<BoardColumnViewModel> Columns { get; } = [];
+    /// <summary>What the board is made of, left to right. A lane is one column wide and holds the
+    /// column, or columns, drawn in it.</summary>
+    public ObservableCollection<BoardLaneViewModel> Lanes { get; } = [];
+
+    /// <summary>Every column on the board, whichever lane it is drawn in. A drop lands in a column, an
+    /// issue belongs to a column, and the count in the status bar is a count of columns — none of that
+    /// changed when two of them started sharing a lane.</summary>
+    public IEnumerable<BoardColumnViewModel> Columns => Lanes.SelectMany(l => l.Columns);
 
     [ObservableProperty]
     public partial bool IsLoading { get; set; }
@@ -45,20 +56,21 @@ public sealed partial class BoardViewModel : ViewModelBase, IIssueContent
     [ObservableProperty]
     public partial string? Error { get; set; }
 
-    public bool IsEmpty => Columns.Count > 0 && Columns.All(c => c.IsEmpty);
+    public bool IsEmpty => Lanes.Count > 0 && Columns.All(c => c.IsEmpty);
 
     /// <summary>The status bar line for this board.</summary>
     public string StatusSummary
     {
         get
         {
-            if (Columns.Count == 0)
+            if (Lanes.Count == 0)
             {
                 return string.Empty;
             }
 
-            var issues = Columns.Sum(c => c.Issues.Count);
-            return $"{issues} {(issues == 1 ? "issue" : "issues")} in {Columns.Count} columns";
+            var columns = Columns.ToList();
+            var issues = columns.Sum(c => c.Issues.Count);
+            return $"{issues} {(issues == 1 ? "issue" : "issues")} in {columns.Count} columns";
         }
     }
 
@@ -145,23 +157,25 @@ public sealed partial class BoardViewModel : ViewModelBase, IIssueContent
                 ? await _api.GetProjectIssuesAsync(project, ct)
                 : await _api.GetBoardAsync(_teamId, ct);
 
-            Columns.Clear();
-            foreach (var state in states.OrderBy(s => s.Position))
+            Lanes.Clear();
+            foreach (var lane in Lay(states.OrderBy(s => s.Position).ToList()))
             {
-                var column = new BoardColumnViewModel(state);
-
-                foreach (var issue in board.Items.Where(i => i.StateId == state.Id).OrderBy(i => i.SortOrder))
+                foreach (var column in lane.Columns)
                 {
-                    column.Issues.Add(new IssueCardViewModel(issue));
+                    foreach (var issue in board.Items.Where(i => i.StateId == column.Id).OrderBy(i => i.SortOrder))
+                    {
+                        column.Issues.Add(new IssueCardViewModel(issue));
+                    }
+
+                    column.RaiseCountChanged();
                 }
 
-                column.RaiseCountChanged();
-                Columns.Add(column);
+                Lanes.Add(lane);
             }
 
             RaiseCounts();
-            _logger.LogInformation("Board '{Title}': {Issues} issues in {Columns} columns",
-                Title, board.Items.Count, Columns.Count);
+            _logger.LogInformation("Board '{Title}': {Issues} issues in {Columns} columns across {Lanes} lanes",
+                Title, board.Items.Count, Columns.Count(), Lanes.Count);
         }
         catch (Exception ex) when (ex is PlannerApiException or HttpRequestException)
         {
@@ -237,6 +251,51 @@ public sealed partial class BoardViewModel : ViewModelBase, IIssueContent
         existing.Column.Issues.Remove(existing.Issue);
         existing.Column.RaiseCountChanged();
         Insert(target, existing.Issue);
+    }
+
+    /// <summary>Lays the team's workflow states out into lanes: one per state, left to right in the
+    /// order the team put them in — with one exception.
+    ///
+    /// Backlog and the unstarted states share a lane, stacked, unstarted on top. What the board is
+    /// asked to do most often is promote something out of the backlog, and that becomes a drag straight
+    /// up into the column above rather than a hunt for one somewhere to the right; the arrangement says
+    /// where the work is going before the drag starts. The shared lane takes the leftmost of the
+    /// positions its states hold, so the rest of the board keeps the order the team gave it.
+    ///
+    /// The pairing is by <see cref="WorkflowStateType"/> rather than by name, because a team may rename
+    /// its states but cannot change what they mean. A team that has only one of the two gets an
+    /// ordinary single-column lane out of this, which is exactly what it had before.</summary>
+    private static IEnumerable<BoardLaneViewModel> Lay(IReadOnlyList<WorkflowStateDto> ordered)
+    {
+        var shared = ordered
+            .Where(s => s.Type is WorkflowStateType.Unstarted or WorkflowStateType.Backlog)
+            .ToList();
+
+        var sharedIds = shared.Select(s => s.Id).ToHashSet();
+        var placed = false;
+
+        foreach (var state in ordered)
+        {
+            if (!sharedIds.Contains(state.Id))
+            {
+                yield return new BoardLaneViewModel([new BoardColumnViewModel(state)]);
+                continue;
+            }
+
+            // The lane goes where the first of its states would have gone, and the states after it in
+            // the order are drawn inside it rather than beside it.
+            if (placed)
+            {
+                continue;
+            }
+
+            placed = true;
+
+            yield return new BoardLaneViewModel(shared
+                .OrderBy(s => s.Type == WorkflowStateType.Backlog ? 1 : 0)
+                .ThenBy(s => s.Position)
+                .Select(s => new BoardColumnViewModel(s)));
+        }
     }
 
     private void RaiseCounts()

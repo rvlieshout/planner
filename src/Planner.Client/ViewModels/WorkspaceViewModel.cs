@@ -53,6 +53,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
         _logger = logger;
 
         _realtime.IssueChanged += OnIssueChanged;
+        _realtime.IssueContributionsChanged += OnIssueContributionsChanged;
         _realtime.ConnectedChanged += connected => Dispatcher.UIThread.Post(() => IsLive = connected);
     }
 
@@ -256,6 +257,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
 
     partial void OnContentChanged(ViewModelBase? value)
     {
+        _ = _realtime.WatchIssueAsync((value as IssueDetailViewModel)?.IssueId);
         OnPropertyChanged(nameof(IsUsersSelected));
         OnPropertyChanged(nameof(IsTeamsSelected));
         OnPropertyChanged(nameof(ContentTitle));
@@ -362,6 +364,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
         // A page part-way through a sequence of writes is not interrupted: one of them has already
         // been accepted by the server, and the page is the only thing that still knows which.
         if (Content is UsersViewModel { IsLoading: true } or TeamsViewModel { IsBusy: true }) return false;
+        if (Content is IssueDetailViewModel { IsWorking: true }) return false;
         if (Content is not IUnsavedWork { HasUnsavedChanges: true } page || ConfirmDiscard is null)
         {
             return true;
@@ -610,10 +613,40 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
     /// so the thing you click is the thing you edit.</summary>
     [RelayCommand]
     private Task OpenIssueAsync(IssueCardViewModel? card) =>
-        card is null
-            ? Task.CompletedTask
-            : OpenEditorAsync(team => IssueEditorViewModel.ForEdit(
-                _api, _loggerFactory.CreateLogger<IssueEditorViewModel>(), team.Id, team.Name, card.Id));
+        card is null ? Task.CompletedTask : ShowIssueAsync(card.Id);
+
+    private async Task ShowIssueAsync(Guid id)
+    {
+        if (!await MayDiscardAsync()) return;
+        var returnNav = SelectedNav ?? PrimaryNav.FirstOrDefault();
+        var page = new IssueDetailViewModel(_api, _loggerFactory, _auth.CurrentUser!, id);
+        page.NavigateRequested += next => _ = ShowIssueAsync(next);
+        page.BackRequested += () => _ = ReturnFromIssueAsync(returnNav);
+        page.CreateChildRequested += parent => _ = OpenChildEditorAsync(page, parent);
+        Show(page);
+    }
+
+    private async Task ReturnFromIssueAsync(NavItemViewModel? nav)
+    {
+        if (nav is not null && await MayDiscardAsync()) Navigate(nav);
+    }
+
+    private async Task OpenChildEditorAsync(IssueDetailViewModel page, IssueDetail parent)
+    {
+        if (Editor is not null) return;
+        var teamName = Teams.FirstOrDefault(t => t.Id == parent.TeamId)?.Name ?? parent.Key;
+        var form = IssueEditorViewModel.ForCreate(_api,
+            _loggerFactory.CreateLogger<IssueEditorViewModel>(), parent.TeamId, teamName, parent.ProjectId);
+        form.DefaultParentId = parent.Id;
+        form.Cancelled += () => Editor = null;
+        form.Saved += saved =>
+        {
+            Editor = null;
+            _ = page.RefreshContributionsAsync(CancellationToken.None);
+        };
+        Editor = form;
+        await form.LoadAsync(CancellationToken.None);
+    }
 
     private async Task OpenEditorAsync(Func<TeamDto, IssueEditorViewModel> create)
     {
@@ -659,6 +692,9 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
 
     private void ApplyToContent(EntityChange<IssueSummary> change)
     {
+        if (Content is IssueDetailViewModel page &&
+            (change.Id == page.IssueId || change.Entity?.ParentId == page.IssueId))
+            _ = page.RefreshContributionsAsync(CancellationToken.None);
         if (Content is IIssueContent content)
         {
             content.ApplyIssueChange(change);
@@ -667,6 +703,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _realtime.IssueContributionsChanged -= OnIssueContributionsChanged;
         _realtime.IssueChanged -= OnIssueChanged;
 
         if (Content is { } content)
@@ -678,4 +715,10 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IAsyncDisposable
         _contentLoad.Dispose();
         await _realtime.DisconnectAsync();
     }
+
+    private void OnIssueContributionsChanged(Guid id) => Dispatcher.UIThread.Post(() =>
+    {
+        if (Content is IssueDetailViewModel page && page.IssueId == id)
+            _ = page.RefreshContributionsAsync(CancellationToken.None);
+    });
 }

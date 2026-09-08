@@ -118,10 +118,52 @@ public sealed partial class IssueCardViewModel(IssueSummary issue) : ViewModelBa
     }
 }
 
+/// <summary>One lane of the board — one column wide, and usually one column deep.
+///
+/// The exception is the pair that shares a lane: Todo stacked over Backlog. Promoting work out of the
+/// backlog is the move a board is asked for most often, and stacking the two makes it a drag straight
+/// up rather than a hunt for a column somewhere to the right. They stay two columns while they do it —
+/// their own headers, their own counts, their own drop targets — because they are still two workflow
+/// states, and a drop has to land in one of them.
+///
+/// The lane exists so that a drag can say both things at once: the lane outlines, because it would
+/// take the drop, and the column inside it fills, because that is the half it would land in.</summary>
+public sealed partial class BoardLaneViewModel : ViewModelBase
+{
+    public BoardLaneViewModel(IEnumerable<BoardColumnViewModel> columns)
+    {
+        foreach (var column in columns)
+        {
+            column.IsFirstInLane = Columns.Count == 0;
+            column.PropertyChanged += OnColumnChanged;
+            Columns.Add(column);
+        }
+    }
+
+    public ObservableCollection<BoardColumnViewModel> Columns { get; } = [];
+
+    /// <summary>True while a drag is over any of the columns in this lane. Read rather than set: the
+    /// drag machinery lights a column, which is the thing a drop lands in, and the lane follows.</summary>
+    public bool IsDropTarget => Columns.Any(c => c.IsDropTarget);
+
+    private void OnColumnChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(BoardColumnViewModel.IsDropTarget))
+        {
+            OnPropertyChanged(nameof(IsDropTarget));
+        }
+    }
+}
+
 /// <summary>One column: a workflow state and the issues sitting in it.</summary>
 public sealed partial class BoardColumnViewModel(WorkflowStateDto state) : ViewModelBase
 {
     public Guid Id => state.Id;
+
+    /// <summary>Whether this is the top column of its lane. The one below draws a rule above its own
+    /// header, which is what makes a shared lane read as two stacked columns rather than as one list
+    /// that changes its mind halfway down.</summary>
+    public bool IsFirstInLane { get; internal set; } = true;
 
     public string Name => state.Name;
 

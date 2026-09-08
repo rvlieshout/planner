@@ -12,6 +12,27 @@ namespace Planner.Client.Services;
 public sealed class RealtimeService(AuthService auth, ILogger<RealtimeService> logger) : IAsyncDisposable
 {
     private HubConnection? _connection;
+    private Guid? _openIssueId;
+    private readonly SemaphoreSlim _subscriptionLock = new(1, 1);
+
+    public event Action<Guid>? IssueContributionsChanged;
+
+    public async Task WatchIssueAsync(Guid? issueId)
+    {
+        await _subscriptionLock.WaitAsync();
+        try
+        {
+            var previous = _openIssueId;
+            _openIssueId = issueId;
+            if (_connection is not { State: HubConnectionState.Connected } connection) return;
+            if (previous is { } oldId)
+                await connection.InvokeAsync("UnsubscribeFromIssue", oldId);
+            if (issueId is { } id)
+                await connection.InvokeAsync<bool>("SubscribeToIssue", id);
+        }
+        catch (Exception ex) { logger.LogWarning(ex, "Could not subscribe to issue updates"); }
+        finally { _subscriptionLock.Release(); }
+    }
 
     public event Action<EntityChange<IssueSummary>>? IssueChanged;
 
@@ -37,15 +58,23 @@ public sealed class RealtimeService(AuthService auth, ILogger<RealtimeService> l
             nameof(IPlannerClient.IssueChanged),
             change => IssueChanged?.Invoke(change));
 
+        connection.On<EntityChange<CommentDto>>(nameof(IPlannerClient.CommentChanged),
+            change => { if (change.IssueId is { } id) IssueContributionsChanged?.Invoke(id); });
+        connection.On<EntityChange<AttachmentDto>>(nameof(IPlannerClient.AttachmentChanged),
+            change => { if (change.IssueId is { } id) IssueContributionsChanged?.Invoke(id); });
+        connection.On<EntityChange<IssueRelationDto>>(nameof(IPlannerClient.IssueRelationChanged),
+            change => { if (change.IssueId is { } id) IssueContributionsChanged?.Invoke(id); });
+
         connection.On<IReadOnlyList<string>>(
             nameof(IPlannerClient.Subscribed),
             groups => logger.LogInformation("Subscribed to {Count} realtime groups", groups.Count));
 
-        connection.Reconnected += _ =>
+        connection.Reconnected += async _ =>
         {
+            await WatchIssueAsync(_openIssueId);
+            if (_openIssueId is { } id) IssueContributionsChanged?.Invoke(id);
             logger.LogInformation("Realtime connection re-established");
             ConnectedChanged?.Invoke(true);
-            return Task.CompletedTask;
         };
 
         connection.Reconnecting += _ =>
@@ -64,6 +93,7 @@ public sealed class RealtimeService(AuthService auth, ILogger<RealtimeService> l
         {
             await connection.StartAsync(ct);
             _connection = connection;
+            await WatchIssueAsync(_openIssueId);
             ConnectedChanged?.Invoke(true);
             logger.LogInformation("Realtime connected to {Url}", url);
         }
