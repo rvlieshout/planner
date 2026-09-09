@@ -45,7 +45,7 @@ keep the one-person demo protocol simple; protect the SSH key and restrict port 
 ```bash
 apt-get update
 apt-get upgrade -y
-apt-get install -y ca-certificates curl git openssl
+apt-get install -y ca-certificates curl git openssl python3
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
 chmod a+r /etc/apt/keyrings/docker.asc
@@ -184,39 +184,28 @@ can contain only a full package. If you change build PCs, retrieve the existing 
 Do not publish directly into the live directory with `-PublishTo` over a network share: the index
 could arrive before the package has finished uploading.
 
-After `scp` succeeds, publish on the VPS. Packages go live first, the installer is renamed
-atomically, and the index goes live last. The incoming and release directories share `/srv/planner`
-on the same filesystem, making these renames atomic. Do not run two publications at once.
+After the upload succeeds, run the publication script on the VPS. Its required argument is the
+stage directory; the optional second argument overrides `/srv/planner/releases`.
 
 ```bash
-set -e
-stage=/srv/planner/incoming/1.1.0
-live=/srv/planner/releases
-test -s "$stage/releases.win.json"
-test -s "$stage/Planner-win-Setup.exe"
-chmod 644 "$stage"/*
-for file in "$stage"/*.nupkg; do
-    test -s "$file"
-    name=$(basename "$file")
-    if [ -e "$live/$name" ]; then
-        cmp --silent "$file" "$live/$name"
-    else
-        mv "$file" "$live/$name"
-    fi
-done
-for file in "$stage"/*.exe "$stage"/*.zip; do
-    test -f "$file" || continue
-    mv -f "$file" "$live/$(basename "$file")"
-done
-mv -f "$stage/releases.win.json" "$live/releases.win.json"
+bash /opt/planner/deploy/publish-release.sh /srv/planner/incoming/1.1.0
 curl --fail https://planner-demo.example.com/updates/releases.win.json
 curl --fail --head https://planner-demo.example.com/updates/Planner-win-Setup.exe
 ```
 
-Stop if any command fails; do not advance the index after an incomplete package transfer.
-If an existing version's package differs, rebuild under a new higher version. Retain old
-packages. No container restart is needed. The feed is anonymous by design, and the Caddy
-configuration disables caching for it. Only publish release artifacts in that directory.
+The script requires Bash, Python 3 and `flock` (provided by Ubuntu's `util-linux`). It checks
+the feed's package sizes and SHA-256 hashes and rejects missing packages or attempts to change
+an existing package. Packages already in the live directory may satisfy older feed entries.
+The installer and index are required; the portable ZIP is optional. Packages go live first,
+the installer next, and the index last, using atomic renames from a temporary directory on the
+destination filesystem. Concurrent runs for the same destination are rejected.
+
+Stop if the script fails. Correct the upload and retry; the stage files are retained. A failure
+during the final renames can leave new packages or the installer live, but the index is published
+last. If an existing package differs, rebuild under a new higher version. Keep older packages
+and publish an increasing version as described above; the script does not enforce version ordering.
+No container restart is needed. The feed is anonymous by design, and the Caddy configuration
+disables caching for it. Only publish release artifacts in that directory.
 
 Install using `Planner-win-Setup.exe` on a Windows x64 PC. Builds are currently unsigned, so
 Windows may show an unknown-publisher/SmartScreen prompt. For wider distribution, configure

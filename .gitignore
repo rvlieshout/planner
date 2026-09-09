@@ -28,3 +28,11 @@ App_Data/
 website/node_modules/
 website/dist/
 website/.astro/
+
+# Python deployment checks
+__pycache__/
+
+# git archives
+*.tar
+*.tar.gz
+*.tgz

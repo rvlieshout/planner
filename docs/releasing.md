@@ -54,6 +54,18 @@ rsync -av releases/ planner-server:/srv/planner/releases/
 Nothing needs restarting. Static files are read per request, so the next client to ask sees the new
 version.
 
+For the Ubuntu demo VPS, upload to an incoming directory first, then use the publication script
+to validate package sizes/checksums and publish the index last:
+
+```bash
+bash /opt/planner/deploy/publish-release.sh /srv/planner/incoming/1.1.0
+# Optional second argument: a different release directory.
+```
+
+The incoming files and existing release packages are retained. See
+[the VPS protocol](deploy-vps-demo.md#5-build-and-publish-the-windows-client) for prerequisites
+and the complete upload procedure.
+
 The feed is **anonymous, by design**. The client checks for updates before anyone signs in — that is
 the whole point of the feature, since a release that broke sign-in has to be replaceable — so a token
 requirement here would defeat it. What is exposed is the same set of installers you would put on a

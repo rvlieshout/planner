@@ -1,0 +1,2 @@
+# Shell scripts are run on Ubuntu, including when the source archive comes from Windows.
+*.sh text eol=lf
