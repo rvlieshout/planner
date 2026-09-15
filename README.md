@@ -54,10 +54,11 @@ wanted.
 
 ### As deployed: compose
 
-Fresh deployments use PostgreSQL 18. If you already have a PostgreSQL 17 volume, dump it using
-the old running stack and restore into a fresh PostgreSQL 18 volume before switching over;
-changing the image tag and mount path does not upgrade the database. See the
-[VPS recovery instructions](docs/deploy-vps-demo.md#7-upgrade-or-recover).
+`docker-compose.yml` is the local, everything-in-one-file stack. The VPS runs
+`docker-compose.coolify.yml` instead, from images GitHub Actions publishes to GHCR; see
+[docs/deploy-coolify.md](docs/deploy-coolify.md). Both use PostgreSQL 18, and an existing
+PostgreSQL 17 volume has to be dumped and restored rather than pointed at: changing the image tag
+and mount path does not upgrade the database.
 
 ```bash
 cp .env.example .env          # then edit the three change-me passwords
@@ -139,8 +140,10 @@ To build a release of it:
 ```
 
 That produces an installer, a delta package and a feed index in `./releases`, which compose mounts
-into the API at `/updates`. Installed clients check that feed at startup and every four hours, download
+into the API at `/updates`. Installed clients default to `https://planner.lyste.net/updates`
+(overridable through `updateFeedUrl`) and check at startup and every four hours, download
 what they find, and offer a restart — whether or not anyone has signed in.
+Stable is the default channel; `-Channel win-beta` publishes a pilot build to the same feed.
 See [docs/releasing.md](docs/releasing.md).
 
 ## Layout
@@ -163,7 +166,7 @@ tools/planner.http        example requests
 
 | Document | What it covers |
 | --- | --- |
-| [docs/deploy-vps-demo.md](docs/deploy-vps-demo.md) | Small VPS demo: HTTPS, database, installer hosting, updates, backups and recovery |
+| [docs/deploy-coolify.md](docs/deploy-coolify.md) | The VPS deployment: Coolify resources, image builds, release publishing, backups and recovery |
 | [website/README.md](website/README.md) | Astro download homepage, live release list, and changelog authoring |
 | [docs/architecture.md](docs/architecture.md) | Layering, the decisions worth knowing about, and why |
 | [docs/database.md](docs/database.md) | Schema, relationships, indexes and the conventions behind them |
@@ -187,6 +190,7 @@ Every setting binds from environment variables using `__` as the separator
 | `Planner__Auth__AccessTokenMinutes` | `60` | Access token lifetime. |
 | `Planner__Auth__RefreshTokenDays` | `14` | Refresh token lifetime. |
 | `Planner__Auth__AllowInsecureHttp` | `false` | Allow plain HTTP on the token endpoint. True behind a TLS proxy. |
+| `Planner__Auth__TrustedProxyHops` | `0` | Reverse proxies in front of the API. Needed for per-client rate limiting; `2` on the Coolify VPS. |
 | `Planner__Auth__AllowedOrigins__0` | — | CORS origins, one per index. Not needed by the desktop client. |
 | `Planner__Seed__OwnerEmail` | `owner@planner.local` | Bootstrap owner account. |
 | `Planner__Seed__OwnerPassword` | — | Set it, or no owner is created. Minimum 12 characters. |

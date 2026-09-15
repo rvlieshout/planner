@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Planner.Api.Auth;
@@ -77,6 +78,26 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
         .AllowCredentials();
 }));
 
+if (authOptions.TrustedProxyHops > 0)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.ForwardLimit = authOptions.TrustedProxyHops;
+
+        // Out of the box only loopback is trusted, which is never where a container's proxy lives.
+        // Trusting the private ranges is safe here because the API publishes no host port: nothing
+        // outside the container networks can reach it to forge a header in the first place.
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+        // Qualified, because Microsoft.AspNetCore.HttpOverrides has an IPNetwork of its own and it is
+        // the deprecated one.
+        options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse("10.0.0.0/8"));
+        options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse("172.16.0.0/12"));
+        options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse("192.168.0.0/16"));
+    });
+}
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -95,6 +116,13 @@ builder.Services.AddRateLimiter(options =>
 var app = builder.Build();
 
 await app.InitializeDatabaseAsync();
+
+// First in the pipeline, so everything after it — logging, rate limiting, the URIs OpenIddict builds
+// for itself — sees the caller and scheme of the public request rather than the proxy's.
+if (authOptions.TrustedProxyHops > 0)
+{
+    app.UseForwardedHeaders();
+}
 
 app.UseExceptionHandler();
 

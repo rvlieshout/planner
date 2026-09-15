@@ -56,17 +56,16 @@ The demo page requests `noindex`; this is not an access restriction.
 
 ## Deploy
 
-Follow [the VPS protocol](../docs/deploy-vps-demo.md). `docker compose build caddy` builds Astro
-and copies its output into the Caddy image. After changing the site or its notes, use a new
-`PLANNER_WEBSITE_TAG` in `/opt/planner/.env`, then run from `/opt/planner`:
+The site ships inside the `planner-web` image: `website/Dockerfile` builds Astro with Node and copies
+the output next to `deploy/Caddyfile` in a Caddy image. Pushing to `main` builds and publishes it, and
+Coolify redeploys — see [the deployment guide](../docs/deploy-coolify.md). Changing the site or its
+notes needs nothing else; a client package upload needs no site rebuild at all.
 
 ```bash
-docker compose build caddy
-docker compose up -d --no-deps caddy
-curl --fail https://planner-demo.example.com/
+curl --fail https://planner.lyste.net/
 ```
 
-Keep the previous website image tag for rollback. Updating Caddy briefly interrupts connections,
-including realtime clients, which reconnect. Client package uploads alone need no site rebuild
-or container restart. See `deploy/Caddyfile` for the exact route allowlist: `/`, `/index.html`,
-`/favicon.svg` and `/_astro/*` are static; everything else continues to the API.
+Roll back by pinning `PLANNER_WEB_IMAGE` to an earlier commit-SHA tag. Redeploying the web container
+briefly interrupts connections, including realtime clients, which reconnect on their own. See
+`deploy/Caddyfile` for the exact route allowlist: `/`, `/index.html`, `/favicon.svg` and `/_astro/*`
+are static; everything else continues to the API.

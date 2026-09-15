@@ -74,13 +74,14 @@ is the only record of what happened on a machine nobody can attach a debugger to
 
 ```jsonc
 {
-  "serverUrl": "http://planner.internal:8080",
+  "serverUrl": "https://planner.lyste.net",
 
-  // Optional. Defaults to {serverUrl}/updates, which is what the API serves.
+  // Optional. Defaults to https://planner.lyste.net/updates.
   // May also be a UNC path or local folder: "\\\\fileserver\\planner\\releases".
   "updateFeedUrl": null,
 
-  // Optional. Defaults to the platform channel ("win"). Set "beta" to put this machine in a pilot group.
+  // Optional. Defaults to "win", the stable channel. Set "win-beta" to put this machine in the
+  // pilot group; it then reads releases.win-beta.json from the same feed.
   "updateChannel": null,
 
   "lastEmail": "dana@company.local",
@@ -88,8 +89,9 @@ is the only record of what happened on a machine nobody can attach a debugger to
 }
 ```
 
-A standard install needs none of this: one server URL, typed on the sign-in screen, is enough for both
-the API and updates.
+A standard install needs nothing configured: the sign-in screen offers `https://planner.lyste.net`
+and updates come from `https://planner.lyste.net/updates` independently of that address. Missing, null or blank
+`updateFeedUrl` values use this default; an explicitly configured custom feed is preserved.
 
 ## Signing in
 

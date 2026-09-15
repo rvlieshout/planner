@@ -33,6 +33,7 @@ import '../styles/global.css';
               <p class="download-meta">Windows x64 <span aria-hidden="true">·</span> No .NET installation needed</p>
               <p id="release-status" class="release-status" role="status">Use the installer to get the latest published version.</p>
               <noscript><p class="release-status">Enable JavaScript to see published versions and release notes.</p></noscript>
+              <p id="beta-line" class="release-status" hidden>Helping us test? <a id="beta-link" href="/updates/Planner-win-beta-Setup.exe">Download the beta</a><span id="beta-version"></span></p>
             </div>
           </div>
           <aside class="setup" aria-labelledby="setup-title">
@@ -135,7 +136,30 @@ import '../styles/global.css';
           list.textContent = 'Release history is temporarily unavailable. Please try again later.';
         }
       }
+      // The beta channel shares this feed directory, so the link is only worth showing once something
+      // has actually been published to it. Beta versions are prereleases by construction, which is
+      // what keeps their packages from colliding with a stable release of the same number.
+      async function loadBeta() {
+        try {
+          const response = await fetch('/updates/releases.win-beta.json', { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+          if (!response.ok) return;
+          const feed = await response.json();
+          const versions = (Array.isArray(feed.Assets) ? feed.Assets : [])
+            .filter((asset: { PackageId?: unknown; Type?: unknown; Version?: unknown }) =>
+              asset.PackageId === 'Planner' && asset.Type === 'Full' && typeof asset.Version === 'string')
+            .map((asset: { Version: string }) => asset.Version)
+            .sort();
+          if (!versions.length) return;
+          document.querySelector('#beta-version')!.textContent = ` · ${versions[versions.length - 1]}`;
+          (document.querySelector('#beta-line') as HTMLElement).hidden = false;
+        } catch {
+          // No beta published, or the feed is unreachable. The stable download stands on its own.
+        }
+      }
+
       void loadReleases();
+      void loadBeta();
+
     </script>
   </body>
 </html>

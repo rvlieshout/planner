@@ -1,0 +1,71 @@
+# The stack Coolify deploys. Images are built by .github/workflows/release-images.yml and pulled
+# from GHCR: nothing is compiled on the VPS, so a deploy is a pull and a restart.
+#
+# PostgreSQL is deliberately NOT here. It runs as a Coolify-managed database resource, which is
+# what gives us scheduled off-site backups without writing a cron job. Connect this stack to the
+# database with "Connect to predefined network" and point PLANNER_DB_HOST at its container name.
+#
+# Local development uses docker-compose.yml instead; do not mix the two.
+name: planner
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  api:
+    image: ${PLANNER_API_IMAGE:?set PLANNER_API_IMAGE}
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Planner: "Host=${PLANNER_DB_HOST:?set PLANNER_DB_HOST};Port=${PLANNER_DB_PORT:-5432};Database=${PLANNER_DB_NAME:?set PLANNER_DB_NAME};Username=${PLANNER_DB_USER:?set PLANNER_DB_USER};Password=${PLANNER_DB_PASSWORD:?set PLANNER_DB_PASSWORD}"
+
+      Planner__Database__AutoMigrate: "true"
+
+      Planner__Auth__KeyDirectory: /var/lib/planner/keys
+      Planner__Auth__KeyPassword: ${PLANNER_KEY_PASSWORD:?set PLANNER_KEY_PASSWORD}
+      # TLS terminates at Coolify's proxy. The API is reachable only over the container network, and
+      # X-Forwarded-Proto tells it the public request was HTTPS. Leaving this on is a safety net: it
+      # permits plain HTTP on the token endpoint, it does not force it.
+      Planner__Auth__AllowInsecureHttp: "true"
+      # Coolify's proxy, then this stack's web container. Both hops are on a private network.
+      Planner__Auth__TrustedProxyHops: "2"
+
+      Planner__Seed__OwnerEmail: ${PLANNER_OWNER_EMAIL:?set PLANNER_OWNER_EMAIL}
+      Planner__Seed__OwnerPassword: ${PLANNER_OWNER_PASSWORD:?set PLANNER_OWNER_PASSWORD}
+      Planner__Seed__OwnerDisplayName: ${PLANNER_OWNER_NAME:-Planner Owner}
+      Planner__Seed__SeedDemoData: ${PLANNER_SEED_DEMO:-false}
+
+      Planner__Updates__Enabled: "true"
+      Planner__Updates__Directory: /var/lib/planner/updates
+      Planner__Updates__RequestPath: /updates
+    volumes:
+      # Token signing certificates and data-protection keys. Losing this volume signs everyone out
+      # and invalidates every issued refresh token.
+      - planner-keys:/var/lib/planner/keys
+      # Velopack feed. A host directory rather than a named volume, because publishing a client
+      # release is "put files on the server" and build/upload-release.ps1 does exactly that over SSH.
+      - /srv/planner/releases:/var/lib/planner/updates:ro
+    logging: *logging
+
+  web:
+    image: ${PLANNER_WEB_IMAGE:?set PLANNER_WEB_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      # Coolify generates a domain for this service and writes the proxy rules for it. Replace the
+      # generated value with planner.lyste.net in the service's Domains field.
+      SERVICE_FQDN_WEB_80: /
+    healthcheck:
+      test: [CMD-SHELL, "wget --quiet --spider http://localhost:80/ || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    logging: *logging
+
+volumes:
+  planner-keys:

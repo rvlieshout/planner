@@ -5,11 +5,11 @@
 .DESCRIPTION
     One command produces everything a release needs:
 
-      Planner-{version}-full.nupkg   the update package existing installs download
-      Planner-{version}-delta.nupkg  the difference from the previous release, when there is one
-      Planner-win-Setup.exe          the installer for a machine that has nothing yet
-      Planner-win-Portable.zip       a no-install copy, for locked-down machines
-      releases.win.json              the feed index the client reads
+      Planner-{version}-full.nupkg     the update package existing installs download
+      Planner-{version}-delta.nupkg    the difference from the previous release, when there is one
+      Planner-{channel}-Setup.exe      the installer for a machine that has nothing yet
+      Planner-{channel}-Portable.zip   a no-install copy, for locked-down machines
+      releases.{channel}.json          the feed index the client reads
 
     The release folder accumulates. Keep it — vpk needs the previous packages present to build the
     delta, and a client on an old version needs the packages between here and there.
@@ -18,12 +18,20 @@
     Semantic version for this release, e.g. 1.2.0. Must be higher than the last one: Velopack will not
     offer a downgrade, so a mistyped lower version simply never reaches anyone.
 
+.PARAMETER Channel
+    Which audience this build is for. 'win' is the stable channel every client follows by default;
+    'win-beta' is the pilot channel, reached only by clients with updateChannel set. Both publish
+    into the same directory and the same /updates URL, so a beta build needs a prerelease version.
+
 .PARAMETER PublishTo
     Optional destination to copy the finished feed to: a UNC share, a mounted path, or the server's
     ./releases folder. Omit to build locally and copy it yourself.
 
 .EXAMPLE
     ./build/release.ps1 -Version 1.1.0
+
+.EXAMPLE
+    ./build/release.ps1 -Version 1.2.0-beta.1 -Channel win-beta
 
 .EXAMPLE
     ./build/release.ps1 -Version 1.1.0 -ReleaseNotes ./CHANGELOG-1.1.0.md -PublishTo \\fileserver\planner\releases
@@ -34,6 +42,9 @@ param(
     [ValidatePattern('^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$')]
     [string]$Version,
 
+    # "win" is Velopack's default Windows channel, so a stable install needs no client-side setting
+    # at all. "win-beta" is opt-in, through updateChannel in %AppData%\Planner\settings.json.
+    [ValidateSet('win', 'win-beta')]
     [string]$Channel = 'win',
 
     [string]$Runtime = 'win-x64',
@@ -57,6 +68,17 @@ Set-StrictMode -Version Latest
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $project = Join-Path $repoRoot 'src/Planner.Client/Planner.Client.csproj'
 $icon = Join-Path $repoRoot 'src/Planner.Client/Assets/planner.ico'
+
+# Both channels publish into one directory behind one feed URL, so their package filenames must
+# never collide. Tying beta to a prerelease version guarantees that: Planner-1.2.0-full.nupkg and
+# Planner-1.2.0-beta.1-full.nupkg can coexist, two different 1.2.0 packages cannot.
+$isPrerelease = $Version -match '-'
+if ($Channel -eq 'win-beta' -and -not $isPrerelease) {
+    throw "A beta release needs a prerelease version, for example $Version-beta.1."
+}
+if ($Channel -eq 'win' -and $isPrerelease) {
+    throw "The stable channel takes a plain version. Use -Channel win-beta to ship $Version."
+}
 
 if (-not $ReleaseDir) { $ReleaseDir = Join-Path $repoRoot 'releases' }
 $publishDir = Join-Path $repoRoot "artifacts/publish/$Version-$Runtime"
@@ -141,6 +163,6 @@ Get-ChildItem $ReleaseDir -Filter "*$Version*" | ForEach-Object {
 }
 
 if (-not $PublishTo) {
-    Write-Host "`n  Next: copy the contents of $ReleaseDir to the server's update directory" -ForegroundColor Yellow
-    Write-Host "        (the folder bound to /var/lib/planner/updates; PLANNER_UPDATE_DIR in .env)."
+    Write-Host "`n  Next: ./build/upload-release.ps1 -Version $Version -Channel $Channel" -ForegroundColor Yellow
+    Write-Host "        Uploads the release to the server and publishes the feed index last."
 }

@@ -1,9 +1,8 @@
-{$PLANNER_DOMAIN} {
-    @updates path /updates /updates/*
-    header @updates >Cache-Control "no-store"
-
-    # Only website paths are handled here. API, auth, health and update paths
-    # keep their existing routes, including paths added to the API later.
+# Internal web server. Public TLS, certificates and routing into this container are Coolify's job;
+# this only decides what belongs to the website and what belongs to the API.
+:80 {
+    # Astro's output. Everything else — auth, SignalR, /updates, /health, /scalar and any path added
+    # to the API later — falls through to the API without needing a rule here.
     @website path / /index.html /favicon.svg /_astro/*
     handle @website {
         root * /srv/site

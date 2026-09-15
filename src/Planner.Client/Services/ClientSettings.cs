@@ -7,15 +7,29 @@ namespace Planner.Client.Services;
 
 public sealed class ClientSettings
 {
-    /// <summary>The on-prem Planner API. Everything else is derived from it unless overridden.</summary>
-    public string ServerUrl { get; set; } = "http://localhost:8080";
+    /// <summary>The hosted deployment. The sign-in screen offers it as the default so a fresh install
+    /// is usable without anyone typing a URL; development runs override it with PLANNER_SERVER_URL.</summary>
+    public const string DefaultServerUrl = "https://planner.lyste.net";
 
-    /// <summary>Where Velopack looks for releases. Empty means <c>{ServerUrl}/updates</c>, which is what
-    /// the API serves. Can also be a UNC path or a local folder for sites that distribute over a share.</summary>
+    /// <summary>Everyone, unless they opt in below. Velopack's default Windows channel, so a stable
+    /// install works with no client-side configuration at all.</summary>
+    public const string StableChannel = "win";
+
+    /// <summary>The pilot channel. Reached only by setting <c>updateChannel</c> in settings.json, which
+    /// is the point: beta builds are published to the same feed and nobody arrives on them by accident.</summary>
+    public const string BetaChannel = "win-beta";
+
+    public const string DefaultUpdateFeedUrl = $"{DefaultServerUrl}/updates";
+
+    /// <summary>The Planner API used for sign-in and workspace data.</summary>
+    public string ServerUrl { get; set; } = DefaultServerUrl;
+
+    /// <summary>Where Velopack looks for releases. Empty uses the hosted Planner update feed,
+    /// independently of ServerUrl. Can also be a UNC path or a local folder.</summary>
     public string? UpdateFeedUrl { get; set; }
 
-    /// <summary>Velopack channel. Empty uses the platform default (<c>win</c>), which is what
-    /// <c>build/release.ps1</c> publishes. Point a pilot group at a channel such as <c>beta</c>.</summary>
+    /// <summary>Velopack channel. Empty means <see cref="StableChannel"/>. Set it to
+    /// <see cref="BetaChannel"/> on a pilot machine to follow beta releases.</summary>
     public string? UpdateChannel { get; set; }
 
     public string? LastEmail { get; set; }
@@ -25,8 +39,16 @@ public sealed class ClientSettings
     /// <summary>Resolves the feed once, so the update service and the diagnostics screen cannot disagree.</summary>
     public string ResolveUpdateFeed() =>
         string.IsNullOrWhiteSpace(UpdateFeedUrl)
-            ? $"{ServerUrl.TrimEnd('/')}/updates"
+            ? DefaultUpdateFeedUrl
             : UpdateFeedUrl.Trim();
+
+    /// <summary>Resolves the channel the same way. Named explicitly rather than left to Velopack's
+    /// platform default, so a log line or a support question has an answer that is not "whatever the
+    /// library decided".</summary>
+    public string ResolveUpdateChannel() =>
+        string.IsNullOrWhiteSpace(UpdateChannel)
+            ? StableChannel
+            : UpdateChannel.Trim();
 }
 
 /// <summary>Reads and writes <c>%AppData%\Planner\settings.json</c>. A missing or corrupt file is not an

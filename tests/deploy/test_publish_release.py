@@ -31,12 +31,15 @@ class PublishReleaseTests(unittest.TestCase):
                 "FileName": name, "Size": len(content),
                 "SHA256": hashlib.sha256(content).hexdigest()}
 
-    def feed(self, assets):
-        (self.stage / "releases.win.json").write_text(json.dumps({"Assets": assets}))
+    def feed(self, assets, channel="win"):
+        (self.stage / f"releases.{channel}.json").write_text(json.dumps({"Assets": assets}))
 
-    def publish(self, success=True):
-        result = subprocess.run(["bash", str(SCRIPT), str(self.stage), str(self.live)],
-                                capture_output=True, text=True)
+    def publish(self, success=True, channel=None):
+        command = ["bash", str(SCRIPT)]
+        if channel is not None:
+            command += ["--channel", channel]
+        command += [str(self.stage), str(self.live)]
+        result = subprocess.run(command, capture_output=True, text=True)
         self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
         self.assertFalse(list(self.live.glob(".publish.*")), "Temporary files were not cleaned up")
         return result
@@ -88,6 +91,30 @@ class PublishReleaseTests(unittest.TestCase):
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             result = self.publish(False)
             self.assertIn("already running", result.stderr)
+
+    def test_beta_publishes_into_the_same_directory_without_touching_stable(self):
+        self.publish()
+        stable_index = (self.live / "releases.win.json").read_bytes()
+        beta = self.package("1.2.0-beta.1", b"beta package")
+        (self.stage / "Planner-win-beta-Setup.exe").write_bytes(b"beta installer")
+        self.feed([beta], channel="win-beta")
+        self.publish(channel="win-beta")
+        self.assertEqual((self.live / "releases.win.json").read_bytes(), stable_index)
+        self.assertEqual((self.live / "Planner-win-Setup.exe").read_bytes(), b"installer")
+        self.assertTrue((self.live / beta["FileName"]).is_file())
+        self.assertEqual((self.live / "Planner-win-beta-Setup.exe").read_bytes(), b"beta installer")
+        self.assertEqual(
+            json.loads((self.live / "releases.win-beta.json").read_text())["Assets"][0]["FileName"],
+            beta["FileName"])
+
+    def test_channel_without_its_own_index_or_installer_is_rejected(self):
+        self.publish(False, channel="win-beta")
+        self.assertFalse((self.live / "releases.win-beta.json").exists())
+        self.assertFalse((self.live / "releases.win.json").exists())
+
+    def test_channel_name_cannot_escape_the_release_directory(self):
+        result = self.publish(False, channel="../evil")
+        self.assertIn("Invalid channel name", result.stderr)
 
 
 if __name__ == "__main__":

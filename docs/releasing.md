@@ -1,17 +1,19 @@
 # Releasing and updating the desktop client
 
 Distribution is [Velopack](https://velopack.io): the client packs into a small installer, publishes
-delta packages, and updates itself from a feed the Planner API already serves. Nothing leaves your
-network, and there is no external service to sign up for.
+delta packages, and updates itself from the hosted feed at
+`https://planner.lyste.net/updates`. This default is independent of the API server used for
+workspace data. A custom `updateFeedUrl` in the client's settings can point to another server or share.
 
 ## The short version
 
 ```powershell
 ./build/release.ps1 -Version 1.1.0
+./build/upload-release.ps1 -Version 1.1.0
 ```
 
-Then copy `./releases` to the server's update directory. Every running client picks it up within four
-hours; anyone restarting picks it up immediately.
+Build, then upload. Every running client picks it up within four hours; anyone restarting picks it up
+immediately. Add `-Channel win-beta` to both commands to ship to the pilot channel instead.
 
 ## What a release consists of
 
@@ -21,9 +23,9 @@ hours; anyone restarting picks it up immediately.
 | --- | --- |
 | `Planner-{version}-full.nupkg` | The complete package. What a client downloads when no delta applies. |
 | `Planner-{version}-delta.nupkg` | Only what changed since the previous release. Typically a few hundred KB against ~50 MB. |
-| `Planner-win-Setup.exe` | Installer for a machine with nothing on it yet. |
-| `Planner-win-Portable.zip` | Unpacked copy for machines where installers are not allowed. |
-| `releases.win.json` | The feed index. The client reads this first. |
+| `Planner-{channel}-Setup.exe` | Installer for a machine with nothing on it yet. |
+| `Planner-{channel}-Portable.zip` | Unpacked copy for machines where installers are not allowed. |
+| `releases.{channel}.json` | The feed index. The client reads this first. |
 
 **Keep the whole folder.** `vpk` needs the previous packages present to build a delta against them,
 and a client that has been offline for three releases needs the packages in between. Releasing into an
@@ -34,37 +36,30 @@ packer. `dotnet tool restore` runs automatically as part of the script.
 
 ## Distributing
 
-The API serves the feed as static files at `/updates`, from the directory bound in `docker-compose.yml`:
-
-```yaml
-volumes:
-  - ${PLANNER_UPDATE_DIR:-./releases}:/var/lib/planner/updates:ro
-```
-
-Releasing is therefore "get the folder onto the server":
+The API serves the feed as static files at `/updates`, from a host directory mounted read-only.
+Releasing is therefore "get the folder onto the server", and that is what `upload-release.ps1` does:
 
 ```powershell
-# straight to a share the server mounts
-./build/release.ps1 -Version 1.1.0 -PublishTo \\fileserver\planner\releases
-
-# or copy it yourself
-rsync -av releases/ planner-server:/srv/planner/releases/
+./build/upload-release.ps1 -Version 1.1.0
 ```
+
+It uploads the files this release's index actually references, into a staging directory, puts the
+current `deploy/publish-release.sh` next to them, runs it, and checks the public URL afterwards.
+Staging is the point: an index that arrives before its packages tells clients to download something
+that is not there yet. The script verifies every package against the size and SHA-256 the index
+records, refuses to replace an existing package with different bytes, and moves the index in last.
 
 Nothing needs restarting. Static files are read per request, so the next client to ask sees the new
-version.
+version. Incoming files and existing packages are retained, so a failed run can be repeated once the
+upload is fixed. See
+[the deployment guide](deploy-coolify.md#6-publishing-a-desktop-client-release) for the server side.
 
-For the Ubuntu demo VPS, upload to an incoming directory first, then use the publication script
-to validate package sizes/checksums and publish the index last:
+For a site that distributes over a file share instead, `-PublishTo` still copies the whole folder:
 
-```bash
-bash /opt/planner/deploy/publish-release.sh /srv/planner/incoming/1.1.0
-# Optional second argument: a different release directory.
+```powershell
+./build/release.ps1 -Version 1.1.0 -PublishTo \\fileserver\planner\releases
 ```
 
-The incoming files and existing release packages are retained. See
-[the VPS protocol](deploy-vps-demo.md#5-build-and-publish-the-windows-client) for prerequisites
-and the complete upload procedure.
 
 The feed is **anonymous, by design**. The client checks for updates before anyone signs in — that is
 the whole point of the feature, since a release that broke sign-in has to be replaceable — so a token
@@ -104,15 +99,31 @@ Pre-release suffixes work: `1.2.0-rc.1`.
 
 ## Channels
 
-The default channel is `win`. A second channel is a parallel feed in the same folder:
+Two channels, sharing one directory and one feed URL:
+
+| Channel | Who is on it | Version shape |
+| --- | --- | --- |
+| `win` | Everyone. Velopack's default Windows channel, so a stable install needs no configuration at all. | `1.2.0` |
+| `win-beta` | Only clients with `updateChannel` set. | `1.2.0-beta.1` |
 
 ```powershell
-./build/release.ps1 -Version 1.2.0-rc.1 -Channel beta
+./build/release.ps1 -Version 1.2.0-beta.1 -Channel win-beta
+./build/upload-release.ps1 -Version 1.2.0-beta.1 -Channel win-beta
 ```
 
-Point a pilot group at it by setting `"updateChannel": "beta"` in their `settings.json`. They get
-`releases.beta.json`; everyone else keeps seeing `releases.win.json` and never sees the release
-candidate.
+A beta build must carry a prerelease version and a stable build must not; `release.ps1` refuses the
+other combinations. That is not house style, it is what keeps the channels apart on disk: they write
+into the same directory, and two builds numbered 1.2.0 would produce the same package filename. The
+suffix makes `Planner-1.2.0-beta.1-full.nupkg` and `Planner-1.2.0-full.nupkg` two files that can both
+be live.
+
+Put a pilot machine on the beta channel with `"updateChannel": "win-beta"` in its `settings.json`. It
+then reads `releases.win-beta.json`; everyone else reads `releases.win.json` and never sees the beta.
+Removing the setting returns that machine to stable — though it stays on the beta build until a
+stable release passes it, because Velopack will not downgrade.
+
+The download page links the stable installer, and shows a beta link only once something has been
+published to that channel.
 
 ## Rolling back
 
@@ -154,13 +165,13 @@ of setup. Packages drop to a few MB; setup gains a prerequisite step.
 ## Verifying a release
 
 ```bash
-curl -s http://localhost:8080/updates/releases.win.json | jq '.Assets[] | {Version, FileName, Size}'
+curl -s https://planner.lyste.net/updates/releases.win.json | jq '.Assets[] | {Version, FileName, Size}'
 ```
 
 The client logs every decision it makes to `%AppData%\Planner\logs\planner-{date}.log`:
 
 ```
-[inf] UpdateService: Update service starting. Version 1.0.0, feed http://localhost:8080/updates, interval 04:00:00
+[inf] UpdateService: Update service starting. Version 1.0.0, feed https://planner.lyste.net/updates, channel win, interval 04:00:00
 [inf] UpdateService: Update 1.1.0 available; downloading
 [inf] UpdateService: Update 1.1.0 downloaded and staged
 ```

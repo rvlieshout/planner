@@ -99,8 +99,9 @@ public sealed class UpdateService : IDisposable
         }
 
         _logger.LogInformation(
-            "Update service starting. Version {Version}, feed {Feed}, interval {Interval}",
-            CurrentVersion, _settings.Current.ResolveUpdateFeed(), CheckInterval);
+            "Update service starting. Version {Version}, feed {Feed}, channel {Channel}, interval {Interval}",
+            CurrentVersion, _settings.Current.ResolveUpdateFeed(), _settings.Current.ResolveUpdateChannel(),
+            CheckInterval);
 
         _loop = Task.Run(() => RunAsync(_stopping.Token));
     }
@@ -289,13 +290,7 @@ public sealed class UpdateService : IDisposable
 
         try
         {
-            var options = new UpdateOptions();
-            var channel = _settings.Current.UpdateChannel;
-
-            if (!string.IsNullOrWhiteSpace(channel))
-            {
-                options.ExplicitChannel = channel.Trim();
-            }
+            var options = new UpdateOptions { ExplicitChannel = _settings.Current.ResolveUpdateChannel() };
 
             // A plain path works as well as a URL here, so sites distributing over a file share can put
             // \\\\fileserver\\planner\\releases in settings and nothing else changes.
