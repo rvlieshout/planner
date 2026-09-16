@@ -128,6 +128,24 @@ h1 {
 .button:hover {
   background:#4539b5
 }
+/* The download sits under the browser client now, so it takes the quieter of the two treatments. */
+.button-secondary {
+  background:transparent;
+  color:inherit;
+  border:1px solid var(--line);
+  box-shadow:none
+}
+.button-secondary:hover {
+  background:#f4f3fb
+}
+.actions-rule {
+  width:100%;
+  max-width:320px;
+  height:1px;
+  margin:22px 0;
+  border:0;
+  background:var(--line)
+}
 .button[aria-disabled=true] {
   opacity:.55;
   cursor:default

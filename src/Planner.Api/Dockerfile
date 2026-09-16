@@ -26,9 +26,11 @@ RUN apt-get update \
 WORKDIR /app
 COPY --from=build /app .
 
-# Token signing keys live on a mounted volume. Creating the directory with the right owner here means
-# a fresh named volume inherits that ownership, so the non-root app user can write to it.
-RUN mkdir -p /var/lib/planner/keys && chown -R app:app /var/lib/planner
+# Token signing keys and uploaded attachment bytes live on mounted volumes. Creating the directories
+# with the right owner here means a fresh named volume inherits that ownership, so the non-root app
+# user can write to them. Without this the attachment upload endpoint fails with a 500: its default
+# location is under the application directory, which that user cannot write to.
+RUN mkdir -p /var/lib/planner/keys /var/lib/planner/attachments && chown -R app:app /var/lib/planner
 
 USER app
 

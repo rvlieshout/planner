@@ -1,0 +1,529 @@
+<script lang="ts">
+  import { page } from '$app/state';
+  import { base } from '$app/paths';
+  import { goto } from '$app/navigation';
+
+  import Icon from '$components/Icon.svelte';
+  import ThemeToggle from '$components/ThemeToggle.svelte';
+  import Sidebar from '$components/shell/Sidebar.svelte';
+  import AppMenu from '$components/shell/AppMenu.svelte';
+  import type { MenuGroup } from '$components/shell/menu';
+  import IssueEditorDialog from '$components/issues/IssueEditorDialog.svelte';
+  import DragGhost from '$components/issues/DragGhost.svelte';
+
+  import { chrome } from '$lib/chrome.svelte';
+  import { session } from '$lib/auth/session.svelte';
+  import { settings, SIDEBAR_MAX, SIDEBAR_MIN } from '$lib/settings.svelte';
+  import { workspace } from '$lib/workspace.svelte';
+  import { realtime } from '$lib/realtime/hub.svelte';
+  import { issueEditor } from '$lib/issues/editor.svelte';
+  import { installNavigationGuard, mayDiscard, navigate } from '$lib/navigation.svelte';
+  import { VERSION } from '$lib/version';
+
+  /**
+   * The window frame: a title bar with the application menu, a sidebar you can drag or collapse, a
+   * toolbar strip over the content, and a status bar under it.
+   *
+   * None of it knows what page is open. The page publishes its heading, its actions and its one-line
+   * summary through `chrome`, and this reads them — which is the only arrangement that works when the
+   * describing furniture lives outside the thing it describes.
+   */
+  let { children } = $props();
+
+  installNavigationGuard();
+
+  /*
+   * The sign-in guard belongs here, not only in the root layout.
+   *
+   * The root layout decides "signed in or not" once, and its effect cannot decide it again while
+   * routing *inside* the application: its dependencies — the status, and whether the URL is the login
+   * page — are unchanged from one application route to the next, so it never re-runs, and a redirect
+   * fired by a page underneath it wins the race. Every route in this group is behind sign-in, so the
+   * group asserts that for itself and renders nothing at all until it holds.
+   */
+  $effect(() => {
+    if (session.status === 'signed-out') void goto(`${base}/login`, { replaceState: true });
+  });
+
+  // The workspace is loaded once per signed-in session, not once per page.
+  $effect(() => {
+    if (session.isSignedIn && workspace.teams.length === 0 && !workspace.loading) {
+      void workspace.initialize();
+    }
+  });
+
+  const teamId = $derived(workspace.currentTeamId);
+  const projectId = $derived(page.params.id ?? null);
+  const onProjectPage = $derived(page.url.pathname.startsWith(`${base}/projects/`));
+
+  /* ------------------------------------------------------------ commands ---- */
+
+  function newIssue() {
+    if (!teamId) return;
+
+    issueEditor.create({
+      teamId,
+      // A form opened from inside a project starts in that project.
+      projectId: onProjectPage ? projectId : null
+    });
+  }
+
+  async function newProject() {
+    if (teamId) await navigate('/projects/new');
+  }
+
+  async function refresh() {
+    if (!chrome.refresh) return;
+    // Reloading discards edits as thoroughly as leaving does, so it asks the same question.
+    if (!(await mayDiscard())) return;
+
+    await chrome.refresh();
+  }
+
+  async function signOut() {
+    if (!(await mayDiscard())) return;
+
+    session.signOut();
+    workspace.reset();
+    await realtime.disconnect();
+    await goto(`${base}/login`, { replaceState: true });
+  }
+
+  const menu = $derived<MenuGroup[]>([
+    {
+      label: 'File',
+      items: [
+        {
+          label: 'New issue',
+          icon: 'plus',
+          shortcut: 'Ctrl+N',
+          disabled: !teamId,
+          run: newIssue
+        },
+        {
+          label: 'New project',
+          icon: 'folder-kanban',
+          shortcut: 'Ctrl+Shift+N',
+          disabled: !teamId,
+          run: () => void newProject()
+        },
+        {
+          label: 'Refresh',
+          icon: 'refresh-cw',
+          shortcut: 'F5',
+          disabled: !chrome.refresh,
+          run: () => void refresh()
+        }
+      ]
+    },
+    {
+      label: 'View',
+      items: [
+        {
+          label: 'My Issues',
+          icon: 'circle-user',
+          shortcut: 'Ctrl+1',
+          run: () => void navigate('/my-issues')
+        },
+        {
+          label: 'Team board',
+          icon: 'layout-grid',
+          shortcut: 'Ctrl+2',
+          disabled: !teamId,
+          run: () => void navigate('/board')
+        },
+        {
+          label: settings.sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar',
+          icon: 'panel-left',
+          shortcut: 'Ctrl+B',
+          run: () => settings.toggleSidebar()
+        }
+      ]
+    },
+    {
+      label: 'Account',
+      items: [
+        {
+          label: 'Preferences',
+          icon: 'settings',
+          run: () => void navigate('/settings')
+        },
+        {
+          label: 'Sign out',
+          icon: 'log-out',
+          danger: true,
+          run: () => void signOut()
+        }
+      ]
+    }
+  ]);
+
+  /* ----------------------------------------------------------- shortcuts ---- */
+
+  function onKeyDown(event: KeyboardEvent) {
+    // A shortcut that fires while someone is typing into a field is a shortcut that eats their text.
+    const target = event.target as HTMLElement | null;
+    const typing =
+      target?.isContentEditable ||
+      ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName ?? '');
+
+    if (event.key === 'F5' && !event.ctrlKey && !event.metaKey) {
+      // Only when this page knows what refreshing means; otherwise the browser's own reload is right.
+      if (chrome.refresh) {
+        event.preventDefault();
+        void refresh();
+      }
+      return;
+    }
+
+    const accel = event.ctrlKey || event.metaKey;
+    if (!accel || event.altKey) return;
+
+    switch (event.key.toLowerCase()) {
+      case 'n':
+        if (typing) return;
+        event.preventDefault();
+        if (event.shiftKey) void newProject();
+        else newIssue();
+        break;
+      case 'b':
+        if (typing) return;
+        event.preventDefault();
+        settings.toggleSidebar();
+        break;
+      case '1':
+        event.preventDefault();
+        void navigate('/my-issues');
+        break;
+      case '2':
+        event.preventDefault();
+        if (teamId) void navigate('/board');
+        break;
+    }
+  }
+
+  /* ------------------------------------------------------------- resize ---- */
+
+  let dragging = $state(false);
+
+  function startResize(event: PointerEvent) {
+    dragging = true;
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    event.preventDefault();
+  }
+
+  function onResize(event: PointerEvent) {
+    if (dragging) settings.setSidebarWidth(event.clientX);
+  }
+
+  function endResize(event: PointerEvent) {
+    dragging = false;
+    (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
+  }
+
+  /** Keyboard resizing, because a drag handle nobody can reach is a handle half the users do not have. */
+  function onHandleKey(event: KeyboardEvent) {
+    const step = event.shiftKey ? 32 : 8;
+
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      settings.setSidebarWidth(settings.sidebarWidth - step);
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      settings.setSidebarWidth(settings.sidebarWidth + step);
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      settings.toggleSidebar();
+    }
+  }
+</script>
+
+<svelte:window onkeydown={onKeyDown} />
+
+{#if session.isSignedIn}
+<div class="shell" class:collapsed={settings.sidebarCollapsed} style:--sidebar="{settings.sidebarWidth}px">
+  <header class="titlebar">
+    <AppMenu groups={menu} />
+
+    <a class="brand" href="{base}/my-issues">
+      <span class="mark" aria-hidden="true"><Icon name="layout-grid" size={13} /></span>
+      <span>Planner</span>
+    </a>
+
+    <span class="spacer"></span>
+
+    <button
+      type="button"
+      class="btn btn-quiet btn-icon btn-sm"
+      onclick={newIssue}
+      disabled={!teamId}
+      title="New issue (Ctrl+N)"
+      aria-label="New issue">
+      <Icon name="plus" size={15} />
+    </button>
+
+    <ThemeToggle />
+  </header>
+
+  <aside class="sidebar-slot">
+    <Sidebar onSignOut={() => void signOut()} />
+  </aside>
+
+  <!--
+    A focusable separator is the standard splitter: ARIA gives `separator` an orientation and a
+    value when it is focusable, which is exactly this. Svelte's checker treats every div as inert
+    regardless of role, so the two rules it raises here are wrong about this element specifically.
+  -->
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div
+    class="resizer"
+    class:dragging
+    role="separator"
+    aria-orientation="vertical"
+    aria-label="Resize sidebar"
+    aria-valuenow={settings.sidebarWidth}
+    aria-valuemin={SIDEBAR_MIN}
+    aria-valuemax={SIDEBAR_MAX}
+    tabindex="0"
+    onpointerdown={startResize}
+    onpointermove={onResize}
+    onpointerup={endResize}
+    onkeydown={onHandleKey}>
+  </div>
+
+  <main class="content">
+    <div class="toolbar">
+      {#if settings.sidebarCollapsed}
+        <button
+          type="button"
+          class="btn btn-quiet btn-icon btn-sm"
+          onclick={() => settings.toggleSidebar()}
+          title="Show sidebar (Ctrl+B)"
+          aria-label="Show sidebar">
+          <Icon name="panel-left" size={15} />
+        </button>
+      {/if}
+
+      <div class="heading">
+        <h1 class="truncate">{chrome.title}</h1>
+        {#if chrome.subtitle}<p class="truncate muted">{chrome.subtitle}</p>{/if}
+      </div>
+
+      <span class="spacer"></span>
+
+      {#if chrome.actions}
+        {@render chrome.actions()}
+      {/if}
+
+      {#if chrome.refresh}
+        <button
+          type="button"
+          class="btn btn-quiet btn-icon btn-sm"
+          onclick={() => void refresh()}
+          title="Refresh (F5)"
+          aria-label="Refresh">
+          <Icon name="refresh-cw" size={14} class={chrome.busy ? 'spin' : ''} />
+        </button>
+      {/if}
+    </div>
+
+    <div class="page">
+      {@render children()}
+    </div>
+  </main>
+
+  <footer class="statusbar">
+    <span class="truncate">{chrome.status ?? ''}</span>
+    <span class="spacer"></span>
+
+    <span class="segment" title={realtime.isConnected ? 'Live updates are on' : 'Not connected — this view is as fresh as its last fetch'}>
+      <span class="live" class:on={realtime.isConnected}></span>
+      {realtime.isConnected ? 'Live' : realtime.status === 'reconnecting' ? 'Reconnecting…' : 'Offline'}
+    </span>
+
+    <span class="segment version">{VERSION}</span>
+  </footer>
+</div>
+
+<IssueEditorDialog />
+<DragGhost />
+{/if}
+
+<style>
+  .shell {
+    display: grid;
+    grid-template-rows: var(--titlebar-h) 1fr var(--statusbar-h);
+    grid-template-columns: var(--sidebar) 0 1fr;
+    grid-template-areas:
+      'title title title'
+      'side resize content'
+      'status status status';
+    height: 100%;
+    background: var(--bg-app);
+  }
+
+  .shell.collapsed {
+    grid-template-columns: 0 0 1fr;
+  }
+
+  .shell.collapsed .sidebar-slot,
+  .shell.collapsed .resizer {
+    display: none;
+  }
+
+  .titlebar {
+    display: flex;
+    grid-area: title;
+    align-items: center;
+    gap: var(--s-2);
+    padding: 0 var(--s-3);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-app);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    margin-left: var(--s-2);
+    color: var(--fg);
+    font-size: var(--text-base);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .brand:hover {
+    text-decoration: none;
+  }
+
+  .mark {
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-xs);
+    background: var(--accent);
+    color: var(--fg-on-accent);
+  }
+
+  .sidebar-slot {
+    grid-area: side;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .resizer {
+    grid-area: resize;
+    width: 1px;
+    margin-right: -3px;
+    padding-right: 6px;
+    cursor: col-resize;
+    touch-action: none;
+  }
+
+  .resizer:hover,
+  .resizer.dragging,
+  .resizer:focus-visible {
+    background: var(--accent);
+    outline: none;
+  }
+
+  .content {
+    display: flex;
+    grid-area: content;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--bg-surface);
+  }
+
+  .toolbar {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--s-3);
+    height: var(--toolbar-h);
+    padding: 0 var(--s-5);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-app);
+  }
+
+  .heading {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s-4);
+    min-width: 0;
+  }
+
+  h1 {
+    font-size: var(--text-md);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .heading p {
+    font-size: var(--text-sm);
+  }
+
+  .page {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .statusbar {
+    display: flex;
+    grid-area: status;
+    align-items: center;
+    gap: var(--s-4);
+    padding: 0 var(--s-5);
+    border-top: 1px solid var(--border);
+    background: var(--bg-app);
+    color: var(--fg-tertiary);
+    font-size: var(--text-xs);
+  }
+
+  .segment {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    padding-left: var(--s-4);
+    border-left: 1px solid var(--split);
+  }
+
+  .version {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .live {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--fg-disabled);
+  }
+
+  .live.on {
+    background: var(--success);
+  }
+
+  /* Under about 900px the sidebar is a drawer over the content rather than a column beside it. */
+  @media (width <= 900px) {
+    .shell:not(.collapsed) {
+      grid-template-columns: 0 0 1fr;
+    }
+
+    .shell:not(.collapsed) .sidebar-slot {
+      position: fixed;
+      top: var(--titlebar-h);
+      bottom: var(--statusbar-h);
+      left: 0;
+      z-index: var(--z-sticky);
+      width: min(var(--sidebar), 84vw);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .resizer {
+      display: none;
+    }
+  }
+</style>

@@ -24,6 +24,10 @@ services:
 
       Planner__Database__AutoMigrate: "true"
 
+      # Attachment bytes, on their own volume. Back it up with the database: the rows point at files
+      # that only exist here.
+      Attachments__Path: /var/lib/planner/attachments
+
       Planner__Auth__KeyDirectory: /var/lib/planner/keys
       Planner__Auth__KeyPassword: ${PLANNER_KEY_PASSWORD:?set PLANNER_KEY_PASSWORD}
       # TLS terminates at Coolify's proxy. The API is reachable only over the container network, and
@@ -45,6 +49,8 @@ services:
       # Token signing certificates and data-protection keys. Losing this volume signs everyone out
       # and invalidates every issued refresh token.
       - planner-keys:/var/lib/planner/keys
+      # Uploaded attachment bytes. Deleting an attachment or an issue does not purge these yet.
+      - planner-attachments:/var/lib/planner/attachments
       # Velopack feed. A host directory rather than a named volume, because publishing a client
       # release is "put files on the server" and build/upload-release.ps1 does exactly that over SSH.
       - /srv/planner/releases:/var/lib/planner/updates:ro
@@ -69,3 +75,4 @@ services:
 
 volumes:
   planner-keys:
+  planner-attachments:

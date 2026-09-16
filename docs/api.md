@@ -221,13 +221,22 @@ back out clears them. Rename your columns freely.
 | `GET \| POST /api/v1/issues/{id}/comments` | `{ body, parentCommentId? }` — one level of threading | Read / **Comment** |
 | `PATCH /api/v1/comments/{id}` | Author only | author |
 | `DELETE /api/v1/comments/{id}` | Author, or a team lead moderating | author / Administer |
-| `POST /api/v1/issues/{id}/attachments` | `{ fileName, storageUri, contentType?, sizeBytes? }` | **Comment** |
+| `POST /api/v1/issues/{id}/attachments` | `{ fileName, storageUri, contentType?, sizeBytes? }` — metadata for a file held elsewhere | **Comment** |
+| `POST /api/v1/issues/{id}/files?fileName=` | The raw bytes as the request body, up to 20 MiB | **Comment** |
+| `GET /api/v1/attachments/{id}/content` | Downloads bytes this server holds | Read |
 | `DELETE /api/v1/attachments/{id}` | Uploader, or any team member | uploader / Write |
 | `POST /api/v1/issues/{id}/relations` | `{ targetIssueId, type }` — `Related`, `Blocks`, `Duplicates` | Write |
 | `DELETE /api/v1/issues/{id}/relations/{relationId}` | | Write |
 
-Attachments store **metadata only**. Upload the bytes to your own share or object store and put the
-resulting location in `storageUri`.
+An attachment goes on either way. `POST …/attachments` stores **metadata only** — put the bytes on your
+own share or object store and the resulting location in `storageUri`. `POST …/files` sends the bytes
+themselves; the API writes them under `Attachments__Path`, outside the web root, and sets
+`storageUri` to `planner-attachment:{id}`, which is how a client tells the two apart. Downloading
+through `GET /attachments/{id}/content` re-checks the issue's team permission.
+
+`Attachments__Path` must be an absolute, writable directory in any container deployment — the default
+lives under the application folder, which the image's non-root user cannot create. Back it up with the
+database.
 
 Relations are stored once and shown from both ends: create "A blocks B" and issue B reports it as an
 inbound relation with `"isOutgoing": false`. Cross-team relations are allowed, provided you can read

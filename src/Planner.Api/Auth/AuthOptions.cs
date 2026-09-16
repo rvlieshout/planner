@@ -19,6 +19,11 @@ public sealed class PlannerAuthOptions
     /// a desktop binary cannot keep a secret, so it does not get one.</summary>
     public string DesktopClientId { get; set; } = "planner-desktop";
 
+    /// <summary>Client id the browser client authenticates with. Public for the same reason and more
+    /// so: a single-page application is source anyone can read. It is registered separately from the
+    /// desktop client so the two can be told apart in the logs and revoked independently.</summary>
+    public string WebClientId { get; set; } = "planner-web";
+
     /// <summary>Allows plain HTTP on the token endpoint. Correct behind a TLS-terminating reverse
     /// proxy or for local evaluation; leave false when the API is exposed directly.</summary>
     public bool AllowInsecureHttp { get; set; }

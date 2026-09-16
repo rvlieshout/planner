@@ -86,7 +86,7 @@ Organisation-level actions bypass teams entirely:
 ```
 POST /connect/token
   grant_type=password
-  client_id=planner-desktop
+  client_id=planner-web          # or planner-desktop
   username=<email>
   password=<password>
   scope=openid profile roles offline_access planner.api
@@ -98,10 +98,16 @@ The access token carries `sub`, `name`, `email` and `role`. Refreshing rebuilds 
 database rather than copying them from the old token, so a role change or a deactivation takes effect
 at the next refresh rather than at the next sign-in.
 
-`planner-desktop` is a **public** client: a binary on every workstation cannot keep a secret, so it
-has an identifier, not a credential. The user's password is the credential. The token endpoint is
-rate-limited to 20 requests per minute per IP, and Identity locks an account for 15 minutes after 10
-failed attempts.
+Both `planner-web` and `planner-desktop` are **public** clients: a binary on every workstation cannot
+keep a secret, and a browser application is source anyone can read, so each has an identifier rather
+than a credential. The user's password is the credential. They are registered separately so the two
+can be told apart in the logs and revoked independently. The token endpoint is rate-limited to 20
+requests per minute per IP, and Identity locks an account for 15 minutes after 10 failed attempts.
+
+Where the refresh token then lives differs by client: the desktop one encrypts it into a file only its
+own user can read, while the web one keeps it in `localStorage`, which is the only store a browser has
+that survives closing the tab. That is a real difference in exposure, mitigated by the application
+being strictly first-party — its own origin, no third-party script, no CDN.
 
 ### Service integrations
 
@@ -112,7 +118,8 @@ It then shows up in the audit trail like anyone else, and can be deactivated the
 
 ### Upgrading to authorization code + PKCE
 
-If you later put a browser in front of this (a web client, or an on-prem SSO portal):
+The web client removes the old objection that there is no browser to redirect through, but not the
+work. If you decide to make the move:
 
 1. In `AuthenticationSetup`, add `options.AllowAuthorizationCodeFlow().RequireProofKeyForCodeExchange()`
    and `SetAuthorizationEndpointUris("connect/authorize")`.

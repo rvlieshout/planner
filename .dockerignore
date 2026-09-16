@@ -16,5 +16,7 @@ docker-compose*.yml
 **/node_modules/
 website/dist/
 website/.astro/
+client/build/
+client/.svelte-kit/
 artifacts/
 releases/

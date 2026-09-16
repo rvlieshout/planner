@@ -13,7 +13,8 @@ public sealed class OpenIddictClientSeeder(
     public async Task SeedAsync(PlannerAuthOptions auth, CancellationToken ct = default)
     {
         await EnsureScopeAsync(ct);
-        await EnsureDesktopClientAsync(auth.DesktopClientId, ct);
+        await EnsurePublicClientAsync(auth.DesktopClientId, "Planner desktop client", ct);
+        await EnsurePublicClientAsync(auth.WebClientId, "Planner web client", ct);
     }
 
     private async Task EnsureScopeAsync(CancellationToken ct)
@@ -33,15 +34,16 @@ public sealed class OpenIddictClientSeeder(
         logger.LogInformation("Registered OAuth scope {Scope}", PlannerScopes.Api);
     }
 
-    private async Task EnsureDesktopClientAsync(string clientId, CancellationToken ct)
+    private async Task EnsurePublicClientAsync(string clientId, string displayName, CancellationToken ct)
     {
         var descriptor = new OpenIddictApplicationDescriptor
         {
             ClientId = clientId,
-            DisplayName = "Planner desktop client",
+            DisplayName = displayName,
 
-            // Public: a desktop binary that ships to every workstation cannot hold a secret, so the
-            // client id is an identifier, not a credential. The user's password is the credential.
+            // Public: a desktop binary that ships to every workstation cannot hold a secret, and a
+            // browser application is source anyone can read. So the client id is an identifier, not a
+            // credential. The user's password is the credential.
             ClientType = ClientTypes.Public,
             Permissions =
             {

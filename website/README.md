@@ -56,10 +56,16 @@ The demo page requests `noindex`; this is not an access restriction.
 
 ## Deploy
 
-The site ships inside the `planner-web` image: `website/Dockerfile` builds Astro with Node and copies
-the output next to `deploy/Caddyfile` in a Caddy image. Pushing to `main` builds and publishes it, and
-Coolify redeploys — see [the deployment guide](../docs/deploy-coolify.md). Changing the site or its
-notes needs nothing else; a client package upload needs no site rebuild at all.
+The site ships inside the `planner-web` image, which it shares with the web client:
+`deploy/web.Dockerfile` builds Astro and SvelteKit in two Node stages and copies both outputs next to
+`deploy/Caddyfile` in a Caddy image — the site at `/srv/site`, the client at `/srv/app`. Pushing to
+`main` builds and publishes it, and Coolify redeploys — see
+[the deployment guide](../docs/deploy-coolify.md). Changing the site or its notes needs nothing else;
+a client package upload needs no site rebuild at all.
+
+The hero leads with **Open Planner**, which is the browser client at `/app`; the Windows installer sits
+underneath it as the secondary action, because the desktop client is frozen
+(see [docs/desktop-client.md](../docs/desktop-client.md)).
 
 ```bash
 curl --fail https://planner.lyste.net/

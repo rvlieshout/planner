@@ -1,7 +1,7 @@
 # Realtime
 
-A SignalR hub at `/hubs/planner` pushes every change to the clients that care about it, so a desktop
-client never has to poll a board.
+A SignalR hub at `/hubs/planner` pushes every change to the clients that care about it, so a board is
+never polled.
 
 ## Connecting
 
@@ -15,9 +15,10 @@ var connection = new HubConnectionBuilder()
     .Build();
 ```
 
-The .NET client sends the token as an `Authorization` header. Browser clients cannot set headers on a
-WebSocket handshake and pass `?access_token=` instead; a middleware lifts that into the header before
-authentication runs, so both transports validate identically.
+The .NET client sends the token as an `Authorization` header. Browsers cannot set headers on a
+WebSocket handshake and pass `?access_token=` instead — which is what the web client does, through
+`accessTokenFactory`; a middleware lifts it into the header before authentication runs, so both
+transports validate identically.
 
 An unauthenticated connection is refused outright — the hub carries `[Authorize]`.
 

@@ -1,5 +1,9 @@
 # Issue details
 
+> Describes the **frozen** desktop client's issue page. The web client's equivalent — same shape,
+> same rules — is in [web-client.md](web-client.md); the "File storage" section below applies to
+> both, because it describes the API.
+
 Opening a board card or My Issues row opens a workspace detail page. A separate breadcrumb and save toolbar stays above two independently scrolling columns. The main column contains the title, description, sub-issues, related issues, and comments. The right column contains the editable properties, labels, and attachments. Both the page and creation dialog use the same issue editor view model.
 
 Sub-issues use the dense My Issues row layout, with priority, issue key, status, title, labels, and updated time. Click to select; double-click or press Enter to open the selected issue.
@@ -18,7 +22,7 @@ File names are metadata; generated attachment IDs identify the bytes on disk.
 
 GET /api/v1/attachments/{id}/content checks the issue's read permission and serves an attachment download. File bytes are outside the public web root. The desktop prompts for a save location. HTTP and HTTPS shared-file links are also supported.
 
-Configure Attachments:Path (environment variable Attachments__Path) as an absolute persistent directory for deployed instances. The default is App_Data/attachments beneath the API content root. Back up this directory together with the database. Multiple API instances must share this directory. No database migration is needed.
+Attachments:Path (environment variable Attachments__Path) must be an absolute, writable directory in any container deployment: the default, App_Data/attachments beneath the API content root, sits inside the application folder, which the image's non-root user cannot create — uploads fail with a 500. Both docker-compose.yml and docker-compose.coolify.yml now set it to /var/lib/planner/attachments and mount a volume there. Back up that directory together with the database; the rows point at files that exist only there. Multiple API instances must share it. No database migration is needed.
 
 Deleting metadata or an issue does not currently purge stored file bytes. Keep retention/cleanup in mind when operating the storage directory.
 

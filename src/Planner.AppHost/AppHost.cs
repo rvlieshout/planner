@@ -33,17 +33,32 @@ var api = builder.AddProject<Projects.Planner_Api>("api")
     // default is a Linux container path:
     .WithEnvironment("Planner__Updates__Directory", ReleasesDirectory(builder));
 
-// The desktop client, on explicit start.
+// The web client, on Vite's development server.
+//
+// PLANNER_SERVER_URL is read by client/vite.config.ts, which proxies /api, /connect and /hubs to it.
+// That proxy is what makes development look like production: in both, the browser only ever talks to
+// the origin it was served from, so there is no CORS to configure and no second address to keep in
+// step. In production the same job is done by Caddy, in the image deploy/web.Dockerfile builds.
+builder.AddViteApp("client", ClientDirectory(builder))
+    .WithEnvironment("PLANNER_SERVER_URL", api.GetEndpoint("http"))
+    .WaitFor(api);
+
+// The Avalonia desktop client, on explicit start. Frozen — see docs/desktop-client.md — but still
+// buildable and still runnable against this stack.
 //
 // It is a window rather than a service: auto-launching it would put a window on screen every time
 // someone starts the API. The dashboard's Start button runs it against whatever port the API landed
 // on, which is the part that is otherwise fiddly to get right by hand.
-builder.AddProject<Projects.Planner_Client>("client")
+builder.AddProject<Projects.Planner_Client>("desktop")
     .WithEnvironment("PLANNER_SERVER_URL", api.GetEndpoint("http"))
     .WaitFor(api)
     .WithExplicitStart();
 
 builder.Build().Run();
+
+// The SvelteKit client, which lives outside src/ because it is not a .NET project.
+static string ClientDirectory(IDistributedApplicationBuilder builder) =>
+    Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "client"));
 
 // The folder build/release.ps1 publishes into, which is what the API serves at /updates. Pointing the
 // API at it means a locally built release is installable by a locally running client, exactly as it

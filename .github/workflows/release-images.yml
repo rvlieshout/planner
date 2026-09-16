@@ -51,11 +51,11 @@ jobs:
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
 
-      - name: Build and push the website image
+      - name: Build and push the web image (website + client + routing)
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: website/Dockerfile
+          file: deploy/web.Dockerfile
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ steps.owner.outputs.name }}/planner-web:latest

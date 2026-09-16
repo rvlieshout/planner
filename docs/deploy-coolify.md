@@ -2,23 +2,27 @@
 
 The server runs [Coolify](https://coolify.io), which owns the reverse proxy, the TLS certificates,
 the database and its backups. Planner supplies two images, built by GitHub Actions and pulled from
-GHCR: the API, and a Caddy container holding the Astro download site plus the routing rules that
-decide which requests belong to which. Nothing is compiled on the VPS.
+GHCR: the API, and a Caddy container holding the Astro download site, the web client, and the routing
+rules that decide which requests belong to which. Nothing is compiled on the VPS.
 
 ```text
 Internet -> Coolify proxy (TLS) -> web:80 -> /            Astro download page
+                                          -> /app/*      the web client (static)
                                           -> everything   api:8080 -> Coolify PostgreSQL
 ```
 
-One domain, `planner.lyste.net`, serves all of it: the download page, the API the desktop client
-signs in to, the SignalR hub and the Velopack update feed at `/updates`. The client's default
+One domain, `planner.lyste.net`, serves all of it: the download page, the web client at `/app`, the
+API both clients sign in to, the SignalR hub and the Velopack update feed at `/updates`. The web
+client being on that same origin is deliberate — it is why no CORS configuration exists anywhere in
+this deployment. The client's default
 update feed is that URL, compiled into `ClientSettings`, so keep the domain stable once clients are
 out in the world.
 
 | Piece | Where it is defined |
 | --- | --- |
 | The stack Coolify runs | [`docker-compose.coolify.yml`](../docker-compose.coolify.yml) |
-| Website / API routing | [`deploy/Caddyfile`](../deploy/Caddyfile), baked into the web image |
+| Website / client / API routing | [`deploy/Caddyfile`](../deploy/Caddyfile), baked into the web image |
+| The web image itself | [`deploy/web.Dockerfile`](../deploy/web.Dockerfile) — builds the website and the client, copies both into Caddy |
 | Image build and deploy trigger | [`.github/workflows/release-images.yml`](../.github/workflows/release-images.yml) |
 | Client release publication | [`deploy/publish-release.sh`](../deploy/publish-release.sh), run by [`build/upload-release.ps1`](../build/upload-release.ps1) |
 
@@ -150,20 +154,25 @@ To put a machine on the beta channel, add `"updateChannel": "win-beta"` to
 
 ## 7. Backups
 
-Three things have to survive the server, and Coolify covers only the first.
+Four things have to survive the server, and Coolify covers only the first.
 
 1. **The database.** Coolify's scheduled backups, from step 3. Verify that one actually restores.
 2. **The keys volume.** `planner-keys` holds the token signing certificates and the data-protection
    keys. Losing it signs everyone out permanently.
-3. **The release feed.** `/srv/planner/releases`. Rebuildable from source in principle, but a lost
-   package is a client that cannot update to anything.
+3. **The attachments volume.** `planner-attachments` holds the bytes of every uploaded file. The rows
+   describing them are in the database, so losing this volume leaves the tracker pointing at files
+   that no longer exist — back it up *with* the database, on the same schedule.
+4. **The release feed.** `/srv/planner/releases`. Rebuildable from source in principle, but a lost
+   package is a desktop client that cannot update to anything.
 
-For 2 and 3, a Coolify **Scheduled Task**, or from your PC:
+For 2, 3 and 4, a Coolify **Scheduled Task**, or from your PC:
 
 ```powershell
 $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
 ssh root@planner.lyste.net "docker run --rm -v planner-keys:/keys:ro -v /srv/planner/backups:/out alpine:3 tar -czf /out/keys-$stamp.tar.gz -C /keys ."
+ssh root@planner.lyste.net "docker run --rm -v planner-attachments:/files:ro -v /srv/planner/backups:/out alpine:3 tar -czf /out/attachments-$stamp.tar.gz -C /files ."
 scp root@planner.lyste.net:/srv/planner/backups/keys-$stamp.tar.gz .
+scp root@planner.lyste.net:/srv/planner/backups/attachments-$stamp.tar.gz .
 scp -r root@planner.lyste.net:/srv/planner/releases ./releases-backup-$stamp
 ```
 
@@ -198,7 +207,9 @@ the environment does not reset credentials that already exist in a populated dat
   for the entire internet. Another proxy in front means raising the number to match.
 - **`AllowInsecureHttp` stays true.** TLS terminates at Coolify; inside the container network the
   API speaks plain HTTP. With forwarded headers read, it still knows the public request was HTTPS.
-- **Attachments are links,** not uploaded files, so nothing on disk holds user content yet.
+- **Attachments are files on a volume.** `Attachments__Path` points at `planner-attachments`, and the
+  rows in the database point at files that exist only there — so it is backed up with the database,
+  not instead of it. Attachments added as links rather than uploads store metadata only.
 - **Installers are unsigned.** Windows SmartScreen will say so. Code signing is described in
   [releasing.md](releasing.md); HTTPS does not sign an executable.
 - **This is a single server.** Deploys and restores mean brief downtime; clients reconnect on their

@@ -7,30 +7,36 @@ import '../styles/global.css';
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Download Planner for Windows, connect to your team's workspace, and catch up on the latest releases." />
+    <meta name="description" content="Open Planner in your browser, or download the Windows client, and catch up on the latest releases." />
     <meta name="robots" content="noindex, nofollow" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Download Planner · Releases</title>
+    <title>Planner · Open or download</title>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <div class="shell">
       <header>
         <a class="brand" href="/" aria-label="Planner home"><img src="/favicon.svg" width="32" height="32" alt="" />Planner<span class="demo">Demo</span></a>
-        <nav aria-label="Main navigation"><a href="#download">Download</a><a href="#changelog">Changelog</a></nav>
+        <nav aria-label="Main navigation"><a href="/app">Open Planner</a><a href="#download">Download</a><a href="#changelog">Changelog</a></nav>
       </header>
       <main id="main">
         <section id="download" class="download-section" aria-labelledby="download-title">
           <div class="intro">
-            <p class="eyebrow"><span class="dot"></span> PLANNER FOR WINDOWS</p>
+            <p class="eyebrow"><span class="dot"></span> PLANNER</p>
             <h1>A home for<br />your team's work.</h1>
-            <p class="lede">Projects, issues, and conversations.<br class="desktop-break" /> Together in one desktop workspace.</p>
+            <p class="lede">Projects, issues, and conversations.<br class="desktop-break" /> Together in one workspace, in your browser.</p>
             <div class="download-actions">
-              <a class="button" id="download-link" href="/updates/Planner-win-Setup.exe">
+              <a class="button" href="/app">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18" /></svg>
+                Open Planner
+              </a>
+              <p class="download-meta">Nothing to install <span aria-hidden="true">·</span> Sign in with your workspace account</p>
+              <hr class="actions-rule" />
+              <a class="button button-secondary" id="download-link" href="/updates/Planner-win-Setup.exe">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5" /></svg>
                 Download for Windows
               </a>
-              <p class="download-meta">Windows x64 <span aria-hidden="true">·</span> No .NET installation needed</p>
+              <p class="download-meta">Windows desktop client <span aria-hidden="true">·</span> x64 <span aria-hidden="true">·</span> No .NET installation needed</p>
               <p id="release-status" class="release-status" role="status">Use the installer to get the latest published version.</p>
               <noscript><p class="release-status">Enable JavaScript to see published versions and release notes.</p></noscript>
               <p id="beta-line" class="release-status" hidden>Helping us test? <a id="beta-link" href="/updates/Planner-win-beta-Setup.exe">Download the beta</a><span id="beta-version"></span></p>
@@ -40,11 +46,11 @@ import '../styles/global.css';
             <div class="setup-heading"><span class="eyebrow">QUICK START</span><span class="small-label">Three steps. You're in.</span></div>
             <h2 id="setup-title">Make yourself at home.</h2>
             <ol>
-              <li><span class="step-number">01</span><div><h3>Install Planner</h3><p>Download and run the Windows installer.</p></div></li>
-              <li><span class="step-number">02</span><div><h3>Connect your workspace</h3><p>Enter this server address on the sign-in screen.</p><div class="server-address"><code id="server-url">This website's HTTPS address</code><button id="copy-server" type="button" hidden aria-label="Copy server address">Copy</button></div><span id="copy-status" class="sr-only" role="status"></span></div></li>
+              <li><span class="step-number">01</span><div><h3>Open Planner</h3><p>Nothing to install: it runs in your browser.</p></div></li>
+              <li><span class="step-number">02</span><div><h3>Connect your workspace</h3><p>The browser client is already pointed at this server. The Windows client asks for the address:</p><div class="server-address"><code id="server-url">This website's HTTPS address</code><button id="copy-server" type="button" hidden aria-label="Copy server address">Copy</button></div><span id="copy-status" class="sr-only" role="status"></span></div></li>
               <li><span class="step-number">03</span><div><h3>Sign in with your account</h3><p>Ask your demo host for your sign-in details.</p></div></li>
             </ol>
-            <p class="setup-note">Already installed? Planner checks for updates automatically and lets you choose when to restart.</p>
+            <p class="setup-note">The browser client updates itself the moment this page is redeployed. The Windows client checks for updates on its own and lets you choose when to restart.</p>
           </aside>
         </section>
         <section class="changelog-section" id="changelog" aria-labelledby="changelog-title">

@@ -1,0 +1,295 @@
+import { all, issues as issuesApi, projects as projectsApi, teams as teamsApi } from '$lib/api';
+import type {
+  Guid,
+  LabelDto,
+  ProjectDto,
+  TeamDto,
+  TeamMemberDto,
+  WorkflowStateDto
+} from '$lib/api/types';
+import { session } from '$lib/auth/session.svelte';
+import { realtime } from '$lib/realtime/hub.svelte';
+import { settings } from '$lib/settings.svelte';
+
+/*
+ * What the whole application needs to know at once: the teams you can read, which one you are looking
+ * at, and — per team — its workflow states, its members and its labels.
+ *
+ * These are cached per team rather than refetched per view because they are asked for constantly and
+ * change rarely: every board column, every assignee picker, every label chip and every drag onto a
+ * My Issues group reads one of them. The socket keeps them honest, so the cache never goes stale
+ * without being told.
+ */
+
+class Workspace {
+  /** Every team the caller can read, in the order the API returns them. */
+  teams = $state<TeamDto[]>([]);
+
+  currentTeamId = $state<Guid | null>(null);
+
+  /** Projects of the current team. The sidebar lists them and the board filters by them. */
+  projects = $state<ProjectDto[]>([]);
+
+  loading = $state(false);
+  error = $state<string | null>(null);
+
+  #states = $state<Record<Guid, WorkflowStateDto[]>>({});
+  #members = $state<Record<Guid, TeamMemberDto[]>>({});
+  #labels = $state<Record<Guid, LabelDto[]>>({});
+
+  /** In-flight loads, so eight cards asking for the same team's states make one request. */
+  readonly #pending = new Map<string, Promise<unknown>>();
+
+  #wired = false;
+
+  get currentTeam(): TeamDto | null {
+    return this.teams.find((team) => team.id === this.currentTeamId) ?? null;
+  }
+
+  get hasTeams(): boolean {
+    return this.teams.length > 0;
+  }
+
+  /* ------------------------------------------------------------- loading ---- */
+
+  /** Loads the team list and settles on a current team. Called once, after signing in. */
+  async initialize(): Promise<void> {
+    this.loading = true;
+    this.error = null;
+
+    try {
+      this.teams = await teamsApi.list();
+
+      // The remembered team, if it is still one this account can read; otherwise the first.
+      const remembered = settings.lastTeamId;
+      const team =
+        this.teams.find((t) => t.id === remembered) ?? this.teams.find((t) => !t.archivedAt) ?? this.teams[0];
+
+      await this.setTeam(team?.id ?? null);
+      this.#wire();
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : 'Could not load your teams.';
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  async setTeam(teamId: Guid | null): Promise<void> {
+    if (this.currentTeamId === teamId && this.projects.length > 0) return;
+
+    this.currentTeamId = teamId;
+    settings.setLastTeam(teamId);
+    this.projects = [];
+
+    if (!teamId) return;
+
+    await Promise.all([this.statesFor(teamId), this.loadProjects(teamId)]);
+  }
+
+  async loadProjects(teamId: Guid | null = this.currentTeamId): Promise<void> {
+    if (!teamId) return;
+
+    const loaded = await all((page, pageSize) => projectsApi.list({ teamId, page, pageSize }));
+
+    // Guard against a slow answer for a team the user has already navigated away from.
+    if (this.currentTeamId === teamId) this.projects = loaded;
+  }
+
+  /** Re-reads the team list, for a create, rename, recolour, archive or restore. */
+  async refreshTeams(): Promise<void> {
+    this.teams = await teamsApi.list();
+
+    if (this.currentTeamId && !this.teams.some((team) => team.id === this.currentTeamId)) {
+      await this.setTeam(this.teams[0]?.id ?? null);
+    }
+  }
+
+  /* --------------------------------------------------------- team caches ---- */
+
+  statesFor(teamId: Guid): Promise<WorkflowStateDto[]> {
+    return this.#cached('states', teamId, this.#states, () => teamsApi.states(teamId));
+  }
+
+  membersFor(teamId: Guid): Promise<TeamMemberDto[]> {
+    return this.#cached('members', teamId, this.#members, () => teamsApi.members(teamId));
+  }
+
+  labelsFor(teamId: Guid): Promise<LabelDto[]> {
+    return this.#cached('labels', teamId, this.#labels, () => teamsApi.labels(teamId));
+  }
+
+  /** Whatever is already cached, for a render that cannot wait for a promise. */
+  statesNow(teamId: Guid | null | undefined): WorkflowStateDto[] {
+    return teamId ? (this.#states[teamId] ?? []) : [];
+  }
+
+  membersNow(teamId: Guid | null | undefined): TeamMemberDto[] {
+    return teamId ? (this.#members[teamId] ?? []) : [];
+  }
+
+  labelsNow(teamId: Guid | null | undefined): LabelDto[] {
+    return teamId ? (this.#labels[teamId] ?? []) : [];
+  }
+
+  /**
+   * The state a My Issues drop lands in.
+   *
+   * Its groups are state *types*, because those issues come from several teams whose columns do not
+   * line up. So a drop resolves to that issue's own team's first state of the type — the same "Done"
+   * the team's own board would have moved it to.
+   */
+  async stateOfType(teamId: Guid, type: WorkflowStateDto['type']): Promise<WorkflowStateDto | null> {
+    const states = await this.statesFor(teamId);
+
+    return states.filter((state) => state.type === type).sort((a, b) => a.position - b.position)[0] ?? null;
+  }
+
+  /** Drops a team's caches, after its states, labels or membership changed. */
+  invalidate(teamId: Guid): void {
+    delete this.#states[teamId];
+    delete this.#members[teamId];
+    delete this.#labels[teamId];
+  }
+
+  async #cached<T>(
+    kind: string,
+    teamId: Guid,
+    store: Record<Guid, T[]>,
+    load: () => Promise<T[]>
+  ): Promise<T[]> {
+    const cached = store[teamId];
+    if (cached) return cached;
+
+    const key = `${kind}:${teamId}`;
+    const pending = this.#pending.get(key) as Promise<T[]> | undefined;
+    if (pending) return await pending;
+
+    const request = load()
+      .then((items) => {
+        store[teamId] = items;
+        return items;
+      })
+      .finally(() => this.#pending.delete(key));
+
+    this.#pending.set(key, request);
+    return await request;
+  }
+
+  /* -------------------------------------------------------------- live ---- */
+
+  /**
+   * Keeps the cached shape of the workspace current.
+   *
+   * The desktop client subscribes to issue traffic alone and picks up a new project on the next
+   * refresh. Everything in this store is cheap to apply in place, so all of it is wired: a team
+   * someone renames, a project someone creates, a column someone adds and a member someone removes
+   * all land without a reload.
+   */
+  #wire(): void {
+    if (this.#wired) return;
+    this.#wired = true;
+
+    realtime.on('TeamChanged', (change) => {
+      if (change.kind === 'Deleted') {
+        this.teams = this.teams.filter((team) => team.id !== change.id);
+        return;
+      }
+
+      if (!change.entity) return;
+      const entity = change.entity;
+      const index = this.teams.findIndex((team) => team.id === entity.id);
+
+      this.teams =
+        index >= 0
+          ? this.teams.map((team) => (team.id === entity.id ? entity : team))
+          : [...this.teams, entity];
+    });
+
+    realtime.on('ProjectChanged', (change) => {
+      if (change.teamId !== this.currentTeamId) return;
+
+      if (change.kind === 'Deleted' || change.kind === 'Archived') {
+        this.projects = this.projects.filter((project) => project.id !== change.id);
+        return;
+      }
+
+      if (!change.entity) return;
+      const entity = change.entity;
+      const index = this.projects.findIndex((project) => project.id === entity.id);
+
+      this.projects =
+        index >= 0
+          ? this.projects.map((project) => (project.id === entity.id ? entity : project))
+          : [...this.projects, entity];
+    });
+
+    // These three invalidate rather than patch. They are read through a promise anyway, they change
+    // rarely, and a column list rebuilt from the server cannot end up in an order nobody chose.
+    realtime.on('WorkflowStateChanged', (change) => {
+      if (change.teamId) delete this.#states[change.teamId];
+    });
+
+    realtime.on('LabelChanged', (change) => {
+      if (change.teamId) delete this.#labels[change.teamId];
+    });
+
+    realtime.on('TeamMemberChanged', async (change) => {
+      if (change.teamId) delete this.#members[change.teamId];
+
+      // A membership change that involves this user changes which teams they can read at all, so the
+      // socket's own groups have to be re-evaluated as well as this store.
+      if (change.entity?.userId === session.user?.id) {
+        await realtime.resubscribe();
+        await this.refreshTeams();
+      }
+    });
+
+    realtime.onReconnected(async () => {
+      // The socket was deaf for as long as it was down. The team list is the cheapest thing to be
+      // wrong about and the most visible, so it is the one thing refetched unconditionally.
+      await this.refreshTeams();
+
+      if (this.currentTeamId) {
+        this.invalidate(this.currentTeamId);
+        await this.loadProjects();
+      }
+    });
+  }
+
+  /** Clears everything on sign-out, so a second account never sees the first one's workspace. */
+  reset(): void {
+    this.teams = [];
+    this.projects = [];
+    this.currentTeamId = null;
+    this.#states = {};
+    this.#members = {};
+    this.#labels = {};
+    this.error = null;
+  }
+}
+
+export const workspace = new Workspace();
+
+/** Convenience for the pickers: every issue assignable to, for one team. */
+export async function assignableMembers(teamId: Guid): Promise<TeamMemberDto[]> {
+  const members = await workspace.membersFor(teamId);
+  return [...members].sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
+/** Preloads what an issue form needs, in one round of requests rather than three in sequence. */
+export async function loadIssueFormData(teamId: Guid) {
+  const [states, members, labels] = await Promise.all([
+    workspace.statesFor(teamId),
+    workspace.membersFor(teamId),
+    workspace.labelsFor(teamId)
+  ]);
+
+  return { states, members, labels };
+}
+
+/** The issues a board shows, in the exact order the board renders them. */
+export function loadBoardIssues(teamId: Guid, projectId?: Guid, signal?: AbortSignal) {
+  return all((page, pageSize) =>
+    issuesApi.list({ teamId, projectId, sort: 'board', page, pageSize }, { signal })
+  );
+}

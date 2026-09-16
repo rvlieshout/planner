@@ -1,5 +1,11 @@
 # Desktop client
 
+> **Frozen.** The [web client](web-client.md) is where new work goes: it covers everything below and
+> rather more, needs nothing installed, and updates when the server does. This client still builds,
+> still runs, and installed copies still update from the feed — it is kept because machines in the
+> field are running it. Nothing here is being extended; the "Not built yet" list at the end is the
+> list of things that will stay unbuilt.
+
 An Avalonia 12 client on .NET 10, in `src/Planner.Client`, dressed in
 [AtomUI](https://github.com/AtomUI/AtomUI) — an Ant Design component system for Avalonia. It signs in
 against the on-prem API, shows a team's board, keeps it live over SignalR, and keeps itself up to date

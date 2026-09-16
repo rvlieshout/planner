@@ -41,6 +41,10 @@ services:
       Planner__Updates__Directory: /var/lib/planner/updates
       Planner__Updates__RequestPath: /updates
 
+      # Attachment bytes. Without an absolute, writable path the API falls back to a directory under
+      # its own application folder, which the container's non-root user cannot create.
+      Attachments__Path: /var/lib/planner/attachments
+
       Planner__Auth__KeyDirectory: /var/lib/planner/keys
       Planner__Auth__KeyPassword: ${PLANNER_KEY_PASSWORD:-planner-dev-keys}
       Planner__Auth__AccessTokenMinutes: "60"
@@ -57,9 +61,26 @@ services:
       - "${PLANNER_PORT:-8080}:8080"
     volumes:
       - plannerkeys:/var/lib/planner/keys
+      - plannerattachments:/var/lib/planner/attachments
       # A bind mount rather than a named volume: releasing is "copy the folder to the server", and a
       # host directory is something an operator can rsync into without going through Docker.
       - ${PLANNER_UPDATE_DIR:-./releases}:/var/lib/planner/updates:ro
+
+  # The front door: the download website at /, the browser client at /app, and everything else
+  # proxied to the API. It is the same image the VPS runs, so a local check exercises the real
+  # routing rather than a development server's approximation of it.
+  #
+  # The API keeps its own published port because the docs, tools/planner.http and the desktop client
+  # all address it directly; the browser client never does, and only ever speaks to this container.
+  web:
+    build:
+      context: .
+      dockerfile: deploy/web.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${PLANNER_WEB_PORT:-8081}:80"
 
   # Optional: docker compose --profile tools up -d
   pgadmin:
@@ -79,3 +100,4 @@ services:
 volumes:
   pgdata:
   plannerkeys:
+  plannerattachments:

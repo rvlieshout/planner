@@ -1,5 +1,9 @@
 # Releasing and updating the desktop client
 
+> This covers the **frozen** Avalonia client only. The web client has no installer and no update
+> feed: it is built into the `planner-web` image and a deploy is the new bundle. See
+> [web-client.md](web-client.md).
+
 Distribution is [Velopack](https://velopack.io): the client packs into a small installer, publishes
 delta packages, and updates itself from the hosted feed at
 `https://planner.lyste.net/updates`. This default is independent of the API server used for
