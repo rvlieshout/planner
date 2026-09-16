@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { base } from '$app/paths';
+  import { resolve } from '$app/paths';
   import { goto } from '$app/navigation';
 
   import Icon from '$components/Icon.svelte';
@@ -42,7 +42,7 @@
    * group asserts that for itself and renders nothing at all until it holds.
    */
   $effect(() => {
-    if (session.status === 'signed-out') void goto(`${base}/login`, { replaceState: true });
+    if (session.status === 'signed-out') void goto(resolve('/login'), { replaceState: true });
   });
 
   // The workspace is loaded once per signed-in session, not once per page.
@@ -54,7 +54,7 @@
 
   const teamId = $derived(workspace.currentTeamId);
   const projectId = $derived(page.params.id ?? null);
-  const onProjectPage = $derived(page.url.pathname.startsWith(`${base}/projects/`));
+  const onProjectPage = $derived(page.url.pathname.startsWith(resolve('/projects/')));
 
   /* ------------------------------------------------------------ commands ---- */
 
@@ -86,7 +86,7 @@
     session.signOut();
     workspace.reset();
     await realtime.disconnect();
-    await goto(`${base}/login`, { replaceState: true });
+    await goto(resolve('/login'), { replaceState: true });
   }
 
   const menu = $derived<MenuGroup[]>([
@@ -245,7 +245,7 @@
   <header class="titlebar">
     <AppMenu groups={menu} />
 
-    <a class="brand" href="{base}/my-issues">
+    <a class="brand" href={resolve('/my-issues')}>
       <span class="mark" aria-hidden="true"><Icon name="layout-grid" size={13} /></span>
       <span>Planner</span>
     </a>

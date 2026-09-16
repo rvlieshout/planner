@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { base } from '$app/paths';
+  import { resolve } from '$app/paths';
   import Icon from '$components/Icon.svelte';
   import Avatar from '$components/Avatar.svelte';
   import Popover from '$components/Popover.svelte';
@@ -9,6 +9,7 @@
   import { workspace } from '$lib/workspace.svelte';
   import { navigate } from '$lib/navigation.svelte';
   import { realtime } from '$lib/realtime/hub.svelte';
+  import type { Pathname } from '$app/types';
 
   /**
    * The application's map.
@@ -33,10 +34,10 @@
       .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
   );
 
-  const isActive = (href: string, exact = true) =>
-    exact ? path === `${base}${href}` : path.startsWith(`${base}${href}`);
+  const isActive = (href: Pathname, exact = true) =>
+    exact ? path === resolve(href) : path.startsWith(resolve(href));
 
-  async function go(href: string) {
+  async function go(href: Pathname) {
     await navigate(href);
   }
 </script>

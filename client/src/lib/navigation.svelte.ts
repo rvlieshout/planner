@@ -1,7 +1,8 @@
 import { beforeNavigate, goto } from '$app/navigation';
-import { base } from '$app/paths';
+import { resolve } from '$app/paths';
 import { chrome } from '$lib/chrome.svelte';
 import { confirm } from '$components/confirm.svelte';
+import type { Pathname } from '$app/types';
 
 /*
  * Leaving a page with unsaved work.
@@ -57,20 +58,15 @@ export function installNavigationGuard(): void {
  * For the places that are not a link: a command, a keyboard shortcut, or a page routing itself
  * onward after a save.
  */
-export async function navigate(path: string, options: { force?: boolean } = {}): Promise<boolean> {
+export async function navigate(path: Pathname, options: { force?: boolean } = {}): Promise<boolean> {
   const summary = options.force ? null : chrome.unsavedWork?.();
 
   if (summary && !(await confirm.discard(summary))) return false;
 
   chrome.unsavedWork = null;
   bypass = true;
-  await goto(href(path));
+  await goto(resolve(path));
   return true;
-}
-
-/** Prefixes a path with the base the app is mounted at. Links in markup use this too. */
-export function href(path: string): string {
-  return `${base}${path}`;
 }
 
 /** Runs something only if the current page is willing to be left. */

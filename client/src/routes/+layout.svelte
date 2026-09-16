@@ -3,7 +3,7 @@
 
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { base } from '$app/paths';
+  import { resolve } from '$app/paths';
   import { setUnauthorizedHandler } from '$lib/api';
   import { session } from '$lib/auth/session.svelte';
   import { settings } from '$lib/settings.svelte';
@@ -22,7 +22,7 @@
   let { children } = $props();
 
   const route = $derived(page.url.pathname);
-  const onLogin = $derived(route === `${base}/login` || route === `${base}/login/`);
+  const onLogin = $derived(route === resolve('/login') || route === `${resolve('/login')}/`);
 
   settings.applyTheme();
 
@@ -44,11 +44,11 @@
 
   $effect(() => {
     if (session.status === 'signed-out' && !onLogin) {
-      void goto(`${base}/login`, { replaceState: true });
+      void goto(resolve('/login'), { replaceState: true });
     }
 
     if (session.status === 'signed-in' && onLogin) {
-      void goto(`${base}/`, { replaceState: true });
+      void goto(resolve('/'), { replaceState: true });
     }
   });
 
