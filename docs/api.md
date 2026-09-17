@@ -234,6 +234,10 @@ themselves; the API writes them under `Attachments__Path`, outside the web root,
 `storageUri` to `planner-attachment:{id}`, which is how a client tells the two apart. Downloading
 through `GET /attachments/{id}/content` re-checks the issue's team permission.
 
+Deleting an attachment also deletes its server-owned file. If file deletion fails, the API returns
+an error and keeps the attachment record for retry. Missing files can still have their records removed.
+External links are detached only; Planner does not delete files at external locations.
+
 `Attachments__Path` must be an absolute, writable directory in any container deployment — the default
 lives under the application folder, which the image's non-root user cannot create. Back it up with the
 database.

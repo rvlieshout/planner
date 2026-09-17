@@ -23,6 +23,22 @@ public static class IssueFileEndpoints
         Path.GetFullPath(Path.Combine(config["Attachments:Path"] ??
             Path.Combine(environment.ContentRootPath, "App_Data", "attachments"), id.ToString("N")));
 
+    public static void DeleteStoredFile(Attachment attachment, IConfiguration config, IWebHostEnvironment environment)
+    {
+        // External references are not owned by Planner. Never derive a disk path from their URI.
+        if (attachment.StorageUri != $"planner-attachment:{attachment.Id}") return;
+
+        // A missing file is already deleted. Other IO failures must leave the record available for retry.
+        try
+        {
+            File.Delete(FilePath(attachment.Id, config, environment));
+        }
+        catch (DirectoryNotFoundException)
+        {
+            // The containing directory being absent also means there are no bytes to purge.
+        }
+    }
+
     private static async Task<IResult> UploadAsync(
         Guid id, string fileName, HttpRequest request, PlannerDbContext db, ITeamAccess access,
         CurrentUser current, IActivityLog activity, IRealtimeNotifier notifier,

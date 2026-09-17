@@ -29,6 +29,7 @@
   import type { SelectOption } from '$components/select';
   import StateIcon from '$components/StateIcon.svelte';
   import IssueRow from '$components/issues/IssueRow.svelte';
+  import EditableMarkdown from '$components/markdown/EditableMarkdown.svelte';
   import IssueComments from '$components/issues/IssueComments.svelte';
   import IssueAttachments from '$components/issues/IssueAttachments.svelte';
   import IssueRelations from '$components/issues/IssueRelations.svelte';
@@ -87,6 +88,8 @@
   });
 
   let hasCommentDraft = $state(false);
+  let descriptionUploading = $state(false);
+  let descriptionEditor = $state<EditableMarkdown | null>(null);
   let hasAttachmentDraft = $state(false);
   let selectedChildId = $state<string | null>(null);
 
@@ -230,7 +233,7 @@
   }
 
   async function save() {
-    if (!issue || saving || !dirty) return;
+    if (!issue || saving || descriptionUploading || !dirty) return;
 
     if (!title.trim()) {
       toasts.error('An issue needs a title.');
@@ -320,6 +323,14 @@
       actions: toolbar,
       commands: [
         {
+          label: 'Edit description',
+          icon: 'pencil',
+          shortcut: 'e',
+          keywords: ['write', 'markdown', 'body'],
+          disabled: !canWrite,
+          run: () => descriptionEditor?.edit()
+        },
+        {
           label: 'Save changes',
           icon: 'check',
           shortcut: 'mod+s',
@@ -369,7 +380,7 @@
     // What stands to be lost, in the words the prompt will use.
     chrome.unsavedWork = () => {
       const losses: string[] = [];
-      if (dirty) losses.push("this issue's edits");
+      if (dirty || descriptionUploading) losses.push("this issue's edits");
       if (hasCommentDraft) losses.push('an unposted comment');
       if (hasAttachmentDraft) losses.push('an unfinished attachment link');
 
@@ -431,14 +442,14 @@
 {#snippet toolbar()}
   {#if dirty}
     <span class="dirty">Unsaved changes</span>
-    <button type="button" class="btn btn-sm" onclick={revert} disabled={saving}>Revert</button>
+    <button type="button" class="btn btn-sm" onclick={revert} disabled={saving || descriptionUploading}>Revert</button>
   {/if}
 
   <button
     type="button"
     class="btn btn-sm btn-primary"
     onclick={() => void save()}
-    disabled={!canWrite || saving || !dirty}>
+    disabled={!canWrite || saving || descriptionUploading || !dirty}>
     {saving ? 'Saving…' : 'Save changes'}
   </button>
 
@@ -495,13 +506,12 @@
         readonly={!canWrite}
         placeholder="Issue title"></textarea>
 
-      <textarea
+      <EditableMarkdown
+        bind:this={descriptionEditor} bind:uploading={descriptionUploading}
         bind:value={description}
-        class="description"
-        rows="8"
-        aria-label="Description"
-        readonly={!canWrite}
-        placeholder={canWrite ? 'Add a description…' : 'No description.'}></textarea>
+        canEdit={canWrite}
+        issueId={issue.id}
+        rows={10} />
 
       {#if issue.children.length > 0}
         <section class="sub-issues">
@@ -745,23 +755,7 @@
     outline: none;
   }
 
-  .description {
-    width: 100%;
-    min-height: 140px;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--fg-secondary);
-    line-height: var(--leading-relaxed);
-    resize: vertical;
-  }
-
-  .description:focus {
-    outline: none;
-  }
-
-  .title::placeholder,
-  .description::placeholder {
+  .title::placeholder {
     color: var(--fg-tertiary);
   }
 

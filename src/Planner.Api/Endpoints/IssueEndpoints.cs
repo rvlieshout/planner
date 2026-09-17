@@ -914,6 +914,9 @@ public static class IssueEndpoints
         ITeamAccess access,
         CurrentUser current,
         IRealtimeNotifier notifier,
+        IConfiguration config,
+        IWebHostEnvironment environment,
+        ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
         var attachment = await db.Attachments.Include(a => a.Issue).FirstOrDefaultAsync(a => a.Id == attachmentId, ct);
@@ -937,6 +940,20 @@ public static class IssueEndpoints
 
         var dto = await db.Attachments.AsNoTracking().Where(a => a.Id == attachmentId)
             .Select(Mapping.AttachmentProjection).FirstAsync(ct);
+
+        try
+        {
+            IssueFileEndpoints.DeleteStoredFile(attachment, config, environment);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            loggerFactory.CreateLogger("Planner.Api.Attachments")
+                .LogError(error, "Failed to delete stored attachment {AttachmentId}", attachmentId);
+            return Results.Problem(
+                title: "Attachment removal failed",
+                detail: "The server could not delete the uploaded file. The attachment was kept so removal can be retried.",
+                statusCode: StatusCodes.Status500InternalServerError);
+        }
 
         db.Attachments.Remove(attachment);
         await db.SaveChangesAsync(ct);

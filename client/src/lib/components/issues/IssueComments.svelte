@@ -6,6 +6,8 @@
   import { formatExact, relativeTime } from '$lib/format';
   import Avatar from '$components/Avatar.svelte';
   import Icon from '$components/Icon.svelte';
+  import Markdown from '$components/markdown/Markdown.svelte';
+  import MarkdownEditor from '$components/markdown/MarkdownEditor.svelte';
   import { confirm } from '$components/confirm.svelte';
   import { toasts } from '$components/toast.svelte';
 
@@ -34,6 +36,8 @@
   let draft = $state('');
   let replyTo = $state<CommentDto | null>(null);
   let posting = $state(false);
+  let uploading = $state(false);
+  let editUploading = $state(false);
   let editing = $state<Guid | null>(null);
   let editDraft = $state('');
   let error = $state<string | null>(null);
@@ -69,7 +73,7 @@
   });
 
   $effect(() => {
-    ondraft?.(draft.trim().length > 0);
+    ondraft?.(draft.trim().length > 0 || uploading || editUploading);
   });
 
   // Comment traffic is opt-in, per issue: an open board must not stream every comment in the team.
@@ -100,7 +104,7 @@
 
   async function post() {
     const body = draft.trim();
-    if (!body || posting) return;
+    if (!body || posting || uploading) return;
 
     posting = true;
 
@@ -123,7 +127,7 @@
 
   async function saveEdit(comment: CommentDto) {
     const body = editDraft.trim();
-    if (!body) return;
+    if (!body || editUploading) return;
 
     try {
       const saved = await commentsApi.update(comment.id, body);
@@ -204,24 +208,21 @@
         </p>
       {/if}
 
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div onkeydown={onKeyDown}>
-        <textarea
-          bind:value={draft}
-          class="textarea"
-          rows="3"
-          placeholder="Leave a comment…"
-          disabled={posting}
-          aria-label="New comment"></textarea>
-      </div>
+      <MarkdownEditor
+        bind:value={draft} bind:uploading
+        issueId={issueId}
+        rows={3}
+        placeholder="Leave a comment…"
+        disabled={posting}
+        onkeydown={onKeyDown} />
 
       <div class="composer-actions">
-        <span class="muted hint">Ctrl+Enter posts</span>
+        <span class="muted hint">Markdown · paste an image to attach it · Ctrl+Enter posts</span>
         <button
           type="button"
           class="btn btn-primary btn-sm"
           onclick={() => void post()}
-          disabled={posting || !draft.trim()}>
+          disabled={posting || uploading || !draft.trim()}>
           {posting ? 'Posting…' : 'Comment'}
         </button>
       </div>
@@ -266,15 +267,15 @@
       </p>
 
       {#if editing === item.id}
-        <textarea bind:value={editDraft} class="textarea" rows="3" aria-label="Edit comment"></textarea>
+        <MarkdownEditor bind:value={editDraft} bind:uploading={editUploading} focusOnMount issueId={issueId} rows={3} placeholder="Edit this comment…" />
         <div class="row-tight">
-          <button type="button" class="btn btn-primary btn-sm" onclick={() => void saveEdit(item)}>
+          <button type="button" class="btn btn-primary btn-sm" disabled={editUploading} onclick={() => void saveEdit(item)}>
             Save
           </button>
-          <button type="button" class="btn btn-sm" onclick={() => (editing = null)}>Cancel</button>
+          <button type="button" class="btn btn-sm" disabled={editUploading} onclick={() => (editing = null)}>Cancel</button>
         </div>
       {:else}
-        <p class="text">{item.body}</p>
+        <div class="text"><Markdown value={item.body} /></div>
       {/if}
     </div>
   </article>
@@ -327,9 +328,8 @@
     font-size: var(--text-sm);
   }
 
+  /* Markdown now, so the line breaks and the wrapping are the document's own — see markdown.css. */
   .text {
-    line-height: var(--leading-relaxed);
-    white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
 

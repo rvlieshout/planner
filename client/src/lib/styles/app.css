@@ -1,6 +1,11 @@
 @import './fonts.css';
 @import './tokens.css';
 
+/* Carta's own rules first, then markdown.css restates them in this application's tokens. */
+@import 'carta-md/default.css';
+@import '@cartamd/plugin-attachment/default.css';
+@import './markdown.css';
+
 /*
  * Base rules and the shared primitives — buttons, fields, chips, avatars, cards, tables, dialogs.
  *

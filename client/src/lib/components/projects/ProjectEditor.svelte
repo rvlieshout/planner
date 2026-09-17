@@ -16,6 +16,7 @@
   import { navigate } from '$lib/navigation.svelte';
   import { workspace } from '$lib/workspace.svelte';
   import Icon from '$components/Icon.svelte';
+  import EditableMarkdown from '$components/markdown/EditableMarkdown.svelte';
   import ColorPicker from '$components/ColorPicker.svelte';
   import Progress from '$components/Progress.svelte';
   import Select from '$components/Select.svelte';
@@ -445,13 +446,13 @@
       </div>
 
       <div class="field">
-        <label for="project-description">Description</label>
-        <textarea
-          id="project-description"
+        <span class="field-label">Description</span>
+        <EditableMarkdown
           bind:value={description}
-          class="textarea"
-          rows="5"
-          disabled={saving}></textarea>
+          canEdit={!saving}
+          rows={6}
+          placeholder="What this project is, in as much detail as it deserves…"
+          label="Project description" />
       </div>
 
       <div class="grid-2">

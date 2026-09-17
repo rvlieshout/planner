@@ -1,0 +1,301 @@
+/*
+ * Rendered markdown, and the editor that writes it.
+ *
+ * Both are global rather than scoped: `.prose` styles HTML this application never wrote — it comes
+ * out of remark as a string — and Carta draws its own elements with its own class names. A scoped
+ * block reaches neither.
+ *
+ * Everything below is in existing tokens, so both themes and the type scale come free, and a
+ * description sits at the same density as the rest of a page rather than looking like a web page
+ * embedded in one.
+ */
+
+/* --------------------------------------------------------------- reading ---- */
+
+:is(.prose, .carta-renderer) {
+  color: var(--fg);
+  font-size: var(--text-base);
+  line-height: 1.6;
+  overflow-wrap: break-word;
+}
+
+:is(.prose, .carta-renderer) > :first-child {
+  margin-top: 0;
+}
+
+:is(.prose, .carta-renderer) > :last-child {
+  margin-bottom: 0;
+}
+
+:is(.prose, .carta-renderer) p,
+:is(.prose, .carta-renderer) ul,
+:is(.prose, .carta-renderer) ol,
+:is(.prose, .carta-renderer) blockquote,
+:is(.prose, .carta-renderer) pre,
+:is(.prose, .carta-renderer) table {
+  margin: 0 0 var(--s-5);
+}
+
+/*
+ * Headings inside a description are structure, not a second title: the largest is barely above body
+ * text, because the page already has an <h1> and a description that shouts over it is misleading
+ * about what it is.
+ */
+:is(.prose, .carta-renderer) h1,
+:is(.prose, .carta-renderer) h2,
+:is(.prose, .carta-renderer) h3,
+:is(.prose, .carta-renderer) h4,
+:is(.prose, .carta-renderer) h5,
+:is(.prose, .carta-renderer) h6 {
+  margin: var(--s-6) 0 var(--s-3);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+:is(.prose, .carta-renderer) h1 {
+  font-size: var(--text-md);
+}
+
+:is(.prose, .carta-renderer) h2 {
+  font-size: var(--text-base);
+}
+
+:is(.prose, .carta-renderer) h3,
+:is(.prose, .carta-renderer) h4,
+:is(.prose, .carta-renderer) h5,
+:is(.prose, .carta-renderer) h6 {
+  font-size: var(--text-base);
+  color: var(--fg-secondary);
+}
+
+:is(.prose, .carta-renderer) ul,
+:is(.prose, .carta-renderer) ol {
+  padding-left: var(--s-7);
+}
+
+:is(.prose, .carta-renderer) li {
+  margin: var(--s-1) 0;
+}
+
+/* A task list reads as a checklist, not as bullets with boxes hanging off the side. */
+:is(.prose, .carta-renderer) li:has(> input[type='checkbox']) {
+  list-style: none;
+  margin-left: calc(var(--s-6) * -1);
+}
+
+:is(.prose, .carta-renderer) input[type='checkbox'] {
+  margin-right: var(--s-3);
+  accent-color: var(--accent);
+}
+
+:is(.prose, .carta-renderer) a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+:is(.prose, .carta-renderer) a:hover {
+  text-decoration: underline;
+}
+
+:is(.prose, .carta-renderer) code {
+  padding: 1px var(--s-2);
+  border-radius: var(--radius-xs);
+  background: var(--bg-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+:is(.prose, .carta-renderer) pre {
+  padding: var(--s-4) var(--s-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  overflow-x: auto;
+}
+
+:is(.prose, .carta-renderer) pre code {
+  padding: 0;
+  background: none;
+}
+
+:is(.prose, .carta-renderer) blockquote {
+  padding-left: var(--s-5);
+  border-left: 2px solid var(--border);
+  color: var(--fg-secondary);
+}
+
+:is(.prose, .carta-renderer) hr {
+  margin: var(--s-6) 0;
+  border: 0;
+  border-top: 1px solid var(--split);
+}
+
+:is(.prose, .carta-renderer) table {
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+
+:is(.prose, .carta-renderer) th,
+:is(.prose, .carta-renderer) td {
+  padding: var(--s-2) var(--s-4);
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+:is(.prose, .carta-renderer) th {
+  background: var(--bg-sunken);
+  font-weight: 600;
+}
+
+/* An image is a screenshot pasted into a sentence, so it is bounded by the column it sits in. */
+:is(.prose, .carta-renderer) img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+:is(.prose, .carta-renderer) img[data-resolved='pending'] {
+  min-height: 40px;
+  background: var(--bg-sunken);
+}
+
+/* A reference whose file has been deleted. Shown as what it is rather than as a broken image. */
+.attachment-missing {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--s-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--fg-tertiary);
+  font-size: var(--text-sm);
+}
+
+/* --------------------------------------------------------------- writing ---- */
+
+.carta-editor {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input, var(--bg-surface));
+  font-size: var(--text-base);
+}
+
+.carta-editor:focus-within {
+  border-color: var(--accent);
+}
+
+.carta-toolbar {
+  height: var(--row-h);
+  padding: 0 var(--s-2);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-app);
+  color: var(--fg-secondary);
+  font-size: var(--text-sm);
+}
+
+.carta-toolbar .carta-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-xs);
+  color: var(--fg-tertiary);
+  cursor: pointer;
+}
+
+.carta-toolbar .carta-icon:hover {
+  background: var(--bg-active);
+  color: var(--fg);
+}
+
+.carta-toolbar-left button {
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--fg-tertiary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.carta-toolbar-left button.carta-active {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.carta-container {
+  /* Tall enough to write a paragraph in without scrolling, and it grows from there. */
+  min-height: calc(var(--carta-rows, 8) * 1.6em + var(--s-6));
+}
+
+.carta-input,
+.carta-renderer {
+  padding: var(--s-4) var(--s-5);
+}
+
+.carta-font-code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  tab-size: 2;
+}
+
+.carta-input textarea::placeholder {
+  color: var(--fg-disabled);
+}
+
+/* The textarea text is transparent because Carta paints a separate overlay. */
+.carta-theme__planner .carta-input textarea {
+  caret-color: var(--fg);
+  cursor: text;
+  tab-size: 2;
+}
+
+.carta-theme__planner .carta-highlight {
+  pointer-events: none;
+  color: var(--fg);
+}
+
+.carta-theme__planner .carta-highlight pre,
+.carta-theme__planner .carta-highlight code {
+  line-height: inherit;
+  tab-size: 2;
+}
+
+.carta-theme__planner .carta-icon,
+.carta-theme__planner .carta-icon-full {
+  border: 0;
+  background: transparent;
+}
+
+.carta-theme__planner .carta-icons-menu {
+  padding: var(--s-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+}
+
+.carta-theme__planner .carta-icon-full {
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+}
+
+.carta-theme__planner button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+:is(.prose, .carta-renderer) ul { list-style: disc; }
+:is(.prose, .carta-renderer) ol { list-style: decimal; }
+
+/* The preview tab renders through the same pipeline as a saved document, so it is styled as one. */
+.carta-renderer {
+  color: var(--fg);
+  line-height: 1.6;
+}
+
+.carta-drop-overlay {
+  border-radius: var(--radius-sm);
+  background: var(--accent-subtle);
+  color: var(--fg);
+}

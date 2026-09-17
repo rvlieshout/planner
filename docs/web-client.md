@@ -72,6 +72,7 @@ client/
       styles/            fonts.css, tokens.css, app.css
       board.ts           how lanes are laid out
       issues/move.ts     what a drop writes, shared by the board and list views
+      markdown/          the markdown pipeline, and resolving attachment references
       dnd.svelte.ts      dragging issues
       chrome.svelte.ts   what the window frame is currently saying
       navigation.svelte.ts  the unsaved-work guard
@@ -188,6 +189,7 @@ that works, and a shortcut that is captioned is a shortcut that is bound.
 | `Shift+C` | New sub-issue, on an issue |
 | `G` then `P` | The parent issue, on an issue |
 | `O` | Show or hide the overview, on a project |
+| `E` | Edit the description, on an issue |
 | `V` | Switch a board between columns and rows |
 | `Ctrl+Enter` | Save, in a form |
 | `Enter`, double-click | Open the selected issue |
@@ -270,6 +272,49 @@ team's own states, so a row landing in one means exactly what a card landing in 
 My Issues can be dragged too, onto another **group**. Its groups are state *types* rather than states,
 because those issues come from teams whose columns do not line up — so the drop resolves to that
 issue's own team's first state of the type. There is no position to choose there, so no rule is drawn.
+
+## Descriptions and comments
+
+Descriptions and comments are **markdown**, stored as the text that was typed and rendered with
+[Carta](https://github.com/BearToCode/carta) — remark and rehype underneath. An issue opens with its
+description **rendered**; clicking it, pressing `E` or using the Edit button turns that block into the
+editor, and `Escape` goes back to reading.
+
+Nothing saves on its own. The editor is bound to the same state the old textarea was, so a description
+is part of the issue's unsaved work exactly as before: `Ctrl+S` writes it with everything else, and
+leaving with it half-written raises the same prompt. Comments keep their own model — `Ctrl+Enter`
+posts, and editing one has its own Save.
+
+The same treatment is on comments and on a project's description. The quick-create dialog keeps a
+plain textarea: there is nothing to render yet in a form that is creating the thing.
+
+### Images, and the `attachment:` reference
+
+Choosing Add images, pasting, or dropping an image into a description or comment uploads it to the issue and writes a
+reference to it:
+
+```
+![screenshot.png](attachment:0199ab…)
+```
+
+The reference rather than a URL, because the bytes sit behind the issue's team permission and are
+fetched with a bearer token — which an `<img>` cannot send, since the browser makes that request, not
+this app. So the pipeline moves the reference onto `data-attachment` before sanitising (an unknown
+URL scheme would not survive it), and `resolveAttachments` fills in the `src` from a blob fetched the
+ordinary way. Blobs are cached per attachment for the session and revoked on sign-out.
+
+Each mounted editor owns its Carta instance, including its selection and undo history. Uploads insert at the selection and show progress or an inline error. Editing and saving that field pause until the upload finishes.
+
+A pasted image is an ordinary attachment, so it also appears in the issue's Attachments list. Delete
+it there and the reference renders as "attachment unavailable" rather than as a broken image.
+
+A project description has no issue behind it and therefore nowhere to put a file, so it says so
+instead of swallowing the paste.
+
+**Everything rendered is sanitised**, on every surface, by the one DOMPurify configuration in
+`lib/markdown/carta.ts`: scripts, iframes, forms, event handlers and inline styles go; links are
+forced to `target="_blank" rel="noopener noreferrer"`. The markdown pipeline is imported only by the
+three routes that show a document, so the board and the lists never load it.
 
 ## Creating and editing issues
 

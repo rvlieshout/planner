@@ -110,7 +110,9 @@
   async function remove(attachment: AttachmentDto) {
     const answer = await confirm.ask({
       title: `Remove ${attachment.fileName}?`,
-      message: 'It leaves this issue. Bytes already stored on the server are not purged.',
+      message: attachmentsApi.isStored(attachment.storageUri)
+        ? 'This permanently deletes the uploaded file from the server and removes it from this issue.'
+        : 'This removes the link from this issue. The original file at the linked location is kept.',
       confirmLabel: 'Remove',
       cancelLabel: 'Cancel',
       danger: true

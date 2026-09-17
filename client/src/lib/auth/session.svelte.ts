@@ -1,4 +1,5 @@
 import { me as meApi, ApiError } from '$lib/api';
+import { revokeAttachments } from '$lib/markdown/attachments';
 import type { Guid, MeResponse, OrgRole, TeamRole } from '$lib/api/types';
 import { tokens } from './tokens.svelte';
 
@@ -153,6 +154,12 @@ class Session {
     tokens.clear();
     this.user = null;
     this.status = 'signed-out';
+
+    // The images of whatever was open are held as blobs in this tab. They are this account's, and
+    // the next one to sign in here must not inherit them. Only the resolver is reached from here —
+    // the editor itself is a route-level import, and dragging it into the session would put the
+    // whole markdown pipeline in the chunk every page loads.
+    revokeAttachments();
   }
 
   signOut(): void {
