@@ -317,7 +317,50 @@
       status: issue
         ? `Updated ${relativeTime(issue.updatedAt)} · ${issue.commentCount} comments`
         : undefined,
-      actions: toolbar
+      actions: toolbar,
+      commands: [
+        {
+          label: 'Save changes',
+          icon: 'check',
+          shortcut: 'mod+s',
+          disabled: !canWrite || saving || !dirty,
+          run: () => void save()
+        },
+        {
+          label: 'Revert changes',
+          icon: 'refresh-cw',
+          keywords: ['discard', 'undo'],
+          disabled: saving || !dirty,
+          run: revert
+        },
+        {
+          label: 'New sub-issue',
+          icon: 'corner-down-right',
+          shortcut: 'shift+c',
+          keywords: ['child', 'create'],
+          disabled: !canWrite || !issue,
+          run: () =>
+            issue &&
+            issueEditor.create({ teamId: issue.teamId, parentId: issue.id, projectId: issue.projectId })
+        },
+        ...(issue?.parentKey
+          ? [
+              {
+                label: `Go to parent ${issue.parentKey}`,
+                icon: 'arrow-left' as const,
+                shortcut: 'g p',
+                run: () => void navigate(`/issues/${issue!.parentKey}`)
+              }
+            ]
+          : []),
+        {
+          label: 'Archive issue',
+          icon: 'archive',
+          danger: true,
+          disabled: !canWrite || !issue || Boolean(issue.archivedAt),
+          run: () => void archive()
+        }
+      ]
     });
 
     chrome.refresh = () => load(true);

@@ -41,7 +41,16 @@
     chrome.set({
       title: 'Preferences',
       subtitle: session.user?.email,
-      status: `Planner ${VERSION}`
+      status: `Planner ${VERSION}`,
+      commands: [
+        {
+          label: 'Save profile',
+          icon: 'check',
+          shortcut: 'mod+s',
+          disabled: savingProfile || !profileDirty,
+          run: () => void saveProfile()
+        }
+      ]
     });
 
     chrome.unsavedWork = () => (profileDirty ? 'your profile changes' : null);

@@ -5,9 +5,10 @@
 
   import Icon from '$components/Icon.svelte';
   import ThemeToggle from '$components/ThemeToggle.svelte';
+  import Shortcut from '$components/Shortcut.svelte';
   import Sidebar from '$components/shell/Sidebar.svelte';
   import AppMenu from '$components/shell/AppMenu.svelte';
-  import type { MenuGroup } from '$components/shell/menu';
+  import CommandPalette from '$components/shell/CommandPalette.svelte';
   import IssueEditorDialog from '$components/issues/IssueEditorDialog.svelte';
   import DragGhost from '$components/issues/DragGhost.svelte';
 
@@ -18,6 +19,8 @@
   import { realtime } from '$lib/realtime/hub.svelte';
   import { issueEditor } from '$lib/issues/editor.svelte';
   import { installNavigationGuard, mayDiscard, navigate } from '$lib/navigation.svelte';
+  import { commands, type CommandGroup } from '$lib/commands.svelte';
+  import { describe } from '$lib/shortcuts';
   import { VERSION } from '$lib/version';
 
   /**
@@ -89,30 +92,84 @@
     await goto(resolve('/login'), { replaceState: true });
   }
 
-  const menu = $derived<MenuGroup[]>([
+  const menu = $derived<CommandGroup[]>([
     {
       label: 'File',
       items: [
         {
           label: 'New issue',
           icon: 'plus',
-          shortcut: 'Ctrl+N',
+          shortcut: 'c',
+          keywords: ['create', 'add', 'task', 'bug'],
           disabled: !teamId,
           run: newIssue
         },
         {
           label: 'New project',
           icon: 'folder-kanban',
-          shortcut: 'Ctrl+Shift+N',
+          shortcut: 'shift+p',
+          keywords: ['create', 'add'],
           disabled: !teamId,
           run: () => void newProject()
         },
         {
           label: 'Refresh',
           icon: 'refresh-cw',
-          shortcut: 'F5',
+          // Bound only where the page knows what refreshing means; everywhere else F5 is the browser's
+          // own reload, which is the right answer there.
+          shortcut: chrome.refresh ? 'f5' : undefined,
+          keywords: ['reload'],
           disabled: !chrome.refresh,
           run: () => void refresh()
+        }
+      ]
+    },
+    {
+      label: 'Go to',
+      items: [
+        {
+          label: 'My Issues',
+          icon: 'circle-user',
+          shortcut: 'g i',
+          keywords: ['assigned', 'inbox'],
+          run: () => void navigate('/my-issues')
+        },
+        {
+          label: 'Team board',
+          icon: 'layout-grid',
+          shortcut: 'g b',
+          keywords: ['kanban', workspace.currentTeam?.name ?? ''],
+          disabled: !teamId,
+          run: () => void navigate('/board')
+        },
+        ...(session.canOpenUserAdmin
+          ? [
+              {
+                label: 'Users & access',
+                icon: 'users' as const,
+                shortcut: 'g u',
+                keywords: ['accounts', 'people', 'administration'],
+                run: () => void navigate('/users')
+              }
+            ]
+          : []),
+        ...(session.canOpenTeamAdmin
+          ? [
+              {
+                label: 'Teams',
+                icon: 'shield' as const,
+                shortcut: 'g t',
+                keywords: ['members', 'administration'],
+                run: () => void navigate('/teams')
+              }
+            ]
+          : []),
+        {
+          label: 'Preferences',
+          icon: 'settings',
+          shortcut: 'g s',
+          keywords: ['settings', 'profile', 'password', 'theme'],
+          run: () => void navigate('/settings')
         }
       ]
     },
@@ -120,22 +177,23 @@
       label: 'View',
       items: [
         {
-          label: 'My Issues',
-          icon: 'circle-user',
-          shortcut: 'Ctrl+1',
-          run: () => void navigate('/my-issues')
+          label: 'Command palette',
+          icon: 'command',
+          shortcut: 'mod+k',
+          run: () => commands.openPalette()
         },
         {
-          label: 'Team board',
-          icon: 'layout-grid',
-          shortcut: 'Ctrl+2',
-          disabled: !teamId,
-          run: () => void navigate('/board')
+          label: 'Keyboard shortcuts',
+          icon: 'command',
+          shortcut: '?',
+          keywords: ['help', 'keys', 'hotkeys'],
+          run: () => commands.openPalette()
         },
         {
           label: settings.sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar',
           icon: 'panel-left',
-          shortcut: 'Ctrl+B',
+          shortcut: 'mod+b',
+          keywords: ['toggle', 'collapse', 'panel'],
           run: () => settings.toggleSidebar()
         }
       ]
@@ -144,13 +202,9 @@
       label: 'Account',
       items: [
         {
-          label: 'Preferences',
-          icon: 'settings',
-          run: () => void navigate('/settings')
-        },
-        {
           label: 'Sign out',
           icon: 'log-out',
+          keywords: ['log out', 'logout'],
           danger: true,
           run: () => void signOut()
         }
@@ -158,48 +212,28 @@
     }
   ]);
 
+  /** What the keyboard and the palette offer: this page's commands first, then the shell's. */
+  const pageGroup = $derived<CommandGroup>({ label: chrome.title || 'This page', items: chrome.commands });
+
+  /** The palette also goes anywhere the sidebar does, so a project is a few letters away. */
+  const projectGroup = $derived<CommandGroup>({
+    label: 'Projects',
+    items: workspace.projects
+      .filter((project) => !project.archivedAt)
+      .map((project) => ({
+        label: project.name,
+        icon: 'folder' as const,
+        keywords: ['project'],
+        run: () => void navigate(`/projects/${project.id}`)
+      }))
+  });
+
+  const bound = $derived([pageGroup, ...menu]);
+
   /* ----------------------------------------------------------- shortcuts ---- */
 
   function onKeyDown(event: KeyboardEvent) {
-    // A shortcut that fires while someone is typing into a field is a shortcut that eats their text.
-    const target = event.target as HTMLElement | null;
-    const typing =
-      target?.isContentEditable ||
-      ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName ?? '');
-
-    if (event.key === 'F5' && !event.ctrlKey && !event.metaKey) {
-      // Only when this page knows what refreshing means; otherwise the browser's own reload is right.
-      if (chrome.refresh) {
-        event.preventDefault();
-        void refresh();
-      }
-      return;
-    }
-
-    const accel = event.ctrlKey || event.metaKey;
-    if (!accel || event.altKey) return;
-
-    switch (event.key.toLowerCase()) {
-      case 'n':
-        if (typing) return;
-        event.preventDefault();
-        if (event.shiftKey) void newProject();
-        else newIssue();
-        break;
-      case 'b':
-        if (typing) return;
-        event.preventDefault();
-        settings.toggleSidebar();
-        break;
-      case '1':
-        event.preventDefault();
-        void navigate('/my-issues');
-        break;
-      case '2':
-        event.preventDefault();
-        if (teamId) void navigate('/board');
-        break;
-    }
+    commands.handle(event, bound);
   }
 
   /* ------------------------------------------------------------- resize ---- */
@@ -254,10 +288,21 @@
 
     <button
       type="button"
+      class="btn btn-quiet btn-sm palette-trigger"
+      onclick={() => commands.openPalette()}
+      title="Command palette ({describe('mod+k')})"
+      aria-label="Command palette">
+      <Icon name="search" size={13} />
+      <span class="palette-label">Commands</span>
+      <Shortcut shortcut="mod+k" />
+    </button>
+
+    <button
+      type="button"
       class="btn btn-quiet btn-icon btn-sm"
       onclick={newIssue}
       disabled={!teamId}
-      title="New issue (Ctrl+N)"
+      title="New issue ({describe('c')})"
       aria-label="New issue">
       <Icon name="plus" size={15} />
     </button>
@@ -299,7 +344,7 @@
           type="button"
           class="btn btn-quiet btn-icon btn-sm"
           onclick={() => settings.toggleSidebar()}
-          title="Show sidebar (Ctrl+B)"
+          title="Show sidebar ({describe('mod+b')})"
           aria-label="Show sidebar">
           <Icon name="panel-left" size={15} />
         </button>
@@ -347,6 +392,7 @@
 </div>
 
 <IssueEditorDialog />
+<CommandPalette groups={[pageGroup, ...menu, projectGroup]} />
 <DragGhost />
 {/if}
 
@@ -405,6 +451,11 @@
     border-radius: var(--radius-xs);
     background: var(--accent);
     color: var(--fg-on-accent);
+  }
+
+  .palette-trigger {
+    gap: var(--s-3);
+    color: var(--fg-tertiary);
   }
 
   .sidebar-slot {
@@ -523,6 +574,10 @@
     }
 
     .resizer {
+      display: none;
+    }
+
+    .palette-label {
       display: none;
     }
   }

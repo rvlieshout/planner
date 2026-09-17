@@ -1,4 +1,5 @@
 import type { Snippet } from 'svelte';
+import type { Command } from '$lib/commands.svelte';
 
 /*
  * What the window frame is currently saying.
@@ -10,6 +11,9 @@ import type { Snippet } from 'svelte';
  * `refresh` and `unsavedWork` are registered the same way and for the same reason: F5 and the
  * navigation guard are the shell's keyboard and the shell's router, but only the page knows what
  * reloading means and what would be lost by leaving.
+ *
+ * `commands` is the page's half of the command palette and the keyboard: what this screen can do on
+ * top of what the shell always can.
  */
 
 export interface PageChrome {
@@ -19,6 +23,8 @@ export interface PageChrome {
   status?: string;
   /** Buttons for the toolbar strip, as a snippet the shell renders in its own row. */
   actions?: Snippet;
+  /** Offered in the command palette, under the page's title, and bound to their shortcuts. */
+  commands?: Command[];
 }
 
 class Chrome {
@@ -26,6 +32,7 @@ class Chrome {
   subtitle = $state<string | undefined>(undefined);
   status = $state<string | undefined>(undefined);
   actions = $state<Snippet | undefined>(undefined);
+  commands = $state<Command[]>([]);
 
   /** What F5 and the toolbar's Refresh do on the page that is open. */
   refresh = $state<(() => void | Promise<void>) | null>(null);
@@ -44,6 +51,7 @@ class Chrome {
     this.subtitle = chrome.subtitle;
     this.status = chrome.status;
     this.actions = chrome.actions;
+    this.commands = chrome.commands ?? [];
   }
 
   /** Called by a page as it unmounts, so the previous page's heading never outlives it. */
@@ -52,6 +60,7 @@ class Chrome {
     this.subtitle = undefined;
     this.status = undefined;
     this.actions = undefined;
+    this.commands = [];
     this.refresh = null;
     this.unsavedWork = null;
     this.busy = false;

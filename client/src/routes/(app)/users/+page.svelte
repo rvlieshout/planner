@@ -106,7 +106,17 @@
       title: 'Users & access',
       subtitle: selected?.displayName ?? (creating ? 'New user' : 'Directory'),
       status: loading ? 'Loading…' : `${users.length} account${users.length === 1 ? '' : 's'}`,
-      actions: toolbar
+      actions: toolbar,
+      commands: [
+        { label: 'New user', icon: 'user-plus', disabled: saving, run: () => void startCreate() },
+        {
+          label: creating ? 'Create user' : 'Save user & team access',
+          icon: 'check',
+          shortcut: 'mod+s',
+          disabled: !(selected || creating) || saving,
+          run: () => void save()
+        }
+      ]
     });
 
     chrome.refresh = load;

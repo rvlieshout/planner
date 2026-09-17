@@ -128,8 +128,9 @@ installation it talks to, and in development Vite proxies `/api`, `/connect` and
 `PLANNER_SERVER_URL` — so in both cases the browser only ever speaks to the origin it came from. That
 is what makes CORS, a second hostname and an origin allow-list unnecessary.
 
-The sidebar carries My Issues, the team board and one row per project; Ctrl+N files work into the
-current team, Ctrl+Shift+N starts a project, and everything stays live over SignalR. Administration
+The sidebar carries My Issues, the team board and one row per project; `C` files work into the
+current team, Ctrl+K opens a command palette listing every shortcut the open screen offers, and
+everything stays live over SignalR. Administration
 sits at the top of that sidebar for the people entitled to it: **Users & access** for owners and
 administrators, and **Teams** — settings and membership, creating and archiving — for them and for the
 leads of the teams they lead.

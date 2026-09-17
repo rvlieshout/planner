@@ -1,7 +1,8 @@
 <script lang="ts">
   import Icon from '$components/Icon.svelte';
   import Popover from '$components/Popover.svelte';
-  import type { MenuCommand, MenuGroup } from './menu';
+  import Shortcut from '$components/Shortcut.svelte';
+  import type { Command, CommandGroup } from '$lib/commands.svelte';
 
   /**
    * The application menu — File, View, Project and Help, folded into one button.
@@ -12,14 +13,14 @@
    * captioned with the accelerators that also work without opening it.
    */
   interface Props {
-    groups: MenuGroup[];
+    groups: CommandGroup[];
   }
 
   let { groups }: Props = $props();
 
   let open = $state(false);
 
-  function run(command: MenuCommand) {
+  function run(command: Command) {
     if (command.disabled) return;
 
     open = false;
@@ -59,7 +60,7 @@
             <span class="glyph"></span>
           {/if}
           <span class="label truncate">{item.label}</span>
-          {#if item.shortcut}<kbd>{item.shortcut}</kbd>{/if}
+          {#if item.shortcut}<Shortcut shortcut={item.shortcut} />{/if}
         </button>
       {/each}
     {/each}
@@ -110,13 +111,6 @@
 
   .label {
     flex: 1;
-  }
-
-  kbd {
-    flex: none;
-    color: var(--fg-tertiary);
-    font-family: var(--font-sans);
-    font-size: var(--text-xs);
   }
 
   hr {

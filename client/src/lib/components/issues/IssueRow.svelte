@@ -170,8 +170,11 @@
   }
 
   .updated {
-    width: 64px;
+    width: 100px;
     justify-content: flex-end;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
   }
 
   .labels {

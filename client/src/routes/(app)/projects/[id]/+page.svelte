@@ -79,7 +79,23 @@
       title: project?.name ?? 'Project',
       subtitle: project ? PROJECT_STATUS[project.status].label : undefined,
       status: loading ? 'Loading…' : boardSummary(layOut(states, issues)),
-      actions: toolbar
+      actions: toolbar,
+      commands: [
+        {
+          label: showDetail ? 'Hide overview' : 'Show overview',
+          icon: showDetail ? 'chevron-down' : 'chevron-right',
+          shortcut: 'o',
+          keywords: ['details', 'milestones', 'toggle'],
+          run: () => (showDetail = !showDetail)
+        },
+        {
+          label: 'Project settings',
+          icon: 'settings',
+          keywords: ['edit', 'rename', 'milestones'],
+          disabled: !canWrite,
+          run: () => void navigate(`/projects/${projectId}/settings`)
+        }
+      ]
     });
     chrome.refresh = load;
     chrome.busy = loading;

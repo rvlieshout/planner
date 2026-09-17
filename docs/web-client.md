@@ -162,24 +162,44 @@ The whole shell is built on 28px rows rather than the touch targets a component 
 The menu bar is folded into one button rather than spread across the title bar. A browser tab already
 has a menu bar at the top of the window, and a second row of words under it reads as a page imitating
 an application rather than as one. The commands are grouped as a menu bar would group them, and
-captioned with the accelerators that also work without opening it.
+captioned with the shortcuts that also work without opening it.
+
+The same commands are searchable in the command palette (`Ctrl+K`, or the **Commands** button in the
+title bar), which doubles as the keyboard reference: opened with nothing typed, it lists what works
+on this screen right now — the page's own commands first, then the shell's, then every project. The
+palette is Bits UI's `Command` inside a native `<dialog>`.
+
+Menu, palette and keyboard read one list (`commands.svelte.ts`). The shell contributes what is always
+there; a page adds its own through `chrome.set({ commands })`. A command that is listed is a command
+that works, and a shortcut that is captioned is a shortcut that is bound.
 
 | Gesture | Does |
 | --- | --- |
-| `Ctrl+N` | New issue |
-| `Ctrl+Shift+N` | New project |
+| `Ctrl+K`, `?` | Command palette and shortcut list |
+| `C` | New issue (in the open project, on a project page) |
+| `Shift+P` | New project |
 | `F5` | Refresh the current view |
-| `Ctrl+1` | My Issues |
-| `Ctrl+2` | The team board |
+| `G` then `I` | My Issues |
+| `G` then `B` | The team board |
+| `G` then `U` / `T` / `S` | Users & access / Teams / Preferences |
 | `Ctrl+B` | Show or hide the sidebar |
+| `Ctrl+S` | Save — an issue, a team, a user, your profile |
+| `Shift+C` | New sub-issue, on an issue |
+| `G` then `P` | The parent issue, on an issue |
+| `O` | Show or hide the overview, on a project |
 | `Ctrl+Enter` | Save, in a form |
 | `Enter`, double-click | Open the selected issue |
 | Drag a row or a card | Move it to another column or group, or reorder it in place |
 | `Esc` | Close the dialog |
 
-`F5` is intercepted only where the open page knows what refreshing means; everywhere else the
-browser's own reload is the right answer. Accelerators do not fire while a field has focus, or they
-would eat what is being typed.
+**The desktop client's accelerators do not carry over.** `Ctrl+N`, `Ctrl+Shift+N`, `Ctrl+T`, `Ctrl+W`
+and `Ctrl+1…9` never reach a page: the browser opens its window or switches its tab before any script
+sees the key. So the web client's verbs are single keys and `G` sequences, and only keys a page is
+actually handed carry a modifier. On a Mac, `Ctrl` is `⌘`.
+
+Single-key shortcuts do not fire while a field has focus, or they would eat what is being typed;
+`Ctrl` chords and `F5` do. Nothing fires while a modal is open. `F5` is bound only where the open page
+knows what refreshing means; everywhere else the browser's own reload is the right answer.
 
 The page's heading, its toolbar actions and its one-line status are published through `chrome`
 (`chrome.svelte.ts`) and read by the shell. The describing furniture lives outside the thing it

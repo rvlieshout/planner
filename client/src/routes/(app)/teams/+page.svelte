@@ -119,7 +119,19 @@
       title: 'Teams',
       subtitle: selected ? selected.name : creating ? 'New team' : 'Settings and membership',
       status: loading ? 'Loading…' : `${teams.length} team${teams.length === 1 ? '' : 's'} you administer`,
-      actions: toolbar
+      actions: toolbar,
+      commands: [
+        ...(session.isAdmin
+          ? [{ label: 'New team', icon: 'plus' as const, disabled: saving, run: () => void startCreate() }]
+          : []),
+        {
+          label: creating ? 'Create team' : 'Save changes',
+          icon: 'check',
+          shortcut: 'mod+s',
+          disabled: !(selected || creating) || saving || !name.trim(),
+          run: () => void save()
+        }
+      ]
     });
 
     chrome.refresh = load;

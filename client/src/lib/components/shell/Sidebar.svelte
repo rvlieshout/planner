@@ -8,6 +8,7 @@
   import { session } from '$lib/auth/session.svelte';
   import { workspace } from '$lib/workspace.svelte';
   import { navigate } from '$lib/navigation.svelte';
+  import { describe } from '$lib/shortcuts';
   import { realtime } from '$lib/realtime/hub.svelte';
   import type { Pathname } from '$app/types';
 
@@ -100,7 +101,7 @@
             type="button"
             class="add"
             onclick={() => go('/projects/new')}
-            title="New project (Ctrl+Shift+N)"
+            title="New project ({describe('shift+p')})"
             aria-label="New project">
             <Icon name="plus" size={13} />
           </button>
