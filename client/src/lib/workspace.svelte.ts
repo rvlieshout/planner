@@ -33,6 +33,15 @@ class Workspace {
   loading = $state(false);
   error = $state<string | null>(null);
 
+  /**
+   * Whether this session has loaded the workspace yet, successfully or not.
+   *
+   * The shell keys on this rather than on an empty team list, because an empty list is a legitimate
+   * answer: an account in no team, or one just removed from its last. Asking again whenever the list
+   * is empty turns that answer into a request loop.
+   */
+  initialized = $state(false);
+
   #states = $state<Record<Guid, WorkflowStateDto[]>>({});
   #members = $state<Record<Guid, TeamMemberDto[]>>({});
   #labels = $state<Record<Guid, LabelDto[]>>({});
@@ -54,8 +63,13 @@ class Workspace {
 
   /** Loads the team list and settles on a current team. Called once, after signing in. */
   async initialize(): Promise<void> {
+    this.initialized = true;
     this.loading = true;
     this.error = null;
+
+    // Wired before the first request, so a failed load still hears about a team it is added to later
+    // and recovers on the next reconnect rather than never.
+    this.#wire();
 
     try {
       this.teams = await teamsApi.list();
@@ -66,7 +80,6 @@ class Workspace {
         this.teams.find((t) => t.id === remembered) ?? this.teams.find((t) => !t.archivedAt) ?? this.teams[0];
 
       await this.setTeam(team?.id ?? null);
-      this.#wire();
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Could not load your teams.';
     } finally {
@@ -99,7 +112,8 @@ class Workspace {
   async refreshTeams(): Promise<void> {
     this.teams = await teamsApi.list();
 
-    if (this.currentTeamId && !this.teams.some((team) => team.id === this.currentTeamId)) {
+    // Also when there was no current team at all: someone added to their first team lands in it.
+    if (!this.teams.some((team) => team.id === this.currentTeamId)) {
       await this.setTeam(this.teams[0]?.id ?? null);
     }
   }
@@ -237,8 +251,10 @@ class Workspace {
       if (change.teamId) delete this.#members[change.teamId];
 
       // A membership change that involves this user changes which teams they can read at all, so the
-      // socket's own groups have to be re-evaluated as well as this store.
+      // socket's own groups have to be re-evaluated as well as this store — and the profile too,
+      // because that is where the team roles every permission check reads from live.
       if (change.entity?.userId === session.user?.id) {
+        await session.reloadProfile();
         await realtime.resubscribe();
         await this.refreshTeams();
       }
@@ -265,6 +281,7 @@ class Workspace {
     this.#members = {};
     this.#labels = {};
     this.error = null;
+    this.initialized = false;
   }
 }
 

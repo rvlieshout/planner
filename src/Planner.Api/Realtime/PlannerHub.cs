@@ -8,30 +8,40 @@ using Planner.Infrastructure;
 namespace Planner.Api.Realtime;
 
 /// <summary>Live change feed for connected clients. Connections are placed in a group per team the
-/// caller can read, so the server never has to re-check permissions when publishing a change.</summary>
+/// caller can read, so the server never has to re-check permissions when publishing a change. Those
+/// groups follow the caller's access for the life of the connection: see
+/// <see cref="IRealtimeSubscriptions"/>.</summary>
 [Authorize]
-public sealed class PlannerHub(ITeamAccess access, CurrentUser user, PlannerDbContext db, ILogger<PlannerHub> logger)
+public sealed class PlannerHub(
+    ITeamAccess access,
+    CurrentUser user,
+    PlannerDbContext db,
+    RealtimeConnections connections,
+    IRealtimeSubscriptions subscriptions,
+    ILogger<PlannerHub> logger)
     : Hub<IPlannerClient>
 {
     public override async Task OnConnectedAsync()
     {
-        var groups = new List<string> { RealtimeGroups.User(user.Id), RealtimeGroups.Organization };
+        connections.Register(Context.ConnectionId, user.Id);
 
-        foreach (var teamId in await access.ReadableTeamIdsAsync(Context.ConnectionAborted))
-        {
-            groups.Add(RealtimeGroups.Team(teamId));
-        }
+        await Groups.AddToGroupAsync(Context.ConnectionId, RealtimeGroups.User(user.Id));
+        await Groups.AddToGroupAsync(Context.ConnectionId, RealtimeGroups.Organization);
 
-        foreach (var group in groups)
-        {
-            await Groups.AddToGroupAsync(Context.ConnectionId, group);
-        }
+        var groups = await subscriptions.SyncConnectionAsync(Context.ConnectionId, Context.ConnectionAborted);
 
         logger.LogDebug("Connection {ConnectionId} joined {GroupCount} groups", Context.ConnectionId, groups.Count);
 
         // Tell the client what it actually got, rather than letting it assume.
         await Clients.Caller.Subscribed(groups);
         await base.OnConnectedAsync();
+    }
+
+    public override Task OnDisconnectedAsync(Exception? exception)
+    {
+        // SignalR drops the connection from its groups by itself; this only forgets which they were.
+        connections.Unregister(Context.ConnectionId);
+        return base.OnDisconnectedAsync(exception);
     }
 
     /// <summary>Opt into comment, attachment and relation traffic for one issue — typically the issue
@@ -48,25 +58,17 @@ public sealed class PlannerHub(ITeamAccess access, CurrentUser user, PlannerDbCo
             return false;
         }
 
-        await Groups.AddToGroupAsync(Context.ConnectionId, RealtimeGroups.Issue(issueId));
-        return true;
+        return await subscriptions.JoinIssueAsync(Context.ConnectionId, issueId, teamId.Value, Context.ConnectionAborted);
     }
 
     public Task UnsubscribeFromIssue(Guid issueId) =>
-        Groups.RemoveFromGroupAsync(Context.ConnectionId, RealtimeGroups.Issue(issueId));
+        subscriptions.LeaveIssueAsync(Context.ConnectionId, issueId, Context.ConnectionAborted);
 
-    /// <summary>Re-evaluates team groups after the caller's membership changed, so a user added to a
-    /// team starts receiving its traffic without reconnecting.</summary>
+    /// <summary>Re-evaluates team groups against the caller's current access, joining teams they were
+    /// added to and leaving teams they were removed from, without reconnecting.</summary>
     public async Task<IReadOnlyList<string>> Resubscribe()
     {
-        var groups = new List<string> { RealtimeGroups.User(user.Id), RealtimeGroups.Organization };
-
-        foreach (var teamId in await access.ReadableTeamIdsAsync(Context.ConnectionAborted))
-        {
-            var group = RealtimeGroups.Team(teamId);
-            groups.Add(group);
-            await Groups.AddToGroupAsync(Context.ConnectionId, group);
-        }
+        var groups = await subscriptions.SyncConnectionAsync(Context.ConnectionId, Context.ConnectionAborted);
 
         await Clients.Caller.Subscribed(groups);
         return groups;

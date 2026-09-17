@@ -1,23 +1,20 @@
 <script lang="ts">
   import Icon from '$components/Icon.svelte';
   import BoardCard from './BoardCard.svelte';
-  import { layOut, type BoardColumn } from '$lib/board';
-  import { drag, moveAnchors } from '$lib/dnd.svelte';
-  import { announce } from '$lib/issues/changes';
+  import { layOut } from '$lib/board';
+  import { drag } from '$lib/dnd.svelte';
   import { issueEditor } from '$lib/issues/editor.svelte';
+  import { moveIssue } from '$lib/issues/move';
   import { STATE_TYPE } from '$lib/meta';
-  import { ApiError, issues as issuesApi } from '$lib/api';
   import type { Guid, IssueSummary, WorkflowStateDto } from '$lib/api/types';
-  import { toasts } from '$components/toast.svelte';
 
   /**
    * The board itself: lanes of columns, each a drop target, with a rule showing where a card would
    * land and the lane it would land in tinted around it.
    *
-   * The board moves the card first and tells the server afterwards. A drag that waits for a round trip
-   * before the card lands feels broken, and the realtime echo of the move is the same idempotent
-   * upsert as any other change, so it only confirms what is already on screen. A refusal puts the
-   * board back the way the server sees it.
+   * What a drop writes is `moveIssue`, shared with the list view of the same board — the two show the
+   * same issues grouped the same way, so a card dragged between columns and a row dragged between
+   * groups mean the same thing.
    */
   interface Props {
     states: WorkflowStateDto[];
@@ -46,78 +43,21 @@
 
   const lanes = $derived(layOut(states, issues));
 
-  function press(event: PointerEvent, issue: IssueSummary, column: BoardColumn) {
+  function press(event: PointerEvent, issue: IssueSummary) {
     selectedId = issue.id;
     if (!canMove) return;
 
     drag.press(event, issue, {
-      ondrop: (target) => move(issue, target.key, target.index ?? 0, column)
+      ondrop: (target) =>
+        moveIssue({
+          issue,
+          stateId: target.key,
+          index: target.index ?? 0,
+          states,
+          issues,
+          apply: onoptimistic
+        })
     });
-  }
-
-  async function move(issue: IssueSummary, stateId: string, index: number, from: BoardColumn) {
-    const target = states.find((state) => state.id === stateId);
-    if (!target) return;
-
-    const column = lanes.flatMap((lane) => lane.columns).find((c) => c.state.id === stateId);
-    const anchors = moveAnchors(column?.issues ?? [], index, issue.id);
-
-    // Dropping a card back where it already was: same column, same two neighbours. Nothing to write.
-    if (stateId === from.state.id) {
-      const current = from.issues.findIndex((candidate) => candidate.id === issue.id);
-
-      if (
-        (from.issues[current - 1]?.id ?? null) === anchors.afterIssueId &&
-        (from.issues[current + 1]?.id ?? null) === anchors.beforeIssueId
-      ) {
-        return;
-      }
-    }
-
-    const previous = issues;
-
-    // Put it where it was dropped straight away, with a rank between its new neighbours so the
-    // optimistic order matches the one the server is about to write.
-    const after = column?.issues.find((i) => i.id === anchors.afterIssueId);
-    const before = column?.issues.find((i) => i.id === anchors.beforeIssueId);
-    const sortOrder = midpoint(after?.sortOrder, before?.sortOrder, column?.issues ?? []);
-
-    onoptimistic(
-      issues.map((candidate) =>
-        candidate.id === issue.id
-          ? {
-              ...candidate,
-              stateId: target.id,
-              stateName: target.name,
-              stateType: target.type,
-              stateColor: target.color,
-              sortOrder
-            }
-          : candidate
-      )
-    );
-
-    try {
-      const saved = await issuesApi.move(issue.id, {
-        stateId: target.id,
-        afterIssueId: anchors.afterIssueId,
-        beforeIssueId: anchors.beforeIssueId
-      });
-
-      announce('Updated', saved);
-    } catch (failure) {
-      onoptimistic(previous);
-      toasts.error(failure instanceof ApiError ? failure.message : 'That move was refused.');
-    }
-  }
-
-  /** The rank a card takes between two neighbours — the same midpoint the server computes. */
-  function midpoint(after: number | undefined, before: number | undefined, column: IssueSummary[]): number {
-    if (after !== undefined && before !== undefined) return (after + before) / 2;
-    if (after !== undefined) return after + 1;
-    if (before !== undefined) return before - 1;
-
-    return column.length === 0 ? 0 : Math.min(...column.map((issue) => issue.sortOrder)) - 1;
   }
 </script>
 
@@ -154,7 +94,7 @@
                 selected={selectedId === issue.id}
                 onselect={(chosen) => (selectedId = chosen.id)}
                 {onopen}
-                onpress={(event, dragged) => press(event, dragged, column)} />
+                onpress={press} />
             {/each}
           </div>
         </div>

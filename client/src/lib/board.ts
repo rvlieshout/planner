@@ -30,14 +30,19 @@ export interface BoardLane {
   columns: BoardColumn[];
 }
 
+/** One state's issues, in the order every view shows them: the rank the board drags them into. */
+export function issuesIn(issues: IssueSummary[], stateId: string): IssueSummary[] {
+  return issues
+    .filter((issue) => issue.stateId === stateId)
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.number - b.number);
+}
+
 export function layOut(states: WorkflowStateDto[], issues: IssueSummary[]): BoardLane[] {
   const ordered = [...states].sort((a, b) => a.position - b.position);
 
   const columnsOf = (state: WorkflowStateDto): BoardColumn => ({
     state,
-    issues: issues
-      .filter((issue) => issue.stateId === state.id)
-      .sort((a, b) => a.sortOrder - b.sortOrder || a.number - b.number)
+    issues: issuesIn(issues, state.id)
   });
 
   const unstarted = ordered.filter((state) => state.type === 'Unstarted');
@@ -70,12 +75,17 @@ export function layOut(states: WorkflowStateDto[], issues: IssueSummary[]): Boar
   return lanes;
 }
 
-/** "11 issues in 6 columns" — the line the status bar shows for a board. */
-export function boardSummary(lanes: BoardLane[]): string {
+/**
+ * "11 issues in 6 columns" — the line the status bar shows for a board.
+ *
+ * The same states are groups rather than columns once the list view is showing them, and the status
+ * bar describes what is on screen, so the noun follows the view.
+ */
+export function boardSummary(lanes: BoardLane[], noun: 'column' | 'group' = 'column'): string {
   const columns = lanes.flatMap((lane) => lane.columns);
   const total = columns.reduce((sum, column) => sum + column.issues.length, 0);
 
   return `${total} ${total === 1 ? 'issue' : 'issues'} in ${columns.length} ${
-    columns.length === 1 ? 'column' : 'columns'
+    columns.length === 1 ? noun : `${noun}s`
   }`;
 }

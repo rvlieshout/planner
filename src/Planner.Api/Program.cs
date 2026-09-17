@@ -37,6 +37,8 @@ builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<ITeamAccess, TeamAccess>();
 builder.Services.AddScoped<IActivityLog, ActivityLog>();
 builder.Services.AddScoped<IRealtimeNotifier, RealtimeNotifier>();
+builder.Services.AddSingleton<RealtimeConnections>();
+builder.Services.AddScoped<IRealtimeSubscriptions, RealtimeSubscriptions>();
 builder.Services.AddScoped<DatabaseSeeder>();
 builder.Services.AddScoped<OpenIddictClientSeeder>();
 

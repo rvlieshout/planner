@@ -241,6 +241,7 @@ public static class TeamEndpoints
         ITeamAccess access,
         IActivityLog activity,
         IRealtimeNotifier notifier,
+        IRealtimeSubscriptions subscriptions,
         CancellationToken ct)
     {
         if (await ApiResults.RequireTeamAsync(access, id, TeamPermission.Administer, ct) is { } denied)
@@ -269,6 +270,8 @@ public static class TeamEndpoints
             .Select(Mapping.TeamMemberProjection)
             .FirstAsync(ct);
 
+        // Joined first, so the new member's open sockets receive the announcement of their own arrival.
+        await subscriptions.SyncUserAsync(request.UserId);
         await notifier.TeamMemberChanged(ChangeKind.Created, dto);
         return Results.Created($"/api/v1/teams/{id}/members/{request.UserId}", dto);
     }
@@ -325,6 +328,7 @@ public static class TeamEndpoints
         ITeamAccess access,
         IActivityLog activity,
         IRealtimeNotifier notifier,
+        IRealtimeSubscriptions subscriptions,
         CancellationToken ct)
     {
         if (await ApiResults.RequireTeamAsync(access, id, TeamPermission.Administer, ct) is { } denied)
@@ -354,6 +358,9 @@ public static class TeamEndpoints
         await db.SaveChangesAsync(ct);
 
         await notifier.TeamMemberChanged(ChangeKind.Deleted, dto);
+
+        // Left afterwards, so the removed member still hears that they were removed.
+        await subscriptions.SyncUserAsync(userId);
         return Results.NoContent();
     }
 

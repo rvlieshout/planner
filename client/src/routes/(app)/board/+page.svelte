@@ -8,11 +8,16 @@
   import { issueEditor } from '$lib/issues/editor.svelte';
   import { navigate } from '$lib/navigation.svelte';
   import { realtime } from '$lib/realtime/hub.svelte';
+  import { settings } from '$lib/settings.svelte';
   import { loadBoardIssues, workspace } from '$lib/workspace.svelte';
   import BoardView from '$components/issues/BoardView.svelte';
+  import ListView from '$components/issues/ListView.svelte';
   import Icon from '$components/Icon.svelte';
 
-  /** The current team's board: one column per workflow state, live over the socket. */
+  /**
+   * The current team's board: one column per workflow state, live over the socket — or the same
+   * states as groups of rows, which is the choice `settings.boardView` remembers for every board.
+   */
   let issues = $state<IssueSummary[]>([]);
   let states = $state<WorkflowStateDto[]>([]);
   let loading = $state(true);
@@ -21,6 +26,7 @@
   const teamId = $derived(workspace.currentTeamId);
   const team = $derived(workspace.currentTeam);
   const canMove = $derived(session.can(teamId, Permission.Write));
+  const asList = $derived(settings.boardView === 'list');
 
   async function load() {
     if (!teamId) {
@@ -71,8 +77,17 @@
     chrome.set({
       title: team?.name ?? 'Board',
       subtitle: team?.key,
-      status: loading ? 'Loading…' : boardSummary(layOut(states, issues)),
-      actions: toolbar
+      status: loading ? 'Loading…' : boardSummary(layOut(states, issues), asList ? 'group' : 'column'),
+      actions: toolbar,
+      commands: [
+        {
+          label: asList ? 'Board view' : 'List view',
+          icon: asList ? 'layout-grid' : 'list',
+          shortcut: 'v',
+          keywords: ['switch', 'kanban', 'columns', 'rows', 'toggle'],
+          run: () => settings.toggleBoardView()
+        }
+      ]
     });
     chrome.refresh = load;
     chrome.busy = loading;
@@ -82,6 +97,15 @@
 </script>
 
 {#snippet toolbar()}
+  <button
+    type="button"
+    class="btn btn-sm btn-quiet"
+    onclick={() => settings.toggleBoardView()}
+    title={asList ? 'Show as a board (V)' : 'Show as a list (V)'}>
+    <Icon name={asList ? 'layout-grid' : 'list'} size={13} />
+    {asList ? 'Board' : 'List'}
+  </button>
+
   <button
     type="button"
     class="btn btn-sm"
@@ -102,6 +126,14 @@
   <div class="alert alert-error"><Icon name="circle-alert" size={15} /><span>{error}</span></div>
 {:else if loading && issues.length === 0}
   <div class="empty"><Icon name="loader-circle" size={20} class="spin" /></div>
+{:else if asList}
+  <ListView
+    {states}
+    {issues}
+    teamId={teamId}
+    {canMove}
+    onopen={(issue) => void navigate(`/issues/${issue.key}`)}
+    onoptimistic={(next) => (issues = next)} />
 {:else}
   <BoardView
     {states}

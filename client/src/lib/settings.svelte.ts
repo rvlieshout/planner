@@ -9,11 +9,15 @@
 
 export type ThemeChoice = 'system' | 'light' | 'dark';
 
+/** How a team's or project's board is drawn: columns of cards, or groups of rows. */
+export type BoardViewChoice = 'board' | 'list';
+
 const KEYS = {
   theme: 'planner.theme',
   sidebarWidth: 'planner.sidebarWidth',
   sidebarCollapsed: 'planner.sidebarCollapsed',
   lastTeamId: 'planner.lastTeamId',
+  boardView: 'planner.boardView',
   lastEmail: 'planner.lastEmail'
 } as const;
 
@@ -25,6 +29,14 @@ class Settings {
   sidebarWidth = $state(236);
   sidebarCollapsed = $state(false);
   lastTeamId = $state<string | null>(null);
+
+  /**
+   * One choice for every board rather than one per board.
+   *
+   * Someone who reads boards as lists reads all of them that way, and a preference that has to be set
+   * again on each project is one nobody sets at all.
+   */
+  boardView = $state<BoardViewChoice>('board');
 
   /** Pre-fills the sign-in form. The password is never stored, by anyone, anywhere. */
   lastEmail = $state<string | null>(null);
@@ -38,6 +50,9 @@ class Settings {
 
     this.sidebarCollapsed = read(KEYS.sidebarCollapsed) === 'true';
     this.lastTeamId = read(KEYS.lastTeamId);
+
+    const boardView = read(KEYS.boardView);
+    if (boardView === 'board' || boardView === 'list') this.boardView = boardView;
     this.lastEmail = read(KEYS.lastEmail);
   }
 
@@ -82,6 +97,15 @@ class Settings {
     } else {
       remove(KEYS.lastTeamId);
     }
+  }
+
+  setBoardView(view: BoardViewChoice): void {
+    this.boardView = view;
+    write(KEYS.boardView, view);
+  }
+
+  toggleBoardView(): void {
+    this.setBoardView(this.boardView === 'board' ? 'list' : 'board');
   }
 
   setLastEmail(email: string): void {

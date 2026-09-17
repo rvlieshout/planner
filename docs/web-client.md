@@ -71,6 +71,7 @@ client/
       components/        primitives, then shell/, issues/, projects/
       styles/            fonts.css, tokens.css, app.css
       board.ts           how lanes are laid out
+      issues/move.ts     what a drop writes, shared by the board and list views
       dnd.svelte.ts      dragging issues
       chrome.svelte.ts   what the window frame is currently saying
       navigation.svelte.ts  the unsaved-work guard
@@ -187,6 +188,7 @@ that works, and a shortcut that is captioned is a shortcut that is bound.
 | `Shift+C` | New sub-issue, on an issue |
 | `G` then `P` | The parent issue, on an issue |
 | `O` | Show or hide the overview, on a project |
+| `V` | Switch a board between columns and rows |
 | `Ctrl+Enter` | Save, in a form |
 | `Enter`, double-click | Open the selected issue |
 | Drag a row or a card | Move it to another column or group, or reorder it in place |
@@ -209,6 +211,21 @@ describes, and that is the only arrangement that works.
 
 The workspace loads the team's workflow states and issues (`?sort=board`), builds one column per
 state, and subscribes to the hub.
+
+### Two views of it
+
+A team board and a project board are drawn either as columns of cards (`BoardView`) or as groups of
+rows (`ListView`), switched from the toolbar or with `V`. The list is the same issues in the same
+groups, in the same order the columns stand in — Todo still before Backlog — drawn as the dense rows
+My Issues uses. It is the view for reading a board rather than pushing it along: every title in full,
+scanned down rather than across.
+
+The choice is one preference for every board, kept in `localStorage` by `settings.svelte.ts`. Someone
+who reads boards as lists reads all of them that way, and a preference that has to be set again on
+each project is one nobody sets at all.
+
+Dragging works the same in both, because both hand the drop to `moveIssue` in `src/lib/issues/move.ts`
+— the same states, the same ranks, the same request.
 
 ### Lanes, and the one that holds two columns
 
@@ -246,6 +263,9 @@ anchors of `POST /issues/{id}/move`. The server takes the midpoint of their rank
 one row. The card moves first and the server is told afterwards: a drag that waits for a round trip
 before the card lands feels broken, and the realtime echo is the same idempotent upsert, so it only
 confirms what is on screen. A refusal puts the board back.
+
+The list view of a board drags the same way, between its groups and within them: its groups are that
+team's own states, so a row landing in one means exactly what a card landing in that column means.
 
 My Issues can be dragged too, onto another **group**. Its groups are state *types* rather than states,
 because those issues come from teams whose columns do not line up — so the drop resolves to that

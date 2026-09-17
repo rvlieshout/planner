@@ -9,14 +9,19 @@
   import { issueEditor } from '$lib/issues/editor.svelte';
   import { navigate } from '$lib/navigation.svelte';
   import { realtime } from '$lib/realtime/hub.svelte';
+  import { settings } from '$lib/settings.svelte';
   import { workspace } from '$lib/workspace.svelte';
   import { PROJECT_HEALTH, PROJECT_STATUS } from '$lib/meta';
   import { formatDate } from '$lib/format';
   import BoardView from '$components/issues/BoardView.svelte';
+  import ListView from '$components/issues/ListView.svelte';
   import Icon from '$components/Icon.svelte';
   import Progress from '$components/Progress.svelte';
 
-  /** A project's board, with the project's own rollup and milestones above it. */
+  /**
+   * A project's board, with the project's own rollup and milestones above it. Board or list is the
+   * one choice `settings.boardView` remembers, shared with the team's board.
+   */
   const projectId = $derived(page.params.id!);
 
   let project = $state<ProjectDto | null>(null);
@@ -28,6 +33,7 @@
   let showDetail = $state(true);
 
   const canWrite = $derived(session.can(project?.teamId, Permission.Write));
+  const asList = $derived(settings.boardView === 'list');
 
   async function load() {
     loading = true;
@@ -78,9 +84,16 @@
     chrome.set({
       title: project?.name ?? 'Project',
       subtitle: project ? PROJECT_STATUS[project.status].label : undefined,
-      status: loading ? 'Loading…' : boardSummary(layOut(states, issues)),
+      status: loading ? 'Loading…' : boardSummary(layOut(states, issues), asList ? 'group' : 'column'),
       actions: toolbar,
       commands: [
+        {
+          label: asList ? 'Board view' : 'List view',
+          icon: asList ? 'layout-grid' : 'list',
+          shortcut: 'v',
+          keywords: ['switch', 'kanban', 'columns', 'rows', 'toggle'],
+          run: () => settings.toggleBoardView()
+        },
         {
           label: showDetail ? 'Hide overview' : 'Show overview',
           icon: showDetail ? 'chevron-down' : 'chevron-right',
@@ -105,6 +118,15 @@
 </script>
 
 {#snippet toolbar()}
+  <button
+    type="button"
+    class="btn btn-sm btn-quiet"
+    onclick={() => settings.toggleBoardView()}
+    title={asList ? 'Show as a board (V)' : 'Show as a list (V)'}>
+    <Icon name={asList ? 'layout-grid' : 'list'} size={13} />
+    {asList ? 'Board' : 'List'}
+  </button>
+
   <button type="button" class="btn btn-sm btn-quiet" onclick={() => (showDetail = !showDetail)}>
     <Icon name={showDetail ? 'chevron-down' : 'chevron-right'} size={13} />
     Overview
@@ -185,14 +207,25 @@
     {/if}
 
     <div class="board-area">
-      <BoardView
-        {states}
-        {issues}
-        teamId={project.teamId}
-        {projectId}
-        canMove={canWrite}
-        onopen={(issue) => void navigate(`/issues/${issue.key}`)}
-        onoptimistic={(next) => (issues = next)} />
+      {#if asList}
+        <ListView
+          {states}
+          {issues}
+          teamId={project.teamId}
+          {projectId}
+          canMove={canWrite}
+          onopen={(issue) => void navigate(`/issues/${issue.key}`)}
+          onoptimistic={(next) => (issues = next)} />
+      {:else}
+        <BoardView
+          {states}
+          {issues}
+          teamId={project.teamId}
+          {projectId}
+          canMove={canWrite}
+          onopen={(issue) => void navigate(`/issues/${issue.key}`)}
+          onoptimistic={(next) => (issues = next)} />
+      {/if}
     </div>
   </div>
 {/if}

@@ -253,7 +253,8 @@ public static class UserEndpoints
         UpdateUserRequest request,
         UserManager<AppUser> userManager,
         CurrentUser current,
-        IRealtimeNotifier notifier)
+        IRealtimeNotifier notifier,
+        IRealtimeSubscriptions subscriptions)
     {
         var user = await userManager.FindByIdAsync(id.ToString());
         if (user is null)
@@ -308,6 +309,10 @@ public static class UserEndpoints
 
         var summary = Mapping.ToUserSummary(user);
         await notifier.UserChanged(ChangeKind.Updated, summary);
+
+        // The organisation role decides whether every team is readable or only the user's own, and a
+        // deactivated account reads none. Their open sockets follow now rather than at reconnect.
+        await subscriptions.SyncUserAsync(user.Id);
         return Results.Ok(summary);
     }
 
@@ -331,7 +336,8 @@ public static class UserEndpoints
         Guid id,
         UserManager<AppUser> userManager,
         CurrentUser current,
-        IRealtimeNotifier notifier)
+        IRealtimeNotifier notifier,
+        IRealtimeSubscriptions subscriptions)
     {
         var user = await userManager.FindByIdAsync(id.ToString());
         if (user is null)
@@ -359,6 +365,7 @@ public static class UserEndpoints
         }
 
         await notifier.UserChanged(ChangeKind.Updated, Mapping.ToUserSummary(user));
+        await subscriptions.SyncUserAsync(user.Id);
         return Results.NoContent();
     }
 

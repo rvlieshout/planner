@@ -50,11 +50,24 @@ var granted = await connection.InvokeAsync<bool>("SubscribeToIssue", issueId);
 await connection.InvokeAsync("UnsubscribeFromIssue", issueId);   // when the pane closes
 ```
 
-After a membership change, `Resubscribe()` re-evaluates the team groups without reconnecting:
+**Groups follow access for the life of the connection.** When a user is added to or removed from a
+team, changes organisation role, or is deactivated, the server moves every open connection of theirs
+into and out of team groups at that moment, drops any issue groups whose team they can no longer
+read, and sends them a fresh `Subscribed`. Access is read from the database, not from the token, so a
+revocation takes effect on the socket before the user's token is next refreshed. A member who is
+removed still receives the `TeamMemberChanged` that announces it; one who is added receives the one
+announcing their arrival.
+
+`Resubscribe()` runs the same re-evaluation for the calling connection, for a client that wants the
+current list without waiting:
 
 ```csharp
 var groups = await connection.InvokeAsync<IReadOnlyList<string>>("Resubscribe");
 ```
+
+Which groups a connection is in is tracked in the API process's memory. That is correct for the
+single instance this ships as; running several API instances behind a SignalR backplane would need
+that tracking moved to shared storage.
 
 ## The envelope
 

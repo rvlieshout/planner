@@ -48,9 +48,10 @@
     if (session.status === 'signed-out') void goto(resolve('/login'), { replaceState: true });
   });
 
-  // The workspace is loaded once per signed-in session, not once per page.
+  // The workspace is loaded once per signed-in session, not once per page — and not again whenever
+  // the team list is empty, which it legitimately is for someone just removed from their last team.
   $effect(() => {
-    if (session.isSignedIn && workspace.teams.length === 0 && !workspace.loading) {
+    if (session.isSignedIn && !workspace.initialized) {
       void workspace.initialize();
     }
   });
