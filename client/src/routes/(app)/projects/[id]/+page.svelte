@@ -39,10 +39,11 @@
   /*
    * Counted from `issues` rather than read from `project.progress` and `milestone.progress`.
    *
-   * Those two are snapshots from the moment the project and its milestones were fetched, and an
-   * issue write only publishes `IssueChanged` — so creating an issue used to move the board and the
-   * status bar while leaving the rollup above them showing the old numbers. `issues` here is the
-   * project's complete unfiltered set, which is the same scope the server counts.
+   * Those two are snapshots from the moment the project and its milestones were fetched, so creating
+   * an issue used to move the board and the status bar while leaving the rollup above them showing
+   * the old numbers. Counting the list this page already holds keeps all three in step without
+   * waiting for the socket — `issues` is the project's complete unfiltered set, the same scope the
+   * server counts.
    */
   const progress = $derived(rollUp(issues));
   const milestoneProgress = $derived(rollUpByMilestone(issues));

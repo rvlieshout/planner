@@ -4,12 +4,15 @@ import type { Guid, IssueSummary, ProjectProgress } from '$lib/api/types';
  * Project and milestone rollups, counted from the issues a page is already holding.
  *
  * The server computes the same numbers on read — see `ProjectProjection` and `MilestoneProjection`
- * in Planner.Api/Common/Mapping.cs — so a freshly loaded page agrees with it exactly. They are
- * recounted here because `ProjectDto.progress` and `MilestoneDto.progress` are snapshots taken when
- * those objects were fetched, and an issue write publishes only `IssueChanged`: no `ProjectChanged`
- * or `MilestoneChanged` follows it, because neither row actually changed. The rollup is not stored
- * anywhere to be invalidated, it is a count over issues — so the view that keeps those issues live
- * is the view that can keep the count honest.
+ * in Planner.Api/Common/Mapping.cs — so a freshly loaded page agrees with it exactly. It also
+ * republishes a project and a milestone whenever an issue write moves their counts, which is how the
+ * sidebar and the milestone rows in project settings stay current: neither holds an issue list of
+ * its own.
+ *
+ * A view that *does* hold the issues counts them itself instead, for two reasons. It needs no round
+ * trip, so an issue saved locally moves the rollup at the same moment it moves the board. And the
+ * rollup then cannot disagree with the issues rendered beside it from the same array, which is the
+ * failure these replaced: a board that had already grown a card, above a bar that had not.
  *
  * Counting scope mirrors the server's: every non-archived issue, sub-issues included. A page whose
  * issue list is filtered to less than that must not use these.

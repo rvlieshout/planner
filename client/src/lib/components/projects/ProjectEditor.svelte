@@ -14,6 +14,7 @@
   import { chrome } from '$lib/chrome.svelte';
   import { MILESTONE_STATUS, PROJECT_HEALTH, PROJECT_STATUS } from '$lib/meta';
   import { navigate } from '$lib/navigation.svelte';
+  import { realtime } from '$lib/realtime/hub.svelte';
   import { workspace } from '$lib/workspace.svelte';
   import Icon from '$components/Icon.svelte';
   import EditableMarkdown from '$components/markdown/EditableMarkdown.svelte';
@@ -141,6 +142,30 @@
     id = projectId;
     void load();
   });
+
+  /*
+   * The issue rollup beside each milestone, kept live.
+   *
+   * It is counted from the milestone's issues when it is read, so it moves whenever anyone creates,
+   * completes, reassigns, archives or deletes one — and the API republishes the milestone for
+   * exactly those writes. This page holds no issues of its own to count them from, so it takes the
+   * server's numbers.
+   */
+  $effect(() =>
+    realtime.on('MilestoneChanged', (change) => {
+      const entity = change.entity;
+      if (!entity || entity.projectId !== id) return;
+
+      const row = milestoneRows.find((candidate) => candidate.milestone.id === entity.id);
+      if (!row) return;
+
+      // The rollup only. `row.milestone` is the baseline `rowDirty` measures the form against, so
+      // replacing it wholesale would reinterpret edits that have not been saved yet: a name being
+      // typed here would quietly read as clean against someone else's rename, and Save changes
+      // would then skip the row.
+      row.milestone = { ...row.milestone, progress: entity.progress };
+    })
+  );
 
   /* ---------------------------------------------------------------- dirty ---- */
 

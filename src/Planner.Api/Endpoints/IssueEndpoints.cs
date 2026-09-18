@@ -362,6 +362,12 @@ public static class IssueEndpoints
 
         var summary = await SummaryAsync(db, issue.Id, ct);
         await notifier.IssueChanged(ChangeKind.Created, summary);
+
+        // Built from `state` rather than `RollupOf`: the issue was constructed, not loaded, so its
+        // State navigation is not populated. A new issue is never archived.
+        await PublishRollupsAsync(db, notifier, issue.TeamId, null,
+            new Rollup(issue.ProjectId, issue.MilestoneId, state.Type, Archived: false), ct);
+
         return Results.Created($"/api/v1/issues/{issue.Id}", summary);
     }
 
@@ -384,6 +390,10 @@ public static class IssueEndpoints
         {
             return denied;
         }
+
+        // Captured before any field is written, so the rollups the old project and milestone
+        // reported can be republished alongside the new ones.
+        var rollupBefore = RollupOf(issue);
 
         var validation = new Validation();
         if (request.Title.TryGet(out var title))
@@ -486,6 +496,7 @@ public static class IssueEndpoints
 
         var summary = await SummaryAsync(db, issue.Id, ct);
         await notifier.IssueChanged(ChangeKind.Updated, summary);
+        await PublishRollupsAsync(db, notifier, issue.TeamId, rollupBefore, RollupOf(issue), ct);
         return Results.Ok(summary);
     }
 
@@ -509,6 +520,8 @@ public static class IssueEndpoints
             return denied;
         }
 
+        var rollupBefore = RollupOf(issue);
+
         if (request.StateId is { } stateId && stateId != issue.StateId)
         {
             var state = await db.WorkflowStates.FirstOrDefaultAsync(s => s.Id == stateId && s.TeamId == issue.TeamId, ct);
@@ -530,6 +543,11 @@ public static class IssueEndpoints
 
         var summary = await SummaryAsync(db, issue.Id, ct);
         await notifier.IssueChanged(ChangeKind.Updated, summary);
+
+        // A drag within a column, or between two columns of the same type, leaves every count where
+        // it was: the shapes compare equal and this returns without querying anything.
+        await PublishRollupsAsync(db, notifier, issue.TeamId, rollupBefore, RollupOf(issue), ct);
+
         return Results.Ok(summary);
     }
 
@@ -629,7 +647,8 @@ public static class IssueEndpoints
         DateTimeOffset? archivedAt,
         CancellationToken ct)
     {
-        var issue = await db.Issues.FirstOrDefaultAsync(i => i.Id == id, ct);
+        // State comes along for the rollup shape: an archived issue leaves every count it was in.
+        var issue = await db.Issues.Include(i => i.State).FirstOrDefaultAsync(i => i.Id == id, ct);
         if (issue is null)
         {
             return ApiResults.NotFound("That issue");
@@ -640,6 +659,8 @@ public static class IssueEndpoints
             return denied;
         }
 
+        var rollupBefore = RollupOf(issue);
+
         issue.ArchivedAt = archivedAt;
         activity.Record(EntityTypes.Issue, issue.Id,
             archivedAt is null ? ActivityActions.Restored : ActivityActions.Archived, null,
@@ -649,6 +670,7 @@ public static class IssueEndpoints
 
         var summary = await SummaryAsync(db, issue.Id, ct);
         await notifier.IssueChanged(archivedAt is null ? ChangeKind.Restored : ChangeKind.Archived, summary);
+        await PublishRollupsAsync(db, notifier, issue.TeamId, rollupBefore, RollupOf(issue), ct);
         return Results.Ok(summary);
     }
 
@@ -659,7 +681,7 @@ public static class IssueEndpoints
         IRealtimeNotifier notifier,
         CancellationToken ct)
     {
-        var issue = await db.Issues.FirstOrDefaultAsync(i => i.Id == id, ct);
+        var issue = await db.Issues.Include(i => i.State).FirstOrDefaultAsync(i => i.Id == id, ct);
         if (issue is null)
         {
             return ApiResults.NotFound("That issue");
@@ -672,6 +694,7 @@ public static class IssueEndpoints
         }
 
         var summary = await SummaryAsync(db, issue.Id, ct);
+        var rollupBefore = RollupOf(issue);
 
         // Audit rows outlive the issue, so drop the FK-free reference rather than blocking the delete.
         await db.ActivityEvents.Where(a => a.IssueId == id)
@@ -681,6 +704,7 @@ public static class IssueEndpoints
         await db.SaveChangesAsync(ct);
 
         await notifier.IssueChanged(ChangeKind.Deleted, summary);
+        await PublishRollupsAsync(db, notifier, issue.TeamId, rollupBefore, null, ct);
         return Results.NoContent();
     }
 
@@ -1206,4 +1230,93 @@ public static class IssueEndpoints
 
     private static Task<IssueSummary> SummaryAsync(PlannerDbContext db, Guid id, CancellationToken ct) =>
         db.Issues.AsNoTracking().Where(i => i.Id == id).Select(Mapping.IssueSummaryProjection).FirstAsync(ct);
+
+    /// <summary>The only facts about an issue that a project's or milestone's rollup is counted from.
+    /// Two of these comparing equal is exactly the condition for "this write moved no rollup".</summary>
+    private readonly record struct Rollup(
+        Guid? ProjectId,
+        Guid? MilestoneId,
+        WorkflowStateType StateType,
+        bool Archived);
+
+    /// <summary>The rollup shape of a tracked issue. Requires <c>State</c> to be loaded.</summary>
+    private static Rollup RollupOf(Issue issue) =>
+        new(issue.ProjectId, issue.MilestoneId, issue.State.Type, issue.ArchivedAt is not null);
+
+    /// <summary>
+    /// Republishes the projects and milestones whose rollup an issue write moved.
+    ///
+    /// <para>A rollup is counted from issues when a project or milestone is read — see
+    /// <see cref="Mapping.ProjectProjection"/> — so an issue write changes what those two report
+    /// without touching either row. Nothing else would tell a client holding one: the sidebar's
+    /// counts and the milestone rollups in project settings have no issue list of their own to count,
+    /// and a client cannot infer the change either, because an issue moved between projects moves two
+    /// rollups while the issue's own envelope names only the one it moved to.</para>
+    ///
+    /// <para>Both sides of the move are passed so both are republished, and <c>null</c> stands for an
+    /// issue that did not exist yet or no longer does. Equal shapes publish nothing, which is what
+    /// keeps a board reorder — the most common write there is, and one that cannot change a count —
+    /// from costing two queries and a broadcast.</para>
+    /// </summary>
+    private static async Task PublishRollupsAsync(
+        PlannerDbContext db,
+        IRealtimeNotifier notifier,
+        Guid teamId,
+        Rollup? before,
+        Rollup? after,
+        CancellationToken ct)
+    {
+        if (before == after)
+        {
+            return;
+        }
+
+        var projectIds = Touched(before?.ProjectId, after?.ProjectId);
+        var milestoneIds = Touched(before?.MilestoneId, after?.MilestoneId);
+
+        if (projectIds.Count > 0)
+        {
+            var projects = await db.Projects.AsNoTracking()
+                .Where(p => projectIds.Contains(p.Id))
+                .Select(Mapping.ProjectProjection)
+                .ToListAsync(ct);
+
+            foreach (var project in projects)
+            {
+                await notifier.ProjectChanged(ChangeKind.Updated, project);
+            }
+        }
+
+        if (milestoneIds.Count > 0)
+        {
+            var milestones = await db.Milestones.AsNoTracking()
+                .Where(m => milestoneIds.Contains(m.Id))
+                .Select(Mapping.MilestoneProjection)
+                .ToListAsync(ct);
+
+            foreach (var milestone in milestones)
+            {
+                await notifier.MilestoneChanged(ChangeKind.Updated, milestone, teamId);
+            }
+        }
+
+        // The two ends of a move, minus the nulls, and deduplicated for the common case of an issue
+        // that stayed where it was and only changed state.
+        static List<Guid> Touched(Guid? before, Guid? after)
+        {
+            var ids = new List<Guid>(capacity: 2);
+
+            if (before is { } from)
+            {
+                ids.Add(from);
+            }
+
+            if (after is { } to && to != before)
+            {
+                ids.Add(to);
+            }
+
+            return ids;
+        }
+    }
 }
