@@ -4,7 +4,7 @@
   import { chrome } from '$lib/chrome.svelte';
   import { settings, type ThemeChoice } from '$lib/settings.svelte';
   import { realtime } from '$lib/realtime/hub.svelte';
-  import { VERSION } from '$lib/version';
+  import { BUILD_SHA, VERSION } from '$lib/version';
   import { ORG_ROLE, TEAM_ROLE } from '$lib/meta';
   import Avatar from '$components/Avatar.svelte';
   import Icon from '$components/Icon.svelte';
@@ -237,6 +237,9 @@
       <dt>Version</dt>
       <dd>{VERSION}</dd>
 
+      <dt>Build</dt>
+      <dd class="sha">{BUILD_SHA}</dd>
+
       <dt>Live updates</dt>
       <dd>
         <span class="live" class:on={realtime.isConnected}></span>
@@ -358,6 +361,14 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--s-2);
+  }
+
+  /* The whole commit, in full, because the point of it here is to be read off and pasted. */
+  .sha {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    overflow-wrap: anywhere;
+    user-select: all;
   }
 
   .live {

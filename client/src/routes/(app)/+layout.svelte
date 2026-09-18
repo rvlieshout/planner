@@ -21,7 +21,7 @@
   import { installNavigationGuard, mayDiscard, navigate } from '$lib/navigation.svelte';
   import { commands, type CommandGroup } from '$lib/commands.svelte';
   import { describe } from '$lib/shortcuts';
-  import { VERSION } from '$lib/version';
+  import { BUILD_LABEL, VERSION } from '$lib/version';
 
   /**
    * The window frame: a title bar with the application menu, a sidebar you can drag or collapse, a
@@ -388,7 +388,7 @@
       {realtime.isConnected ? 'Live' : realtime.status === 'reconnecting' ? 'Reconnecting…' : 'Offline'}
     </span>
 
-    <span class="segment version">{VERSION}</span>
+    <span class="segment version" title={BUILD_LABEL}>{VERSION}</span>
   </footer>
 </div>
 
@@ -545,6 +545,8 @@
 
   .version {
     font-variant-numeric: tabular-nums;
+    /* There is a commit behind this number; the cursor is what says so. */
+    cursor: help;
   }
 
   .live {

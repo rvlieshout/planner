@@ -67,6 +67,9 @@ services:
     build:
       context: .
       dockerfile: deploy/web.Dockerfile
+      args:
+        # Only what the shell can tell us; a checkout-less build just shows 'unknown'.
+        PLANNER_BUILD_SHA: ${PLANNER_BUILD_SHA:-}
     restart: unless-stopped
     depends_on:
       - api

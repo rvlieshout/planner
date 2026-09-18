@@ -76,6 +76,9 @@ jobs:
           context: .
           file: deploy/web.Dockerfile
           push: true
+          # The image carries the commit it was built from, so the client's status bar names it.
+          build-args: |
+            PLANNER_BUILD_SHA=${{ steps.rev.outputs.sha }}
           tags: |
             ${{ env.REGISTRY }}/${{ steps.owner.outputs.name }}/planner-web:latest
             ${{ env.REGISTRY }}/${{ steps.owner.outputs.name }}/planner-web:${{ steps.rev.outputs.sha }}

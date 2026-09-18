@@ -18,6 +18,12 @@ WORKDIR /client
 COPY client/package.json client/package-lock.json ./
 RUN npm ci
 COPY client/ ./
+# The commit being built, baked into the client's status bar. There is no .git in this context for
+# the build to ask, so the caller passes it; left empty, the bundle says 'unknown' rather than
+# naming a commit it cannot know. Declared here, after `npm ci`, so a new commit does not invalidate
+# the cached dependency install.
+ARG PLANNER_BUILD_SHA=""
+ENV PLANNER_BUILD_SHA=$PLANNER_BUILD_SHA
 RUN npm run build
 
 FROM caddy:2-alpine
