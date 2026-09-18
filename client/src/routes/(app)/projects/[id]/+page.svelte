@@ -8,6 +8,7 @@
   import { applyChange, onIssueChange } from '$lib/issues/changes';
   import { issueEditor } from '$lib/issues/editor.svelte';
   import { navigate } from '$lib/navigation.svelte';
+  import { EMPTY_PROGRESS, rollUp, rollUpByMilestone } from '$lib/progress';
   import { realtime } from '$lib/realtime/hub.svelte';
   import { settings } from '$lib/settings.svelte';
   import { workspace } from '$lib/workspace.svelte';
@@ -34,6 +35,17 @@
 
   const canWrite = $derived(session.can(project?.teamId, Permission.Write));
   const asList = $derived(settings.boardView === 'list');
+
+  /*
+   * Counted from `issues` rather than read from `project.progress` and `milestone.progress`.
+   *
+   * Those two are snapshots from the moment the project and its milestones were fetched, and an
+   * issue write only publishes `IssueChanged` — so creating an issue used to move the board and the
+   * status bar while leaving the rollup above them showing the old numbers. `issues` here is the
+   * project's complete unfiltered set, which is the same scope the server counts.
+   */
+  const progress = $derived(rollUp(issues));
+  const milestoneProgress = $derived(rollUpByMilestone(issues));
 
   async function load() {
     loading = true;
@@ -187,18 +199,19 @@
 
         {#if project.summary}<p class="summary">{project.summary}</p>{/if}
 
-        <Progress progress={project.progress} />
+        <Progress {progress} />
 
         {#if milestones.length > 0}
           <div class="milestones">
             {#each milestones as milestone (milestone.id)}
+              {@const rollup = milestoneProgress.get(milestone.id) ?? EMPTY_PROGRESS}
               <div class="milestone">
                 <Icon name="milestone" size={12} />
                 <span class="truncate">{milestone.name}</span>
                 {#if milestone.targetDate}
                   <span class="muted">{formatDate(milestone.targetDate)}</span>
                 {/if}
-                <span class="badge">{milestone.progress.completed}/{milestone.progress.total}</span>
+                <span class="badge">{rollup.completed}/{rollup.total}</span>
               </div>
             {/each}
           </div>

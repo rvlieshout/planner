@@ -8,6 +8,7 @@ import type {
   WorkflowStateDto
 } from '$lib/api/types';
 import { session } from '$lib/auth/session.svelte';
+import { onIssueChange } from '$lib/issues/changes';
 import { realtime } from '$lib/realtime/hub.svelte';
 import { settings } from '$lib/settings.svelte';
 
@@ -48,6 +49,9 @@ class Workspace {
 
   /** In-flight loads, so eight cards asking for the same team's states make one request. */
   readonly #pending = new Map<string, Promise<unknown>>();
+
+  /** A project refresh already queued by an issue change. See `#scheduleProjectRefresh`. */
+  #projectRefresh: ReturnType<typeof setTimeout> | null = null;
 
   #wired = false;
 
@@ -248,6 +252,30 @@ class Workspace {
           : [...this.projects, entity];
     });
 
+    /*
+     * Issue traffic, for the counts beside each project in the sidebar.
+     *
+     * `ProjectDto.progress` is counted from the project's issues when it is read, so an issue write
+     * changes it without changing the project row — and the server therefore publishes no
+     * `ProjectChanged` to go with it. Nothing here is wrong; the snapshot in `projects` is just
+     * older than the issues it describes.
+     *
+     * Refetched rather than adjusted in place, because this store holds no issues and so cannot know
+     * what a change replaced: an issue moved between projects moves two counts, and the envelope
+     * carries only the project it moved *to*. The project board does derive its rollup in place —
+     * see `$lib/progress` — because that page has the whole issue list to count.
+     *
+     * Subscribed through `onIssueChange` rather than the socket directly, so a write this client
+     * made counts too. The echo of it arrives as well, and the throttle below turns the pair into
+     * the one refetch they deserve — but the local announcement is what keeps the sidebar honest on
+     * a page whose socket never opened.
+     */
+    onIssueChange((change) => {
+      if (change.teamId !== this.currentTeamId) return;
+
+      this.#scheduleProjectRefresh();
+    });
+
     // These three invalidate rather than patch. They are read through a promise anyway, they change
     // rarely, and a column list rebuilt from the server cannot end up in an order nobody chose.
     realtime.on('WorkflowStateChanged', (change) => {
@@ -283,8 +311,33 @@ class Workspace {
     });
   }
 
+  /**
+   * Queues one project refresh, shortly, for a burst of issue changes.
+   *
+   * A drag across a board, a bulk move, or one person simply working quickly all arrive as several
+   * changes in a row, and the sidebar only cares about the number they settle on. An already-queued
+   * refresh absorbs the ones that follow it rather than being pushed back by them, so a steady
+   * stream of changes still refreshes every window instead of starving until it stops.
+   */
+  #scheduleProjectRefresh(): void {
+    if (this.#projectRefresh !== null) return;
+
+    this.#projectRefresh = setTimeout(() => {
+      this.#projectRefresh = null;
+
+      // The counts are the least of what this store holds. A failure leaves them at the last good
+      // value, and the next change — or the next reconnect — asks again.
+      void this.loadProjects().catch(() => {});
+    }, 500);
+  }
+
   /** Clears everything on sign-out, so a second account never sees the first one's workspace. */
   reset(): void {
+    if (this.#projectRefresh !== null) {
+      clearTimeout(this.#projectRefresh);
+      this.#projectRefresh = null;
+    }
+
     this.teams = [];
     this.projects = [];
     this.currentTeamId = null;
