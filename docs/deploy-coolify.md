@@ -20,7 +20,7 @@ no CORS configuration exists anywhere in this deployment.
 | The stack Coolify runs | [`docker-compose.coolify.yml`](../docker-compose.coolify.yml) |
 | Website / client / API routing | [`deploy/Caddyfile`](../deploy/Caddyfile), baked into the web image |
 | The web image itself | [`deploy/web.Dockerfile`](../deploy/web.Dockerfile) — builds the website and the client, copies both into Caddy |
-| Image build and deploy trigger | [`.github/workflows/release-images.yml`](../.github/workflows/release-images.yml) |
+| Image build and deploy trigger | [`.github/workflows/release-images.yml`](../.github/workflows/release-images.yml) — gated on CI passing the same commit |
 
 ## 1. Prepare the server
 
@@ -46,9 +46,10 @@ git remote add origin git@github.com:YOUR_GITHUB_USER/planner.git
 git push -u origin main
 ```
 
-The first push to `main` runs [CI](../.github/workflows/ci.yml) and builds
-`ghcr.io/YOUR_GITHUB_USER/planner-api` and `.../planner-web`, tagged `latest` and with the commit
-SHA. The packages are private, which is right: the VPS authenticates with the token from step 1.
+The first push to `main` runs [CI](../.github/workflows/ci.yml); once it passes, the image workflow
+builds `ghcr.io/YOUR_GITHUB_USER/planner-api` and `.../planner-web`, tagged `latest` and with the
+commit SHA. The packages are private, which is right: the VPS authenticates with the token from
+step 1.
 
 ## 3. Create the PostgreSQL resource
 
@@ -70,8 +71,8 @@ Then, before the first deploy:
 
 | Variable | Value |
 | --- | --- |
-| `PLANNER_API_IMAGE` | `ghcr.io/YOUR_GITHUB_USER/planner-api:latest` |
-| `PLANNER_WEB_IMAGE` | `ghcr.io/YOUR_GITHUB_USER/planner-web:latest` |
+| `PLANNER_API_IMAGE` | `ghcr.io/YOUR_GITHUB_USER/planner-api:latest`, for the first deploy only. Step 5 replaces it with a commit-SHA tag. |
+| `PLANNER_WEB_IMAGE` | `ghcr.io/YOUR_GITHUB_USER/planner-web:latest`, likewise. |
 | `PLANNER_DB_HOST` | The database container name from step 3 |
 | `PLANNER_DB_NAME`, `PLANNER_DB_USER`, `PLANNER_DB_PASSWORD` | From the database resource |
 | `PLANNER_KEY_PASSWORD` | `openssl rand -hex 24`. Never changes; see below. |
@@ -96,18 +97,30 @@ Expected: `Healthy`, a valid certificate, and the homepage.
 
 ## 5. Deploying a new backend version
 
-Push to `main`. Actions builds both images and, when `COOLIFY_WEBHOOK_URL` and `COOLIFY_TOKEN` are
-set as repository secrets, calls Coolify's deploy webhook; without them, press **Deploy** in
-Coolify. Both images are pushed before the webhook fires, so a failed build never half-updates the
-stack.
+Push to `main`. [CI](../.github/workflows/ci.yml) runs first, and the image workflow starts only
+once it has passed on that same commit — a branch that does not compile, or whose client fails
+`svelte-check`, never produces an image and so can never reach the server. Both images are then
+pushed before anything is deployed, so a failed build never half-updates the stack.
 
-Copy the webhook URL from the resource's **Webhooks** tab, and create the token under
-**Keys & Tokens -> API tokens**.
+The deploy step itself depends on repository secrets, and each one is skipped until it is set:
+
+| Secret | Effect when set |
+| --- | --- |
+| `COOLIFY_TOKEN` | Created under **Keys & Tokens -> API tokens**. Needed by both steps below. |
+| `COOLIFY_URL` | The Coolify instance's base URL, e.g. `https://coolify.example.com`. |
+| `COOLIFY_APP_UUID` | The stack's UUID, from its Coolify URL. With `COOLIFY_URL`, the workflow rewrites `PLANNER_API_IMAGE` and `PLANNER_WEB_IMAGE` to this commit's SHA tags before deploying. |
+| `COOLIFY_WEBHOOK_URL` | From the resource's **Webhooks** tab. Triggers the deployment. Without it, press **Deploy** in Coolify. |
+
+Set all four and the stack's variables always name the exact commit that is running, which is what
+makes the rollback below a lookup rather than a reconstruction. Set only the webhook pair and
+deploys still work, but against whatever tags the stack already has — `:latest`, most likely, which
+records nothing.
 
 Migrations run at startup, so rolling back is not simply redeploying yesterday's image. When the
-schema is unchanged, set `PLANNER_API_IMAGE` to a commit-SHA tag and redeploy. When the schema did
-change, restore the pre-upgrade database alongside the matching image and accept the loss of writes
-made since. Ship a backwards-compatible API before the client that needs it.
+schema is unchanged, set `PLANNER_API_IMAGE` and `PLANNER_WEB_IMAGE` to the previous commit's SHA
+tags and redeploy. When the schema did change, restore the pre-upgrade database alongside the
+matching images and accept the loss of writes made since. Ship a backwards-compatible API before the
+client that needs it.
 
 ## 6. Backups
 
@@ -164,5 +177,9 @@ the environment does not reset credentials that already exist in a populated dat
 - **Attachments are files on a volume.** `Attachments__Path` points at `planner-attachments`, and the
   rows in the database point at files that exist only there — so it is backed up with the database,
   not instead of it. Attachments added as links rather than uploads store metadata only.
+- **`web` waits for the API to be healthy.** Its `depends_on` uses `condition: service_healthy`
+  against the health check in the API image, so Caddy does not start proxying into an API that is
+  still applying migrations. It removes a window of 502s on each deploy; it does not remove the
+  downtime below.
 - **This is a single server.** Deploys and restores mean brief downtime; clients reconnect on their
   own.

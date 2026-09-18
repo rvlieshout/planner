@@ -54,7 +54,11 @@ services:
     image: ${PLANNER_WEB_IMAGE:?set PLANNER_WEB_IMAGE}
     restart: unless-stopped
     depends_on:
-      - api
+      # The API image declares its own health check, so wait for it rather than for its process to
+      # exist. Caddy would otherwise accept traffic and proxy it into an API still applying
+      # migrations, turning every deploy into a window of 502s.
+      api:
+        condition: service_healthy
     environment:
       # Coolify generates a domain for this service and writes the proxy rules for it. Replace the
       # generated value with planner.lyste.net in the service's Domains field.
