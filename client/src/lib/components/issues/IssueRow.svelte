@@ -3,10 +3,11 @@
   import Icon from '$components/Icon.svelte';
   import LabelChip from '$components/LabelChip.svelte';
   import PriorityIcon from '$components/PriorityIcon.svelte';
+  import ProjectChip from '$components/ProjectChip.svelte';
   import StateIcon from '$components/StateIcon.svelte';
   import { formatDate, formatExact, isOverdue, relativeTime } from '$lib/format';
   import { drag } from '$lib/dnd.svelte';
-  import type { IssueSummary } from '$lib/api/types';
+  import type { IssueSummary, ProjectDto } from '$lib/api/types';
 
   /**
    * The dense list row: priority, key, status, title, labels, and when it last moved.
@@ -17,6 +18,8 @@
    */
   interface Props {
     issue: IssueSummary;
+    /** The issue's project, named after its title — left out on a list that is already one project. */
+    project?: ProjectDto | null;
     selected?: boolean;
     /** Off for a static list — sub-issues on a detail page are not reordered by dragging. */
     draggable?: boolean;
@@ -25,7 +28,15 @@
     onpress?: (event: PointerEvent, issue: IssueSummary) => void;
   }
 
-  let { issue, selected = false, draggable = false, onselect, onopen, onpress }: Props = $props();
+  let {
+    issue,
+    project = null,
+    selected = false,
+    draggable = false,
+    onselect,
+    onopen,
+    onpress
+  }: Props = $props();
 
   const overdue = $derived(isOverdue(issue.dueDate));
 
@@ -59,6 +70,10 @@
   <StateIcon type={issue.stateType} color={issue.stateColor} title={issue.stateName} size={13} />
 
   <span class="title truncate">{issue.title}</span>
+
+  {#if project}
+    <span class="project"><ProjectChip {project} /></span>
+  {/if}
 
   {#if issue.subIssueCount > 0}
     <span class="meta" title="{issue.subIssueCount} sub-issues">
@@ -177,6 +192,12 @@
     overflow: hidden;
   }
 
+  .project {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+  }
+
   .labels {
     display: flex;
     flex: none;
@@ -197,7 +218,8 @@
   @media (width <= 1100px) {
     .labels,
     .due,
-    .meta {
+    .meta,
+    .project {
       display: none;
     }
   }

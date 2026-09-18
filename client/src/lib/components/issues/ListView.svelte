@@ -6,6 +6,7 @@
   import { issueEditor } from '$lib/issues/editor.svelte';
   import { moveIssue } from '$lib/issues/move';
   import { STATE_TYPE } from '$lib/meta';
+  import { workspace } from '$lib/workspace.svelte';
   import type { Guid, IssueSummary, WorkflowStateDto } from '$lib/api/types';
 
   /**
@@ -45,6 +46,10 @@
   // Laid out by the board's own rule and then flattened, so Todo still comes before Backlog and a
   // team's own column order is the order these groups are read in.
   const groups = $derived(layOut(states, issues).flatMap((lane) => lane.columns));
+
+  // A board of one project need not repeat its name on every issue; a team's board does, because
+  // "which project is this?" is the first thing you ask of a card you did not put there yourself.
+  const showProject = $derived(!projectId);
 
   function press(event: PointerEvent, issue: IssueSummary) {
     selectedId = issue.id;
@@ -93,6 +98,7 @@
         {#each group.issues as issue (issue.id)}
           <IssueRow
             {issue}
+            project={showProject ? workspace.projectNow(issue.projectId) : null}
             draggable={canMove}
             selected={selectedId === issue.id}
             onselect={(chosen) => (selectedId = chosen.id)}

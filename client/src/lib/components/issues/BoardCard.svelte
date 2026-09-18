@@ -3,9 +3,10 @@
   import Icon from '$components/Icon.svelte';
   import LabelChip from '$components/LabelChip.svelte';
   import PriorityIcon from '$components/PriorityIcon.svelte';
+  import ProjectChip from '$components/ProjectChip.svelte';
   import { drag } from '$lib/dnd.svelte';
   import { formatDate, isOverdue } from '$lib/format';
-  import type { IssueSummary } from '$lib/api/types';
+  import type { IssueSummary, ProjectDto } from '$lib/api/types';
 
   /**
    * One issue on a board.
@@ -16,13 +17,15 @@
    */
   interface Props {
     issue: IssueSummary;
+    /** The issue's project, named beside its key — left out on a board that is already one project. */
+    project?: ProjectDto | null;
     selected?: boolean;
     onselect?: (issue: IssueSummary) => void;
     onopen?: (issue: IssueSummary) => void;
     onpress?: (event: PointerEvent, issue: IssueSummary) => void;
   }
 
-  let { issue, selected = false, onselect, onopen, onpress }: Props = $props();
+  let { issue, project = null, selected = false, onselect, onopen, onpress }: Props = $props();
 
   const overdue = $derived(isOverdue(issue.dueDate));
   const hasFooter = $derived(
@@ -53,6 +56,9 @@
   <div class="head">
     <PriorityIcon priority={issue.priority} size={13} />
     <span class="issue-key">{issue.key}</span>
+    {#if project}
+      <ProjectChip {project} />
+    {/if}
     <span class="spacer"></span>
     {#if issue.assignee}
       <Avatar name={issue.assignee.displayName} seed={issue.assignee.email} size={18} />
@@ -129,6 +135,11 @@
     display: flex;
     align-items: center;
     gap: var(--s-2);
+  }
+
+  /* The key holds its width; the project name beside it is what gives way when the card is narrow. */
+  .head .issue-key {
+    flex: none;
   }
 
   .title {

@@ -132,6 +132,17 @@ class Workspace {
     return this.#cached('labels', teamId, this.#labels, () => teamsApi.labels(teamId));
   }
 
+  /**
+   * The project an issue belongs to, for a card or row that names it.
+   *
+   * Only the current team's projects are loaded, which is exactly the set a board draws from. An
+   * issue of another team — My Issues shows those — resolves to null and simply goes unnamed rather
+   * than provoking a request per row.
+   */
+  projectNow(projectId: Guid | null | undefined): ProjectDto | null {
+    return projectId ? (this.projects.find((project) => project.id === projectId) ?? null) : null;
+  }
+
   /** Whatever is already cached, for a render that cannot wait for a promise. */
   statesNow(teamId: Guid | null | undefined): WorkflowStateDto[] {
     return teamId ? (this.#states[teamId] ?? []) : [];

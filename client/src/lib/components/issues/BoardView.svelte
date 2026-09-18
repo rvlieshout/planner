@@ -6,6 +6,7 @@
   import { issueEditor } from '$lib/issues/editor.svelte';
   import { moveIssue } from '$lib/issues/move';
   import { STATE_TYPE } from '$lib/meta';
+  import { workspace } from '$lib/workspace.svelte';
   import type { Guid, IssueSummary, WorkflowStateDto } from '$lib/api/types';
 
   /**
@@ -42,6 +43,10 @@
   let selectedId = $state<string | null>(null);
 
   const lanes = $derived(layOut(states, issues));
+
+  // A board of one project need not repeat its name on every issue; a team's board does, because
+  // "which project is this?" is the first thing you ask of a card you did not put there yourself.
+  const showProject = $derived(!projectId);
 
   function press(event: PointerEvent, issue: IssueSummary) {
     selectedId = issue.id;
@@ -91,6 +96,7 @@
             {#each column.issues as issue (issue.id)}
               <BoardCard
                 {issue}
+                project={showProject ? workspace.projectNow(issue.projectId) : null}
                 selected={selectedId === issue.id}
                 onselect={(chosen) => (selectedId = chosen.id)}
                 {onopen}
