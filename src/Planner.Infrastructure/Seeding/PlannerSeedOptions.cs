@@ -12,6 +12,6 @@ public sealed class PlannerSeedOptions
     public string OwnerDisplayName { get; set; } = "Planner Owner";
 
     /// <summary>Fills an empty database with a sample team, project, milestones and issues.
-    /// Intended for evaluation and for developing the Avalonia client against real-looking data.</summary>
+    /// Intended for evaluation and for developing a client against real-looking data.</summary>
     public bool SeedDemoData { get; set; }
 }

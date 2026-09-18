@@ -1,4 +1,4 @@
-# Planner downloads
+# Planner homepage
 
 A static Astro homepage for the demo VPS. Caddy serves the generated files from its own image;
 there is no Node process running on the VPS after the image is built.
@@ -13,29 +13,21 @@ npm ci
 npm run dev
 ```
 
-Open the local address printed by Astro. `/updates` proxies to `http://localhost:8080`, so start
-the local API and publish client packages to its mounted release folder to see release history.
-If that API is absent, the page shows the feed-unavailable state. The connection address shown
-locally is the preview origin; on the VPS it automatically becomes the actual public origin.
-No production domain or private credentials are baked into the page.
+Open the local address printed by Astro. The page is entirely static — it fetches nothing at runtime —
+so no API needs to be running to work on it. No production domain or private credentials are baked
+into the page.
 
 ```powershell
 npm run build
 npm run preview
 ```
 
-`dist/` is the production output. The dev proxy is for `npm run dev`; the production preview
-does not represent Caddy's API routes.
+`dist/` is the production output. The preview does not represent Caddy's API routes.
 
 ## Changelog
 
-The browser reads `/updates/releases.win.json`, selects stable full Planner packages and sorts
-versions numerically, newest first. Delta entries and prereleases do not duplicate the history.
-The installer button always points to `/updates/Planner-win-Setup.exe`.
-
-Edit `src/data/changelog.json` to add the actual notes for each release. The file starts empty
-because the existing feed supplies versions but no description of what changed. Use this shape,
-replacing the illustrative text with the real changes and actual release date:
+Release notes live in `src/data/changelog.json` and are rendered at build time, newest version first.
+The file starts empty. Use this shape:
 
 ```json
 [
@@ -48,11 +40,11 @@ replacing the illustrative text with the real changes and actual release date:
 ]
 ```
 
-`date` is optional; use `YYYY-MM-DD` when known. Keep version strings identical to the feed.
-Notes are displayed only for published versions, so you can deploy them ahead of the packages.
-Published versions with no authored notes still appear, labeled as having no release notes.
-The page renders note text as text, not HTML. There are no external fonts, analytics or CDN assets.
-The demo page requests `noindex`; this is not an access restriction.
+`date` is optional; use `YYYY-MM-DD` when known. An entry with no `changes` still appears, labeled as
+having no release notes. The page renders note text as text, not HTML. Publishing a note is a deploy:
+there is no feed to cross-reference any more, so this file is the whole source of truth. There are no
+external fonts, analytics or CDN assets. The demo page requests `noindex`; this is not an access
+restriction.
 
 ## Deploy
 
@@ -60,12 +52,10 @@ The site ships inside the `planner-web` image, which it shares with the web clie
 `deploy/web.Dockerfile` builds Astro and SvelteKit in two Node stages and copies both outputs next to
 `deploy/Caddyfile` in a Caddy image — the site at `/srv/site`, the client at `/srv/app`. Pushing to
 `main` builds and publishes it, and Coolify redeploys — see
-[the deployment guide](../docs/deploy-coolify.md). Changing the site or its notes needs nothing else;
-a client package upload needs no site rebuild at all.
+[the deployment guide](../docs/deploy-coolify.md). Changing the site or its notes needs nothing else.
 
-The hero leads with **Open Planner**, which is the browser client at `/app`; the Windows installer sits
-underneath it as the secondary action, because the desktop client is frozen
-(see [docs/desktop-client.md](../docs/desktop-client.md)).
+The hero leads with **Open Planner**, which is the browser client at `/app`. There is nothing to
+download: the Windows desktop client and its update feed have both been removed.
 
 ```bash
 curl --fail https://planner.lyste.net/

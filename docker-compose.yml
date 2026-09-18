@@ -35,12 +35,6 @@ services:
 
       Planner__Database__AutoMigrate: "true"
 
-      # Desktop client update feed. build/release.ps1 writes into ./releases on the host; the API
-      # serves it at /updates so a client needs only one URL to both work and stay current.
-      Planner__Updates__Enabled: "true"
-      Planner__Updates__Directory: /var/lib/planner/updates
-      Planner__Updates__RequestPath: /updates
-
       # Attachment bytes. Without an absolute, writable path the API falls back to a directory under
       # its own application folder, which the container's non-root user cannot create.
       Attachments__Path: /var/lib/planner/attachments
@@ -62,11 +56,8 @@ services:
     volumes:
       - plannerkeys:/var/lib/planner/keys
       - plannerattachments:/var/lib/planner/attachments
-      # A bind mount rather than a named volume: releasing is "copy the folder to the server", and a
-      # host directory is something an operator can rsync into without going through Docker.
-      - ${PLANNER_UPDATE_DIR:-./releases}:/var/lib/planner/updates:ro
 
-  # The front door: the download website at /, the browser client at /app, and everything else
+  # The front door: the website at /, the browser client at /app, and everything else
   # proxied to the API. It is the same image the VPS runs, so a local check exercises the real
   # routing rather than a development server's approximation of it.
   #

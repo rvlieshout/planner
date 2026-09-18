@@ -19,9 +19,10 @@ them: it is the Aspire description of the development stack — Postgres, the AP
 client on Vite, and the desktop client on explicit start — and nothing in the running system depends
 on it.
 
-`Planner.Contracts` is the only project the Avalonia client needs to reference. It holds every request
-and response DTO plus `IPlannerClient`, the SignalR interface — so the client binds to hub method
-names and payload shapes at compile time instead of by convention.
+`Planner.Contracts` holds every request and response DTO plus `IPlannerClient`, the SignalR
+interface. It was the one project the removed Avalonia client referenced, which is why it has no
+dependencies of its own: a .NET client binds to hub method names and payload shapes at compile time
+instead of by convention.
 
 The web client cannot reference it. `client/src/lib/api/types.ts` is a hand-written mirror instead,
 ordered to match the C# files file for file. That is a real seam, and the honest way to describe it

@@ -42,18 +42,12 @@ services:
       Planner__Seed__OwnerDisplayName: ${PLANNER_OWNER_NAME:-Planner Owner}
       Planner__Seed__SeedDemoData: ${PLANNER_SEED_DEMO:-false}
 
-      Planner__Updates__Enabled: "true"
-      Planner__Updates__Directory: /var/lib/planner/updates
-      Planner__Updates__RequestPath: /updates
     volumes:
       # Token signing certificates and data-protection keys. Losing this volume signs everyone out
       # and invalidates every issued refresh token.
       - planner-keys:/var/lib/planner/keys
       # Uploaded attachment bytes. Deleting an attachment or an issue does not purge these yet.
       - planner-attachments:/var/lib/planner/attachments
-      # Velopack feed. A host directory rather than a named volume, because publishing a client
-      # release is "put files on the server" and build/upload-release.ps1 does exactly that over SSH.
-      - /srv/planner/releases:/var/lib/planner/updates:ro
     logging: *logging
 
   web:

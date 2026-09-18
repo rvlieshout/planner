@@ -456,7 +456,7 @@ with the image.
 
 ```
 web image (Caddy)
- ├─ /                 → the download website
+ ├─ /                 → the website
  ├─ /app/*            → this client, with the shell answering unknown paths
  └─ everything else   → reverse_proxy api:8080
 ```
@@ -464,7 +464,8 @@ web image (Caddy)
 `_app/immutable/*` is content-hashed and cached for a year; the shell is never cached, or a deploy
 would reach nobody until a browser decided to look again.
 
-There is no update feed and no installer. A deploy is the new bundle, and the next page load has it.
+There is nothing to install and nothing to update. A deploy is the new bundle, and the next page
+load has it.
 
 ## Accessibility
 

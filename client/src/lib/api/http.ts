@@ -16,7 +16,7 @@ export interface RequestOptions {
   body?: unknown;
   query?: QueryParams;
   signal?: AbortSignal;
-  /** Skips the bearer token — only the anonymous endpoints (health, the update feed) want this. */
+  /** Skips the bearer token — only the anonymous endpoints (health) want this. */
   anonymous?: boolean;
 }
 

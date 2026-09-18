@@ -8,9 +8,6 @@ Two halves live here: the **backend** (database, HTTP API, realtime feed) and th
 SvelteKit application served from the same origin as the API — so there is nothing to install, nothing
 to keep updated, and no CORS to configure.
 
-The **Avalonia desktop client** is still in the tree and still builds, but it is frozen: new work goes
-into the web client. See [docs/desktop-client.md](docs/desktop-client.md).
-
 ## What is here
 
 | Piece | Choice |
@@ -22,7 +19,6 @@ into the web client. See [docs/desktop-client.md](docs/desktop-client.md).
 | Realtime | SignalR hub at `/hubs/planner`, strongly typed against a shared interface |
 | Client | SvelteKit 2 / Svelte 5 — static bundle, custom CSS, self-hosted Inter and Lucide |
 | Client hosting | Caddy, same origin as the API, at `/app` |
-| Legacy client | Avalonia 12 on .NET 10 — frozen; updates through Velopack from `/updates` |
 | Docs | OpenAPI 3.1 at `/openapi/v1.json`, Scalar UI at `/scalar` |
 | Packaging | Docker Compose: `db` + `api` + `web` (+ optional pgAdmin) |
 
@@ -48,10 +44,6 @@ of everything it started. The dashboard is at <https://localhost:17200> (or
 <http://localhost:15200> if you have not trusted the development certificate with
 `dotnet dev-certs https --trust` — pick the `http` launch profile for that), and the login link is
 printed on startup.
-
-The frozen desktop client is registered there too, as a resource you start explicitly: press **Start**
-on `desktop` in the dashboard and it launches pointed at the same API. It is not launched
-automatically, because a window appearing every time you start the API is rarely what you wanted.
 
 `Ctrl+C` stops everything. The database keeps its data in a named volume between runs; delete the
 `planner-aspire-pgdata` volume to go back to a clean seed.
@@ -146,33 +138,20 @@ The design system is custom CSS: one file of tokens, no framework, no component 
 JetBrains Mono are compiled into the bundle and Lucide's glyphs are vendored into a generated module,
 so nothing is fetched from anywhere but this server. See [docs/web-client.md](docs/web-client.md).
 
-Deployment is the `web` container — Caddy serving the download website at `/`, this client at `/app`,
+Deployment is the `web` container — Caddy serving the website at `/`, this client at `/app`,
 and proxying everything else to the API. There is no installer and no update feed: a deploy is the new
 bundle, and the next page load has it.
 
-## The desktop client (frozen)
+## The desktop client (removed)
 
-```bash
-dotnet run --project src/Planner.Client
-```
+The Avalonia desktop client that used to live in `src/Planner.Client` is gone, and so is everything
+that fed it: its checks, `build/release.ps1` and `build/upload-release.ps1`,
+`deploy/publish-release.sh`, the `releases` folder, and the API's `/updates` feed. The web client
+covers everything it did and rather more. Recover any of it from history if you need to.
 
-The Avalonia client still builds and still runs, and installed copies keep updating from the feed. It
-is no longer where new work goes — the web client covers everything it does and rather more — but it is
-kept in the tree because machines in the field are running it.
-[docs/desktop-client.md](docs/desktop-client.md) is its reference.
-
-To build a release of it:
-
-```powershell
-./build/release.ps1 -Version 1.1.0
-```
-
-That produces an installer, a delta package and a feed index in `./releases`, which compose mounts
-into the API at `/updates`. Installed clients default to `https://planner.lyste.net/updates`
-(overridable through `updateFeedUrl`) and check at startup and every four hours, download
-what they find, and offer a restart — whether or not anyone has signed in.
-Stable is the default channel; `-Channel win-beta` publishes a pilot build to the same feed.
-See [docs/releasing.md](docs/releasing.md).
+Two things deliberately survive it: the `planner-desktop` OAuth client is still seeded, so a copy
+still installed in the field can sign in, and `Planner.Contracts` still carries the DTOs and
+`IPlannerClient` that any .NET client would bind against. Neither can be updated from here any more.
 
 ## Layout
 
@@ -181,16 +160,13 @@ src/
   Planner.Domain          entities and roles
   Planner.Contracts       DTOs, enums and the SignalR interface — no dependencies, shared by both ends
   Planner.Infrastructure  DbContext, EF configurations, migrations, seeding
-  Planner.Api             minimal API endpoints, authorization, OpenIddict, the hub, the update feed
-  Planner.Client          Avalonia desktop client — frozen
+  Planner.Api             minimal API endpoints, authorization, OpenIddict, the hub
   Planner.AppHost         Aspire app host — the development stack as one command
 client/                   the web client: SvelteKit, static, served at /app
-website/                  the Astro download homepage, served at /
+website/                  the Astro homepage, served at /
 deploy/web.Dockerfile     builds both of those into one Caddy image
 deploy/Caddyfile          what belongs to the website, the client, and the API
-build/release.ps1         packages and publishes a desktop client release
-releases/                 the Velopack update feed (git-ignored contents)
-docs/                     architecture, database, roles, API, realtime, client and release references
+docs/                     architecture, database, roles, API, realtime and client references
 tools/planner.http        example requests
 ```
 
@@ -198,16 +174,14 @@ tools/planner.http        example requests
 
 | Document | What it covers |
 | --- | --- |
-| [docs/deploy-coolify.md](docs/deploy-coolify.md) | The VPS deployment: Coolify resources, image builds, release publishing, backups and recovery |
-| [website/README.md](website/README.md) | Astro download homepage, live release list, and changelog authoring |
+| [docs/deploy-coolify.md](docs/deploy-coolify.md) | The VPS deployment: Coolify resources, image builds, backups and recovery |
+| [website/README.md](website/README.md) | Astro homepage and changelog authoring |
 | [docs/architecture.md](docs/architecture.md) | Layering, the decisions worth knowing about, and why |
 | [docs/database.md](docs/database.md) | Schema, relationships, indexes and the conventions behind them |
 | [docs/roles-and-permissions.md](docs/roles-and-permissions.md) | Organisation roles, team roles, and the full permission matrix |
 | [docs/api.md](docs/api.md) | Endpoint reference, filtering, paging, PATCH semantics, error shapes |
 | [docs/realtime.md](docs/realtime.md) | Hub contract, group model, and a client sample |
 | [docs/web-client.md](docs/web-client.md) | The web client: how it is served, the design system, the drag model, what is not built yet |
-| [docs/desktop-client.md](docs/desktop-client.md) | The frozen Avalonia client: architecture, where it stores things |
-| [docs/releasing.md](docs/releasing.md) | Packaging, distribution, channels, rollback, signing |
 
 ## Configuration
 
@@ -224,14 +198,11 @@ Every setting binds from environment variables using `__` as the separator
 | `Planner__Auth__RefreshTokenDays` | `14` | Refresh token lifetime. |
 | `Planner__Auth__AllowInsecureHttp` | `false` | Allow plain HTTP on the token endpoint. True behind a TLS proxy. |
 | `Planner__Auth__TrustedProxyHops` | `0` | Reverse proxies in front of the API. Needed for per-client rate limiting; `2` on the Coolify VPS. |
-| `Planner__Auth__AllowedOrigins__0` | — | CORS origins, one per index. Needed by neither client: the desktop one is not subject to CORS, and the web one is served from this API's own origin. Set it only for a browser application hosted somewhere else. |
+| `Planner__Auth__AllowedOrigins__0` | — | CORS origins, one per index. The web client does not need it: it is served from this API's own origin. Set it only for a browser application hosted somewhere else. |
 | `Attachments__Path` | `App_Data/attachments` under the content root | Where uploaded attachment bytes live. **Set this to an absolute, persistent directory in any container**: the default is inside the application folder, which the image's non-root user cannot write to. Back it up with the database. |
 | `Planner__Seed__OwnerEmail` | `owner@planner.local` | Bootstrap owner account. |
 | `Planner__Seed__OwnerPassword` | — | Set it, or no owner is created. Minimum 12 characters. |
 | `Planner__Seed__SeedDemoData` | `false` | Populate an empty database with sample content. |
-| `Planner__Updates__Enabled` | `true` | Serve the desktop client's update feed. |
-| `Planner__Updates__Directory` | `/var/lib/planner/updates` | Where release files live. Bound to `PLANNER_UPDATE_DIR` on the host. |
-| `Planner__Updates__RequestPath` | `/updates` | Public path of the feed. Anonymous, deliberately. |
 
 ## Operational notes
 
@@ -243,6 +214,3 @@ Every setting binds from environment variables using `__` as the separator
   `dotnet ef migrations script --idempotent` gives you a script to hand to a DBA instead.
 - **Deleting** is deliberately rare. Teams, projects, issues and documents archive; users deactivate.
   Hard deletes exist but need team-lead or admin authority.
-- **The update feed is anonymous** and served from `PLANNER_UPDATE_DIR`. That is intentional: a client
-  must be able to fetch a fix for a release that broke sign-in. Keep old packages — clients that have
-  been offline need the ones in between.

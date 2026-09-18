@@ -22,9 +22,6 @@ builder.Services.Configure<PlannerAuthOptions>(builder.Configuration.GetSection(
 builder.Services.Configure<PlannerSeedOptions>(builder.Configuration.GetSection(PlannerSeedOptions.SectionName));
 builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection(DatabaseOptions.SectionName));
 
-var updateFeedOptions = builder.Configuration.GetSection(UpdateFeedOptions.SectionName).Get<UpdateFeedOptions>()
-                        ?? new UpdateFeedOptions();
-
 var connectionString = builder.Configuration.GetConnectionString("Planner")
                        ?? throw new InvalidOperationException(
                            "No connection string named 'Planner'. Set ConnectionStrings__Planner.");
@@ -127,10 +124,6 @@ if (authOptions.TrustedProxyHops > 0)
 }
 
 app.UseExceptionHandler();
-
-// Before authentication, and intentionally so: the desktop client checks for updates whether or not
-// anyone has signed in, because a release that broke sign-in still has to be replaceable.
-app.MapUpdateFeed(updateFeedOptions);
 
 app.UseMiddleware<SignalRAuthenticationMiddleware>("/hubs");
 app.UseCors();

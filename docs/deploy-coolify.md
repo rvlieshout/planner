@@ -2,21 +2,18 @@
 
 The server runs [Coolify](https://coolify.io), which owns the reverse proxy, the TLS certificates,
 the database and its backups. Planner supplies two images, built by GitHub Actions and pulled from
-GHCR: the API, and a Caddy container holding the Astro download site, the web client, and the routing
+GHCR: the API, and a Caddy container holding the Astro site, the web client, and the routing
 rules that decide which requests belong to which. Nothing is compiled on the VPS.
 
 ```text
-Internet -> Coolify proxy (TLS) -> web:80 -> /            Astro download page
+Internet -> Coolify proxy (TLS) -> web:80 -> /            Astro homepage
                                           -> /app/*      the web client (static)
                                           -> everything   api:8080 -> Coolify PostgreSQL
 ```
 
-One domain, `planner.lyste.net`, serves all of it: the download page, the web client at `/app`, the
-API both clients sign in to, the SignalR hub and the Velopack update feed at `/updates`. The web
-client being on that same origin is deliberate — it is why no CORS configuration exists anywhere in
-this deployment. The client's default
-update feed is that URL, compiled into `ClientSettings`, so keep the domain stable once clients are
-out in the world.
+One domain, `planner.lyste.net`, serves all of it: the homepage, the web client at `/app`, the API it
+signs in to and the SignalR hub. The web client being on that same origin is deliberate — it is why
+no CORS configuration exists anywhere in this deployment.
 
 | Piece | Where it is defined |
 | --- | --- |
@@ -24,7 +21,6 @@ out in the world.
 | Website / client / API routing | [`deploy/Caddyfile`](../deploy/Caddyfile), baked into the web image |
 | The web image itself | [`deploy/web.Dockerfile`](../deploy/web.Dockerfile) — builds the website and the client, copies both into Caddy |
 | Image build and deploy trigger | [`.github/workflows/release-images.yml`](../.github/workflows/release-images.yml) |
-| Client release publication | [`deploy/publish-release.sh`](../deploy/publish-release.sh), run by [`build/upload-release.ps1`](../build/upload-release.ps1) |
 
 ## 1. Prepare the server
 
@@ -32,15 +28,12 @@ Coolify is already installed. Planner needs one directory on the host and, becau
 packages are private, a registry login for the Docker daemon that pulls them:
 
 ```bash
-install -d -m 0755 /srv/planner/releases
-install -d -m 0700 /srv/planner/incoming /srv/planner/backups
+install -d -m 0700 /srv/planner/backups
 echo "$GHCR_TOKEN" | docker login ghcr.io -u YOUR_GITHUB_USER --password-stdin
 ```
 
-`GHCR_TOKEN` is a GitHub personal access token with `read:packages` only. `/srv/planner/releases`
-is the Velopack feed: the API mounts it read-only and `build/upload-release.ps1` writes into it over
-SSH. Keep ports 80 and 443 open to the world for Coolify's proxy, and 22 restricted to your own
-address. Point a DNS **A** record for `planner.lyste.net` at the VPS before deploying, so a
+`GHCR_TOKEN` is a GitHub personal access token with `read:packages` only. Keep ports 80 and 443
+open to the world for Coolify's proxy, and 22 restricted to your own address. Point a DNS **A** record for `planner.lyste.net` at the VPS before deploying, so a
 certificate can be issued.
 
 ## 2. Push the repository to GitHub
@@ -99,8 +92,7 @@ curl --fail https://planner.lyste.net/health/ready
 curl --fail --silent https://planner.lyste.net/ | head -5
 ```
 
-Expected: `Healthy`, a valid certificate, and the download page. The installer link 404s until the
-first client release is published, which is step 6.
+Expected: `Healthy`, a valid certificate, and the homepage.
 
 ## 5. Deploying a new backend version
 
@@ -117,44 +109,9 @@ schema is unchanged, set `PLANNER_API_IMAGE` to a commit-SHA tag and redeploy. W
 change, restore the pre-upgrade database alongside the matching image and accept the loss of writes
 made since. Ship a backwards-compatible API before the client that needs it.
 
-## 6. Publishing a desktop client release
+## 6. Backups
 
-Releases are built on your Windows PC: Velopack packs a Windows app, and the code-signing story
-lives there. Two channels share the feed directory and the `/updates` URL.
-
-| Channel | Who is on it | Version shape | Files |
-| --- | --- | --- | --- |
-| `win` | Everyone, by default | `1.2.0` | `releases.win.json`, `Planner-win-Setup.exe` |
-| `win-beta` | Only clients with `updateChannel` set | `1.2.0-beta.1` | `releases.win-beta.json`, `Planner-win-beta-Setup.exe` |
-
-Beta builds must carry a prerelease version; `build/release.ps1` refuses otherwise. That is what
-keeps two builds numbered 1.2.0 from producing the same package filename in a shared directory.
-
-```powershell
-./build/release.ps1 -Version 1.2.0-beta.1 -Channel win-beta
-./build/upload-release.ps1 -Version 1.2.0-beta.1 -Channel win-beta
-
-# then, once the pilot group is happy
-./build/release.ps1 -Version 1.2.0
-./build/upload-release.ps1 -Version 1.2.0
-```
-
-`upload-release.ps1` stages the files on the server, uploads the current `publish-release.sh`
-alongside them, and runs it. The script verifies every package the feed references against its
-recorded size and SHA-256, refuses to overwrite an existing package with different bytes, and moves
-the index into place **last**, so a client can never read an index whose packages have not landed.
-It then checks the public URL. Nothing restarts: the API serves these as static files.
-
-Keep the local `releases` folder between builds. `vpk` needs the previous packages to build deltas,
-and a client that has been offline for three releases needs the packages in between.
-
-To put a machine on the beta channel, add `"updateChannel": "win-beta"` to
-`%AppData%\Planner\settings.json`. Details in [releasing.md](releasing.md) and
-[desktop-client.md](desktop-client.md).
-
-## 7. Backups
-
-Four things have to survive the server, and Coolify covers only the first.
+Three things have to survive the server, and Coolify covers only the first.
 
 1. **The database.** Coolify's scheduled backups, from step 3. Verify that one actually restores.
 2. **The keys volume.** `planner-keys` holds the token signing certificates and the data-protection
@@ -162,10 +119,8 @@ Four things have to survive the server, and Coolify covers only the first.
 3. **The attachments volume.** `planner-attachments` holds the bytes of every uploaded file. The rows
    describing them are in the database, so losing this volume leaves the tracker pointing at files
    that no longer exist — back it up *with* the database, on the same schedule.
-4. **The release feed.** `/srv/planner/releases`. Rebuildable from source in principle, but a lost
-   package is a desktop client that cannot update to anything.
 
-For 2, 3 and 4, a Coolify **Scheduled Task**, or from your PC:
+For 2 and 3, a Coolify **Scheduled Task**, or from your PC:
 
 ```powershell
 $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
@@ -173,14 +128,13 @@ ssh root@planner.lyste.net "docker run --rm -v planner-keys:/keys:ro -v /srv/pla
 ssh root@planner.lyste.net "docker run --rm -v planner-attachments:/files:ro -v /srv/planner/backups:/out alpine:3 tar -czf /out/attachments-$stamp.tar.gz -C /files ."
 scp root@planner.lyste.net:/srv/planner/backups/keys-$stamp.tar.gz .
 scp root@planner.lyste.net:/srv/planner/backups/attachments-$stamp.tar.gz .
-scp -r root@planner.lyste.net:/srv/planner/releases ./releases-backup-$stamp
 ```
 
 Coolify prefixes volume names with the resource's identifier, so check the name it shows for the
 stack rather than assuming `planner-keys`. These archives contain signing keys: store them
 privately.
 
-## 8. Restoring onto a new server
+## 7. Restoring onto a new server
 
 1. Install Coolify, then follow steps 1 to 4 with the **same** `PLANNER_KEY_PASSWORD`.
 2. Deploy once so the volumes exist, then stop the stack.
@@ -194,8 +148,8 @@ privately.
 
    `--user 0`, with an archive that preserved numeric ownership, is what lets the non-root API user
    read them afterwards.
-5. Copy `/srv/planner/releases` back, start the stack, and verify readiness, sign-in, existing
-   issues, realtime updates and an installer download before moving DNS.
+5. Start the stack, and verify readiness, sign-in, existing issues and realtime updates before
+   moving DNS.
 
 Clients need no reconfiguration if the domain is unchanged. Changing owner or database passwords in
 the environment does not reset credentials that already exist in a populated database.
@@ -210,7 +164,5 @@ the environment does not reset credentials that already exist in a populated dat
 - **Attachments are files on a volume.** `Attachments__Path` points at `planner-attachments`, and the
   rows in the database point at files that exist only there — so it is backed up with the database,
   not instead of it. Attachments added as links rather than uploads store metadata only.
-- **Installers are unsigned.** Windows SmartScreen will say so. Code signing is described in
-  [releasing.md](releasing.md); HTTPS does not sign an executable.
 - **This is a single server.** Deploys and restores mean brief downtime; clients reconnect on their
   own.

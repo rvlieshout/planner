@@ -5,7 +5,7 @@ using Planner.Contracts.Teams;
 
 namespace Planner.Contracts.Realtime;
 
-/// <summary>Server-to-client SignalR surface. Shared with the Avalonia client so both ends are bound
+/// <summary>Server-to-client SignalR surface. A .NET client references this so both ends are bound
 /// to the same method names and payload shapes at compile time rather than by convention.</summary>
 public interface IPlannerClient
 {

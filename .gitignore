@@ -11,7 +11,7 @@ obj/
 keys/
 *.pfx
 
-# Build output: publish intermediates and packaged client releases
+# Build output: publish intermediates
 artifacts/
 
 # Aspire's per-developer CLI state. aspire.config.json is checked in — it is what lets `aspire run`
@@ -24,7 +24,7 @@ coverage/
 
 App_Data/
 
-# Astro download website
+# Astro website
 website/node_modules/
 website/dist/
 website/.astro/

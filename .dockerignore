@@ -19,4 +19,3 @@ website/.astro/
 client/build/
 client/.svelte-kit/
 artifacts/
-releases/

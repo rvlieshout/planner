@@ -84,7 +84,7 @@ public static class AuthenticationSetup
                     .AddEncryptionCertificate(
                         ServerCertificates.GetOrCreateEncryption(auth.KeyDirectory, auth.KeyPassword));
 
-                // Hand out plain JWTs so the Avalonia client, curl and any sidecar service can read and
+                // Hand out plain JWTs so curl, native clients and any sidecar service can read and
                 // validate them without OpenIddict-specific decryption.
                 options.DisableAccessTokenEncryption();
 

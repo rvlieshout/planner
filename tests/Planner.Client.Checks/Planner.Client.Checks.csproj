@@ -1,9 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <InvariantGlobalization>false</InvariantGlobalization>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="../../src/Planner.Client/Planner.Client.csproj" />
-  </ItemGroup>
-</Project>

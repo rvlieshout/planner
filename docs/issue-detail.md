@@ -28,4 +28,4 @@ Deleting metadata or an issue does not currently purge stored file bytes. Keep r
 
 ## Verification
 
-Planner.Client.Checks includes fake-HTTP checks for comment pagination and failure recovery, draft preservation during collaboration refresh, successive minimal patches, member/guest/viewer capabilities, relation direction and removal, sub-issue parent persistence, and attachment link/upload/download requests.
+The desktop client's `Planner.Client.Checks` project, removed with the client itself, covered comment pagination and failure recovery, draft preservation during collaboration refresh, successive minimal patches, member/guest/viewer capabilities, relation direction and removal, sub-issue parent persistence, and attachment link/upload/download requests.

@@ -37,8 +37,9 @@ public sealed class PlannerAuthOptions
     /// this stack's web container: two hops.</summary>
     public int TrustedProxyHops { get; set; }
 
-    /// <summary>Origins allowed to call the API from a browser. The Avalonia client is not subject to
-    /// CORS; this exists for a future web front end and for tooling such as Scalar.</summary>
+    /// <summary>Origins allowed to call the API from a browser. The web client is served from this
+    /// API's own origin, so this exists only for a front end hosted elsewhere and for tooling such as
+    /// Scalar.</summary>
     public string[] AllowedOrigins { get; set; } = [];
 }
 

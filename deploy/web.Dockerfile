@@ -1,4 +1,4 @@
-# The `web` image: the download website, the browser client, and the routing between them and the API.
+# The `web` image: the website, the browser client, and the routing between them and the API.
 #
 # Build from the repository root:  docker build -f deploy/web.Dockerfile .
 #

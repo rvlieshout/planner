@@ -1,9 +1,8 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Aspire.AppHost.Sdk/13.5.4">
 
   <!-- Pinned rather than centrally managed: an MSBuild SDK is resolved before Directory.Packages.props
        is read, so this version cannot come from there. Keep it in step with the Aspire.Hosting.*
        package versions. -->
-  <Sdk Name="Aspire.AppHost.Sdk" Version="13.5.3" />
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -21,7 +20,6 @@
        a browser. -->
 
   <ItemGroup>
-    <PackageReference Include="Aspire.Hosting.AppHost" />
     <PackageReference Include="Aspire.Hosting.JavaScript" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
   </ItemGroup>
@@ -29,7 +27,6 @@
   <!-- IsAspireProjectResource generates the strongly typed `Projects.*` handles used below. -->
   <ItemGroup>
     <ProjectReference Include="..\Planner.Api\Planner.Api.csproj" IsAspireProjectResource="true" />
-    <ProjectReference Include="..\Planner.Client\Planner.Client.csproj" IsAspireProjectResource="true" />
   </ItemGroup>
 
 </Project>

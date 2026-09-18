@@ -34,8 +34,8 @@
         }
     }
 
-    # Astro's output. Everything else — auth, SignalR, /updates, /health, /scalar and any path added
-    # to the API later — falls through to the API without needing a rule here.
+    # Astro's output. Everything else — auth, SignalR, /health, /scalar and any path added to the
+    # API later — falls through to the API without needing a rule here.
     @website path / /index.html /favicon.svg /_astro/*
     handle @website {
         root * /srv/site

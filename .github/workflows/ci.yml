@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   dotnet:
-    name: Build API and client
+    name: Build the API
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -20,9 +20,8 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       # The AppHost is left out on purpose: it bundles the Aspire CLI and only ever runs on a
-      # developer machine. What ships is the API image and the Windows client.
+      # developer machine. What ships is the API image.
       - run: dotnet build src/Planner.Api/Planner.Api.csproj -c Release
-      - run: dotnet build src/Planner.Client/Planner.Client.csproj -c Release
 
   website:
     name: Build website
@@ -52,16 +51,9 @@ jobs:
       - run: npm ci
         working-directory: client
       # svelte-check is the client's compiler: it type-checks the TypeScript and every binding in
-      # every component, which is what stands in for the shared Contracts project the desktop client
-      # compiles against.
+      # every component, standing in for the compile-time check that .NET's shared Contracts project
+      # gives the API.
       - run: npm run check
         working-directory: client
       - run: npm run build
         working-directory: client
-
-  deploy-scripts:
-    name: Test the release publisher
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - run: python3 -m unittest discover -s tests/deploy -v

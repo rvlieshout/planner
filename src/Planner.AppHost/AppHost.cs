@@ -25,13 +25,10 @@ var api = builder.AddProject<Projects.Planner_Api>("api")
     // The API asks for a connection string named "Planner"; the resource is named "planner". Spelling
     // the mapping out here is what keeps the two independent.
     .WithEnvironment("ConnectionStrings__Planner", database)
-    .WaitFor(database)
-
     // Everything else the API needs for local work already lives in appsettings.Development.json —
     // the dev signing keys, the seeded owner, the demo data — and Aspire runs projects in the
-    // Development environment, so it is not repeated here. The one exception is the update feed, whose
-    // default is a Linux container path:
-    .WithEnvironment("Planner__Updates__Directory", ReleasesDirectory(builder));
+    // Development environment, so it is not repeated here.
+    .WaitFor(database);
 
 // The web client, on Vite's development server.
 //
@@ -43,25 +40,8 @@ builder.AddViteApp("client", ClientDirectory(builder))
     .WithEnvironment("PLANNER_SERVER_URL", api.GetEndpoint("http"))
     .WaitFor(api);
 
-// The Avalonia desktop client, on explicit start. Frozen — see docs/desktop-client.md — but still
-// buildable and still runnable against this stack.
-//
-// It is a window rather than a service: auto-launching it would put a window on screen every time
-// someone starts the API. The dashboard's Start button runs it against whatever port the API landed
-// on, which is the part that is otherwise fiddly to get right by hand.
-builder.AddProject<Projects.Planner_Client>("desktop")
-    .WithEnvironment("PLANNER_SERVER_URL", api.GetEndpoint("http"))
-    .WaitFor(api)
-    .WithExplicitStart();
-
 builder.Build().Run();
 
 // The SvelteKit client, which lives outside src/ because it is not a .NET project.
 static string ClientDirectory(IDistributedApplicationBuilder builder) =>
     Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "client"));
-
-// The folder build/release.ps1 publishes into, which is what the API serves at /updates. Pointing the
-// API at it means a locally built release is installable by a locally running client, exactly as it
-// would be in production.
-static string ReleasesDirectory(IDistributedApplicationBuilder builder) =>
-    Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "releases"));
