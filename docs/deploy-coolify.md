@@ -68,6 +68,8 @@ Then, before the first deploy:
 - Set the environment variables below.
 - Open the `web` service's **Domains** field and replace the generated domain with
   `https://planner.lyste.net`.
+- Turn **Auto Deploy** off, so that pushes to `main` deploy through the workflow in step 5 rather
+  than through Coolify's own branch watcher.
 
 | Variable | Value |
 | --- | --- |
@@ -115,6 +117,11 @@ Set all four and the stack's variables always name the exact commit that is runn
 makes the rollback below a lookup rather than a reconstruction. Set only the webhook pair and
 deploys still work, but against whatever tags the stack already has — `:latest`, most likely, which
 records nothing.
+
+Turn **Auto Deploy** off on the stack. It is Coolify's own watcher on the connected branch, and it
+fires on the push itself — before CI has judged the commit and before the images for it exist — so
+it redeploys the tags already set, then races the workflow's deploy a few minutes later. The gate above
+only works if Actions alone decides when to deploy.
 
 Migrations run at startup, so rolling back is not simply redeploying yesterday's image. When the
 schema is unchanged, set `PLANNER_API_IMAGE` and `PLANNER_WEB_IMAGE` to the previous commit's SHA
