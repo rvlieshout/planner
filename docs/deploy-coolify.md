@@ -62,6 +62,12 @@ Note the container name Coolify assigns. That is the hostname other containers r
 ## 4. Create the Planner stack
 
 **New Resource -> Docker Compose**, pointed at this repository and `docker-compose.coolify.yml`.
+Not **Docker Compose Empty**: that creates a *service* rather than an application, which is not
+connected to a git source — Coolify keeps its own copy of the compose file, so this repository stops
+being what the server deploys, and the workflow in step 5 addresses the wrong half of the API
+(`/api/v1/applications/...` answers only for an application). The resource's URL is the tell:
+`/application/<uuid>`, not `/service/<uuid>`.
+
 Then, before the first deploy:
 
 - Turn on **Connect to predefined network**, so the stack can reach the database container.
@@ -110,7 +116,7 @@ The deploy step itself depends on repository secrets, and each one is skipped un
 | --- | --- |
 | `COOLIFY_TOKEN` | Created under **Keys & Tokens -> API tokens**. Needed by both steps below. |
 | `COOLIFY_URL` | The Coolify instance's base URL, e.g. `https://coolify.example.com`. |
-| `COOLIFY_APP_UUID` | The stack's UUID, from its Coolify URL. With `COOLIFY_URL`, the workflow rewrites `PLANNER_API_IMAGE` and `PLANNER_WEB_IMAGE` to this commit's SHA tags before deploying. |
+| `COOLIFY_APP_UUID` | The stack's UUID: the last segment of its Coolify URL, which must read `/application/<uuid>`. With `COOLIFY_URL`, the workflow rewrites `PLANNER_API_IMAGE` and `PLANNER_WEB_IMAGE` to this commit's SHA tags before deploying. |
 | `COOLIFY_WEBHOOK_URL` | From the resource's **Webhooks** tab. Triggers the deployment. Without it, press **Deploy** in Coolify. |
 
 Set all four and the stack's variables always name the exact commit that is running, which is what
