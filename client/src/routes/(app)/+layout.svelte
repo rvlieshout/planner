@@ -22,6 +22,7 @@
   import { commands, type CommandGroup } from '$lib/commands.svelte';
   import { describe } from '$lib/shortcuts';
   import { BUILD_LABEL, VERSION } from '$lib/version';
+  import { appUpdate } from '$lib/update.svelte';
 
   /**
    * The window frame: a title bar with the application menu, a sidebar you can drag or collapse, a
@@ -54,6 +55,11 @@
     if (session.isSignedIn && !workspace.initialized) {
       void workspace.initialize();
     }
+  });
+
+  // SvelteKit only says *that* a newer build exists; the button would rather say which one.
+  $effect(() => {
+    if (appUpdate.available) void appUpdate.describe();
   });
 
   const teamId = $derived(workspace.currentTeamId);
@@ -388,6 +394,19 @@
       {realtime.isConnected ? 'Live' : realtime.status === 'reconnecting' ? 'Reconnecting…' : 'Offline'}
     </span>
 
+    {#if appUpdate.available}
+      <span class="segment">
+        <button
+          type="button"
+          class="update"
+          title={appUpdate.version ? `Planner ${appUpdate.version} is available — reload to use it` : 'A newer Planner is available — reload to use it'}
+          onclick={() => appUpdate.apply()}>
+          <Icon name="circle-arrow-up" size={12} />
+          Update{appUpdate.version ? ` to ${appUpdate.version}` : ''}
+        </button>
+      </span>
+    {/if}
+
     <span class="segment version" title={BUILD_LABEL}>{VERSION}</span>
   </footer>
 </div>
@@ -547,6 +566,23 @@
     font-variant-numeric: tabular-nums;
     /* There is a commit behind this number; the cursor is what says so. */
     cursor: help;
+  }
+
+  .update {
+    display: flex;
+    align-items: center;
+    gap: var(--s-1);
+    padding: 0 var(--s-2);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .update:hover {
+    background: var(--bg-hover);
   }
 
   .live {

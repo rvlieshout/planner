@@ -1,4 +1,6 @@
 import { beforeNavigate, goto } from '$app/navigation';
+import type { BeforeNavigate } from '@sveltejs/kit';
+import { updated } from '$app/state';
 import { resolve } from '$app/paths';
 import { chrome } from '$lib/chrome.svelte';
 import { confirm } from '$components/confirm.svelte';
@@ -29,7 +31,10 @@ export function installNavigationGuard(): void {
     if (navigation.type === 'leave') return;
 
     const summary = chrome.unsavedWork?.();
-    if (!summary) return;
+    if (!summary) {
+      loadNewerBuild(navigation);
+      return;
+    }
 
     const target = navigation.to?.url;
     if (!target) return;
@@ -50,6 +55,21 @@ export function installNavigationGuard(): void {
   window.addEventListener('beforeunload', (event) => {
     if (chrome.unsavedWork?.()) event.preventDefault();
   });
+}
+
+/*
+ * Once a newer build is deployed (see update.svelte.ts), a link click is the quietest moment to load
+ * it: the page was about to change anyway, so turning the navigation into a full page load
+ * costs a moment's flash and the reader arrives where they were going, on the new version.
+ *
+ * Only for links. The back button cannot be redirected without breaking history, and a `goto` may
+ * have asked to replace the current entry, which a plain page load cannot honour.
+ */
+function loadNewerBuild(navigation: BeforeNavigate): void {
+  if (!updated.current || navigation.type !== 'link' || navigation.willUnload || !navigation.to) return;
+
+  navigation.cancel();
+  location.href = navigation.to.url.href;
 }
 
 /**

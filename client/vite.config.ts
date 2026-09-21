@@ -1,23 +1,6 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-
-const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
-
-// The commit this bundle was built from. CI passes it in, because the image build has no .git to
-// ask; a local build falls back to the checkout's HEAD, and anything else says so rather than
-// claiming a commit it cannot name.
-function buildSha() {
-  const fromEnv = process.env.PLANNER_BUILD_SHA?.trim();
-  if (fromEnv) return fromEnv;
-
-  try {
-    return execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  } catch {
-    return 'unknown';
-  }
-}
+import { sha, version } from './build-info.js';
 
 // In development the API is a separate origin; in production it is the same one, because Caddy serves
 // this app and proxies everything else to the API container. The proxy below erases that difference,
@@ -28,7 +11,10 @@ export default defineConfig({
   plugins: [sveltekit()],
 
   // One version number, in package.json, reaching the status bar without a second place to bump.
-  define: { __APP_VERSION__: JSON.stringify(version), __BUILD_SHA__: JSON.stringify(buildSha()) },
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
+    __BUILD_SHA__: JSON.stringify(sha)
+  },
 
   server: {
     port: 5175,

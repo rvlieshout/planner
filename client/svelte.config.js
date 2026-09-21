@@ -1,4 +1,5 @@
 import adapter from '@sveltejs/adapter-static';
+import { buildName } from './build-info.js';
 
 /**
  * The client ships as static files inside the Caddy image that already serves the website, so it is
@@ -18,6 +19,10 @@ export default {
 
     // No server runtime, so nothing is prerendered ahead of the shell and every route is resolved in
     // the browser against a live API.
-    prerender: { entries: [] }
+    prerender: { entries: [] },
+
+    // SvelteKit publishes this name as `_app/version.json` and a running client fetches it every half
+    // hour; a different answer means a newer build is deployed, and the status bar offers it.
+    version: { name: buildName, pollInterval: 30 * 60 * 1000 }
   }
 };
