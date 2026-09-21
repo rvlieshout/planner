@@ -23,6 +23,8 @@
     issues: IssueSummary[];
     /** Pre-selected on the issue a group in this list creates — set on a project's board. */
     projectId?: Guid | null;
+    /** Pre-selected likewise while the list is narrowed to one milestone. */
+    milestoneId?: Guid | null;
     teamId: Guid;
     /** Off for a viewer or a guest, who may read a board but not rearrange it. */
     canMove?: boolean;
@@ -35,6 +37,7 @@
     states,
     issues,
     projectId = null,
+    milestoneId = null,
     teamId,
     canMove = true,
     onopen,
@@ -85,7 +88,7 @@
           class="add"
           title="New issue in {group.state.name}"
           aria-label="New issue in {group.state.name}"
-          onclick={() => issueEditor.create({ teamId, projectId })}>
+          onclick={() => issueEditor.create({ teamId, projectId, milestoneId })}>
           <Icon name="plus" size={13} />
         </button>
       </header>

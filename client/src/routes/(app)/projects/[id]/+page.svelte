@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { all, ApiError, issues as issuesApi, projects as projectsApi } from '$lib/api';
-  import type { IssueSummary, MilestoneDto, ProjectDto, WorkflowStateDto } from '$lib/api/types';
+  import type { Guid, IssueSummary, MilestoneDto, ProjectDto, WorkflowStateDto } from '$lib/api/types';
   import { boardSummary, layOut } from '$lib/board';
   import { chrome } from '$lib/chrome.svelte';
   import { Permission, session } from '$lib/auth/session.svelte';
@@ -32,6 +32,8 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
   let showDetail = $state(true);
+  /** The milestone the board is narrowed to, picked from the overview; null shows every issue. */
+  let milestoneId = $state<Guid | null>(null);
 
   const canWrite = $derived(session.can(project?.teamId, Permission.Write));
   const asList = $derived(settings.boardView === 'list');
@@ -45,8 +47,36 @@
    * waiting for the socket — `issues` is the project's complete unfiltered set, the same scope the
    * server counts.
    */
-  const progress = $derived(rollUp(issues));
   const milestoneProgress = $derived(rollUpByMilestone(issues));
+
+  const picked = $derived(milestones.find((candidate) => candidate.id === milestoneId) ?? null);
+
+  // Picking a milestone narrows the board, the status bar and the progress bar alike; the chips
+  // keep their own counts, so the other milestones can still be compared at a glance.
+  const visible = $derived(
+    picked ? issues.filter((issue) => issue.milestoneId === picked.id) : issues
+  );
+
+  const progress = $derived(rollUp(visible));
+
+  function toggleMilestone(id: Guid) {
+    milestoneId = milestoneId === id ? null : id;
+  }
+
+  /*
+   * The views compute their optimistic update from what they were handed, which is the narrowed
+   * set while a milestone is picked. Folding it back by id keeps the issues it leaves out, so a
+   * drag on a narrowed board cannot drop the rest of the project from the page.
+   */
+  function applyVisible(next: IssueSummary[]) {
+    if (!picked) {
+      issues = next;
+      return;
+    }
+
+    const byId = new Map(next.map((issue) => [issue.id, issue]));
+    issues = issues.map((issue) => byId.get(issue.id) ?? issue);
+  }
 
   async function load() {
     loading = true;
@@ -82,6 +112,7 @@
 
   $effect(() => {
     void projectId;
+    milestoneId = null;
     void load();
   });
 
@@ -97,7 +128,7 @@
     chrome.set({
       title: project?.name ?? 'Project',
       subtitle: project ? PROJECT_STATUS[project.status].label : undefined,
-      status: loading ? 'Loading…' : boardSummary(layOut(states, issues), asList ? 'group' : 'column'),
+      status: loading ? 'Loading…' : boardSummary(layOut(states, visible), asList ? 'group' : 'column'),
       actions: toolbar,
       commands: [
         {
@@ -131,6 +162,18 @@
 </script>
 
 {#snippet toolbar()}
+  {#if picked}
+    <button
+      type="button"
+      class="btn btn-sm btn-quiet"
+      onclick={() => (milestoneId = null)}
+      title="Show every issue in the project">
+      <Icon name="milestone" size={13} />
+      {picked.name}
+      <Icon name="x" size={13} />
+    </button>
+  {/if}
+
   <button
     type="button"
     class="btn btn-sm btn-quiet"
@@ -157,7 +200,7 @@
   <button
     type="button"
     class="btn btn-sm"
-    onclick={() => project && issueEditor.create({ teamId: project.teamId, projectId })}
+    onclick={() => project && issueEditor.create({ teamId: project.teamId, projectId, milestoneId })}
     disabled={!canWrite}>
     <Icon name="plus" size={13} />
     New issue
@@ -206,14 +249,22 @@
           <div class="milestones">
             {#each milestones as milestone (milestone.id)}
               {@const rollup = milestoneProgress.get(milestone.id) ?? EMPTY_PROGRESS}
-              <div class="milestone">
+              <button
+                type="button"
+                class="milestone"
+                class:active={milestoneId === milestone.id}
+                aria-pressed={milestoneId === milestone.id}
+                title={milestoneId === milestone.id
+                  ? 'Show every issue in the project'
+                  : `Show only the issues in ${milestone.name}`}
+                onclick={() => toggleMilestone(milestone.id)}>
                 <Icon name="milestone" size={12} />
                 <span class="truncate">{milestone.name}</span>
                 {#if milestone.targetDate}
                   <span class="muted">{formatDate(milestone.targetDate)}</span>
                 {/if}
                 <span class="badge">{rollup.completed}/{rollup.total}</span>
-              </div>
+              </button>
             {/each}
           </div>
         {/if}
@@ -224,21 +275,23 @@
       {#if asList}
         <ListView
           {states}
-          {issues}
+          issues={visible}
           teamId={project.teamId}
           {projectId}
+          {milestoneId}
           canMove={canWrite}
           onopen={(issue) => void navigate(`/issues/${issue.key}`)}
-          onoptimistic={(next) => (issues = next)} />
+          onoptimistic={applyVisible} />
       {:else}
         <BoardView
           {states}
-          {issues}
+          issues={visible}
           teamId={project.teamId}
           {projectId}
+          {milestoneId}
           canMove={canWrite}
           onopen={(issue) => void navigate(`/issues/${issue.key}`)}
-          onoptimistic={(next) => (issues = next)} />
+          onoptimistic={applyVisible} />
       {/if}
     </div>
   </div>
@@ -301,8 +354,25 @@
     padding: 0 var(--s-3);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
+    background: none;
     color: var(--fg-secondary);
+    font: inherit;
     font-size: var(--text-sm);
+    cursor: pointer;
+    transition:
+      background var(--duration) var(--ease),
+      border-color var(--duration) var(--ease);
+  }
+
+  .milestone:hover {
+    background: var(--bg-hover);
+    color: var(--fg);
+  }
+
+  .milestone.active {
+    border-color: var(--accent);
+    background: var(--accent-subtle);
+    color: var(--fg);
   }
 
   .board-area {

@@ -1,5 +1,5 @@
 import { attachments as attachmentsApi } from '$lib/api';
-import type { Guid } from '$lib/api/types';
+import type { AttachmentDto, Guid } from '$lib/api/types';
 
 /*
  * Turning `attachment:{id}` into something a browser will display.
@@ -17,6 +17,72 @@ import type { Guid } from '$lib/api/types';
 
 /** How an uploaded file is referenced inside markdown. */
 export const ATTACHMENT_SCHEME = 'attachment:';
+
+/*
+ * An image pasted into a description or a comment is a real attachment on the issue from the moment
+ * it is uploaded — before anything is saved — so the page's attachment list has to hear about it.
+ * The editors that upload sit a few components below the page that holds the list, so they announce
+ * here rather than hand a callback down through every layer in between.
+ */
+type UploadListener = (issueId: Guid, attachment: AttachmentDto) => void;
+
+const uploadListeners = new Set<UploadListener>();
+
+export function announceUpload(issueId: Guid, attachment: AttachmentDto): void {
+  for (const listener of uploadListeners) listener(issueId, attachment);
+}
+
+/** Subscribes to uploads made from any editor. Returns the unsubscribe function. */
+export function onUpload(listener: UploadListener): () => void {
+  uploadListeners.add(listener);
+  return () => uploadListeners.delete(listener);
+}
+
+/*
+ * How large an image is drawn, picked in the editor and kept in the reference itself as
+ * `attachment:{id}#size=m` — plain markdown, so it survives copy and paste, shows in the source and
+ * is undone like any other edit. No size means the default: the column's width, capped in height.
+ */
+export const IMAGE_SIZES = ['s', 'm', 'l', 'full'] as const;
+export type ImageSize = (typeof IMAGE_SIZES)[number];
+
+const SIZE_FRAGMENT = '#size=';
+
+export function parseAttachment(reference: string): { id: Guid; size: ImageSize | null } {
+  const [id, fragment = ''] = reference.slice(ATTACHMENT_SCHEME.length).split('#', 2);
+  const size = fragment.startsWith('size=') ? fragment.slice('size='.length) : '';
+
+  return { id, size: (IMAGE_SIZES as readonly string[]).includes(size) ? (size as ImageSize) : null };
+}
+
+/**
+ * Sets the size of the `occurrence`-th image of attachment `id` in a markdown source, returning the
+ * span to replace — or null when that image is not there any more.
+ *
+ * By occurrence rather than by id alone, because the same screenshot can sit in a document twice and
+ * resizing one of them must not resize the other.
+ */
+export function resizeReference(
+  source: string,
+  id: Guid,
+  occurrence: number,
+  size: ImageSize | null
+): { start: number; end: number; text: string } | null {
+  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`!\\[(?:\\\\.|[^\\]\\\\])*\\]\\(${ATTACHMENT_SCHEME}${escaped}(#[^)\\s]*)?`, 'g');
+
+  let index = 0;
+  for (const match of source.matchAll(pattern)) {
+    if (index++ !== occurrence) continue;
+
+    const withoutSize = match[0].slice(0, match[0].length - (match[1]?.length ?? 0));
+    const text = size ? `${withoutSize}${SIZE_FRAGMENT}${size}` : withoutSize;
+
+    return { start: match.index, end: match.index + match[0].length, text };
+  }
+
+  return null;
+}
 
 const cache = new Map<Guid, Promise<string>>();
 

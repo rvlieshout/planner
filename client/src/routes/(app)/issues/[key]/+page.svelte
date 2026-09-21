@@ -17,6 +17,7 @@
   import { Permission, session } from '$lib/auth/session.svelte';
   import { chrome } from '$lib/chrome.svelte';
   import { announce, applyChange, isLocalEcho, onIssueChange } from '$lib/issues/changes';
+  import { onUpload } from '$lib/markdown/attachments';
   import { issueEditor } from '$lib/issues/editor.svelte';
   import { ESTIMATE_SCALE, PRIORITY, PRIORITY_ORDER } from '$lib/meta';
   import { alpha, formatExact, relativeTime } from '$lib/format';
@@ -200,6 +201,17 @@
   );
 
   $effect(() => realtime.onReconnected(() => void load(true)));
+
+  // Images pasted into the description or a comment land on the issue straight away.
+  $effect(() =>
+    onUpload((issueId, attachment) => {
+      const current = issue;
+      if (!current || current.id !== issueId) return;
+      if (current.attachments.some((existing) => existing.id === attachment.id)) return;
+
+      issue = { ...current, attachments: [...current.attachments, attachment] };
+    })
+  );
 
   /* ----------------------------------------------------------------- save ---- */
 

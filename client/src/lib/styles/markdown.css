@@ -148,12 +148,47 @@
   font-weight: 600;
 }
 
-/* An image is a screenshot pasted into a sentence, so it is bounded by the column it sits in. */
+/*
+ * An image is a screenshot pasted into a sentence, so it is bounded by the column it sits in — and,
+ * left at its default, by a height too, or one full-screen capture pushes the rest of the document
+ * off the page. The full picture is a click away in the lightbox.
+ */
 :is(.prose, .carta-renderer) img {
+  display: block;
   max-width: 100%;
+  max-height: 360px;
   height: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+}
+
+/* A size picked in the editor (`#size=` on the reference) is a width, and replaces the height cap. */
+:is(.prose, .carta-renderer) img[data-size] {
+  max-height: none;
+}
+
+:is(.prose, .carta-renderer) img[data-size='s'] {
+  width: 240px;
+}
+
+:is(.prose, .carta-renderer) img[data-size='m'] {
+  width: 480px;
+}
+
+:is(.prose, .carta-renderer) img[data-size='l'] {
+  width: 720px;
+}
+
+:is(.prose, .carta-renderer) img[data-size='full'] {
+  width: 100%;
+}
+
+.prose img[data-resolved='done'] {
+  cursor: zoom-in;
+}
+
+.carta-renderer img[data-resolved='done'] {
+  cursor: pointer;
 }
 
 :is(.prose, .carta-renderer) img[data-resolved='pending'] {

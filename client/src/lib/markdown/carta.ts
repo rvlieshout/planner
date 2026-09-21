@@ -1,6 +1,6 @@
 import { Carta, type Plugin } from 'carta-md';
 import DOMPurify from 'dompurify';
-import { ATTACHMENT_SCHEME } from './attachments';
+import { ATTACHMENT_SCHEME, parseAttachment } from './attachments';
 
 /*
  * The markdown pipeline, in one place.
@@ -40,7 +40,8 @@ interface Node {
 }
 
 /**
- * Moves `attachment:{id}` off `src`/`href` and onto `data-attachment`.
+ * Moves `attachment:{id}` off `src`/`href` and onto `data-attachment`, and an image's `#size=`
+ * choice onto `data-size`, where markdown.css turns it into a width.
  *
  * The attribute goes because nothing should ever request an `attachment:` URL: it is this app's own
  * notation, not a scheme a browser knows. What is left is an element the resolver can find and fill
@@ -52,7 +53,10 @@ function rewrite(node: Node): void {
     const value = attribute ? node.properties[attribute] : null;
 
     if (attribute && typeof value === 'string' && value.startsWith(ATTACHMENT_SCHEME)) {
-      node.properties.dataAttachment = value.slice(ATTACHMENT_SCHEME.length);
+      const { id, size } = parseAttachment(value);
+
+      node.properties.dataAttachment = id;
+      if (size && node.tagName === 'img') node.properties.dataSize = size;
       delete node.properties[attribute];
     }
   }
@@ -76,7 +80,7 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
 
 const sanitizer = (html: string) =>
   DOMPurify.sanitize(html, {
-    ADD_ATTR: ['data-attachment', 'target'],
+    ADD_ATTR: ['data-attachment', 'data-size', 'target'],
     // Inline frames, forms and event handlers have no business in an issue description, and the
     // default list is otherwise exactly the readable subset this needs.
     FORBID_TAGS: ['iframe', 'form', 'input', 'button', 'style'],

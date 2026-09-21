@@ -10,6 +10,7 @@
   import { realtime } from '$lib/realtime/hub.svelte';
   import { workspace } from '$lib/workspace.svelte';
   import ConfirmHost from '$components/ConfirmHost.svelte';
+  import LightboxHost from '$components/LightboxHost.svelte';
   import ToastHost from '$components/ToastHost.svelte';
   import Icon from '$components/Icon.svelte';
 
@@ -76,6 +77,7 @@
 {/if}
 
 <ConfirmHost />
+<LightboxHost />
 <ToastHost />
 
 <style>

@@ -18,9 +18,9 @@ const ICONS = [
   'chevron-left', 'chevron-right', 'circle', 'circle-alert', 'circle-arrow-up', 'circle-check',
   'circle-dashed', 'circle-dot', 'circle-user', 'clock', 'command', 'copy', 'corner-down-right', 'download',
   'ellipsis', 'external-link', 'file-text', 'filter', 'flag', 'folder', 'folder-kanban',
-  'grip-vertical', 'inbox', 'info', 'key-round', 'layout-grid', 'link', 'list', 'loader-circle',
+  'grip-vertical', 'image', 'inbox', 'info', 'key-round', 'layout-grid', 'link', 'list', 'loader-circle',
   'log-out',
-  'menu', 'message-square', 'milestone', 'minus', 'moon', 'paperclip', 'panel-left', 'pencil',
+  'maximize-2', 'menu', 'message-square', 'milestone', 'minimize-2', 'minus', 'moon', 'paperclip', 'panel-left', 'pencil',
   'plus', 'refresh-cw', 'search', 'settings', 'shield', 'signal-high', 'signal-low', 'signal-medium',
   'square-check-big', 'sun', 'tag', 'trash-2', 'triangle-alert', 'upload', 'user', 'user-plus',
   'users', 'x'

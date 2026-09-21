@@ -22,6 +22,8 @@
     issues: IssueSummary[];
     /** Pre-selected on the issue a card in this board creates — set on a project's board. */
     projectId?: Guid | null;
+    /** Pre-selected likewise while the board is narrowed to one milestone. */
+    milestoneId?: Guid | null;
     teamId: Guid;
     /** Off for a viewer or a guest, who may read a board but not rearrange it. */
     canMove?: boolean;
@@ -34,6 +36,7 @@
     states,
     issues,
     projectId = null,
+    milestoneId = null,
     teamId,
     canMove = true,
     onopen,
@@ -83,7 +86,7 @@
               class="add"
               title="New issue in {column.state.name}"
               aria-label="New issue in {column.state.name}"
-              onclick={() => issueEditor.create({ teamId, projectId })}>
+              onclick={() => issueEditor.create({ teamId, projectId, milestoneId })}>
               <Icon name="plus" size={13} />
             </button>
           </header>
@@ -116,11 +119,14 @@
 </div>
 
 <style>
+  /*
+   * A grid, not a row of cards: lanes share the width between them and meet on a single rule, so
+   * the board fills the screen however many states the team has, and scrolls only once the lanes
+   * reach their minimum.
+   */
   .board {
     display: flex;
-    gap: var(--s-4);
     height: 100%;
-    padding: var(--s-4) var(--s-5);
     overflow-x: auto;
   }
 
@@ -130,21 +136,20 @@
    */
   .lane {
     display: flex;
-    flex: none;
+    flex: 1 0 0;
     flex-direction: column;
-    gap: var(--s-3);
-    width: 292px;
+    min-width: 260px;
     height: 100%;
-    padding: var(--s-2);
-    border: 1px solid transparent;
-    border-radius: var(--radius-md);
-    transition:
-      background var(--duration) var(--ease),
-      border-color var(--duration) var(--ease);
+    border-right: 1px solid var(--border);
+    background: var(--bg-sunken);
+    transition: background var(--duration) var(--ease);
+  }
+
+  .lane:last-child {
+    border-right: 0;
   }
 
   .lane.drop-target {
-    border-color: var(--accent-border);
     background: var(--accent-subtle);
   }
 
@@ -155,19 +160,22 @@
     min-height: 0;
   }
 
+  .column + .column {
+    border-top: 1px solid var(--border);
+  }
+
   .column {
     display: flex;
     flex: 1;
     flex-direction: column;
     min-height: 0;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--bg-sunken);
+    transition: background var(--duration) var(--ease);
   }
 
+  /* An inset ring rather than a border, so lighting a column up never shifts its neighbours. */
   .column.drop-target {
-    border-color: var(--accent);
     background: var(--accent-subtle-hover);
+    box-shadow: inset 0 0 0 1px var(--accent);
   }
 
   header {
