@@ -480,7 +480,7 @@ Every control is a real element: buttons are `<button>`, the modal is `<dialog>`
   only the issue picker on the relations panel uses `?search=`.
 - **Documents.** `GET /api/v1/documents` is complete on the server and unused here.
 - **The activity feed.** Read on the issue page only; `/api/v1/activity` across teams has no view.
-- **Workflow states and labels.** The teams page covers a team's settings and membership; its columns
-  and labels are still administered through the API alone.
+- **Workflow states.** The teams page covers a team's settings, membership and labels (and, for
+  administrators, organisation-wide labels); its columns are still administered through the API alone.
 - **Archiving and restoring projects,** which needs somewhere to see archived ones first.
 - Offline queueing of writes.

@@ -176,6 +176,11 @@ class Workspace {
     delete this.#labels[teamId];
   }
 
+  /** Drops every team's labels, after an organisation-wide one changed — each team caches those. */
+  invalidateLabels(): void {
+    this.#labels = {};
+  }
+
   async #cached<T>(
     kind: string,
     teamId: Guid,

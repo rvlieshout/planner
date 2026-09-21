@@ -12,12 +12,13 @@
   import ColorPicker from '$components/ColorPicker.svelte';
   import Icon from '$components/Icon.svelte';
   import Select from '$components/Select.svelte';
+  import TeamLabels from '$components/teams/TeamLabels.svelte';
   import type { SelectOption } from '$components/select';
   import { confirm } from '$components/confirm.svelte';
   import { toasts } from '$components/toast.svelte';
 
   /**
-   * Teams: their settings, and who is in them.
+   * Teams: their settings, who is in them, and their labels.
    *
    * The list is the teams you may *change*, which is a different list from the switcher in the
    * sidebar — that one is every team you may read. Archived teams are listed last rather than left
@@ -447,7 +448,7 @@
       <div class="empty">
         <Icon name="shield" size={28} />
         <p class="empty-title">Choose a team.</p>
-        <p>Its settings and membership open here.</p>
+        <p>Its settings, membership and labels open here.</p>
       </div>
     {:else}
       {#if error}
@@ -607,6 +608,10 @@
           {/if}
         {/if}
       </section>
+
+      {#if selected}
+        <TeamLabels teamId={selected.id} {canAdminister} />
+      {/if}
     {/if}
   </div>
 </div>

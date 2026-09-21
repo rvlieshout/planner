@@ -585,23 +585,24 @@ public static class TeamEndpoints
         IRealtimeNotifier notifier,
         CancellationToken ct)
     {
-        var validation = new Validation().Required(request.Name, "name").MaxLength(request.Name, 60, "name");
+        var name = request.Name?.Trim();
+        var validation = ValidateLabel(name, request.Color, request.Description);
         if (validation.HasErrors)
         {
             return validation.ToResult();
         }
 
-        if (await db.Labels.AnyAsync(l => l.TeamId == teamId && l.Name == request.Name, ct))
+        if (await db.Labels.AnyAsync(l => l.TeamId == teamId && l.Name == name, ct))
         {
-            return ApiResults.Conflict($"A label named {request.Name} already exists in this scope.");
+            return ApiResults.Conflict($"A label named {name} already exists in this scope.");
         }
 
         var label = new Label
         {
             TeamId = teamId,
-            Name = request.Name.Trim(),
+            Name = name!,
             Color = request.Color,
-            Description = request.Description
+            Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim()
         };
 
         db.Labels.Add(label);
@@ -616,6 +617,14 @@ public static class TeamEndpoints
 
         return Results.Created($"/api/v1/labels/{label.Id.ToBase58()}", dto);
     }
+
+    private static Validation ValidateLabel(string? name, string? color, string? description) =>
+        new Validation()
+            .Required(name, "name")
+            .MaxLength(name, 60, "name")
+            .Required(color, "color")
+            .Matches(color, "^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$", "color", "color must be a hex colour such as #5E6AD2.")
+            .MaxLength(description, 500, "description");
 
     private static async Task<IResult> UpdateLabelAsync(
         Guid labelId,
@@ -644,9 +653,25 @@ public static class TeamEndpoints
             return ApiResults.Forbidden("Organisation-wide labels are managed by administrators.");
         }
 
-        label.Name = request.Name.Or(label.Name)!;
-        label.Color = request.Color.Or(label.Color)!;
-        label.Description = request.Description.Or(label.Description);
+        var name = request.Name.Or(label.Name)?.Trim();
+        var color = request.Color.Or(label.Color);
+        var description = request.Description.Or(label.Description);
+
+        var validation = ValidateLabel(name, color, description);
+        if (validation.HasErrors)
+        {
+            return validation.ToResult();
+        }
+
+        if (name != label.Name &&
+            await db.Labels.AnyAsync(l => l.Id != label.Id && l.TeamId == label.TeamId && l.Name == name, ct))
+        {
+            return ApiResults.Conflict($"A label named {name} already exists in this scope.");
+        }
+
+        label.Name = name!;
+        label.Color = color!;
+        label.Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
 
         await db.SaveChangesAsync(ct);
 
