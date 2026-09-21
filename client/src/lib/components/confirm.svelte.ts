@@ -19,6 +19,8 @@ export interface ConfirmOptions {
   cancelLabel?: string;
   /** Paints the confirming button as destructive. */
   danger?: boolean;
+  /** Requires an exact, case-sensitive match before the destructive action is available. */
+  requiredText?: string;
 }
 
 interface Pending extends ConfirmOptions {
@@ -27,11 +29,18 @@ interface Pending extends ConfirmOptions {
 
 class Confirm {
   current = $state<Pending | null>(null);
+  confirmationText = $state('');
+
+  get canConfirm(): boolean {
+    return this.current !== null &&
+      (this.current.requiredText === undefined || this.confirmationText === this.current.requiredText);
+  }
 
   ask(options: ConfirmOptions): Promise<boolean> {
     // A second question while one is open would replace it and leave the first caller waiting for
     // ever. Answering "no" is the safe resolution of a question nobody can see.
     this.current?.resolve(false);
+    this.confirmationText = '';
 
     return new Promise<boolean>((resolve) => {
       this.current = { ...options, resolve };
@@ -39,6 +48,7 @@ class Confirm {
   }
 
   answer(value: boolean): void {
+    if (value && !this.canConfirm) return;
     const pending = this.current;
     this.current = null;
     pending?.resolve(value);

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Avatar from '$components/Avatar.svelte';
+  import AssigneePicker from './AssigneePicker.svelte';
   import Icon from '$components/Icon.svelte';
   import LabelChip from '$components/LabelChip.svelte';
   import PriorityIcon from '$components/PriorityIcon.svelte';
@@ -49,74 +49,78 @@
 </script>
 
 <!--
-  A real button, so Enter, focus order and the accessibility tree all come free. The press is
-  remembered rather than handled, which is what lets a click still select and a double-click still
-  open while a drag can start from the same gesture.
+  The row is a wrapper, and everything but the assignee is one real button inside it — Enter, focus
+  order and the accessibility tree all come free from that, and the press is remembered rather than
+  handled, which is what lets a click still select and a double-click still open while a drag starts
+  from the same gesture.
+
+  The assignee is a control of its own, so it is a sibling of that button rather than a button nested
+  inside one: the row keeps its single Enter target, the picker keeps its own, and neither has to
+  swallow the other's clicks to stay out of its way.
 -->
-<button
-  type="button"
+<div
   class="row"
   class:selected
   class:dragging={drag.isDragging(issue.id)}
-  data-issue-id={issue.id}
-  onclick={() => onselect?.(issue)}
-  ondblclick={() => onopen?.(issue)}
-  onkeydown={onKeyDown}
-  onpointerdown={draggable ? (event) => onpress?.(event, issue) : undefined}>
-  <PriorityIcon priority={issue.priority} size={13} />
+  data-issue-id={issue.id}>
+  <button
+    type="button"
+    class="main"
+    onclick={() => onselect?.(issue)}
+    ondblclick={() => onopen?.(issue)}
+    onkeydown={onKeyDown}
+    onpointerdown={draggable ? (event) => onpress?.(event, issue) : undefined}>
+    <PriorityIcon priority={issue.priority} size={13} />
 
-  <span class="issue-key">{issue.key}</span>
+    <span class="issue-key">{issue.key}</span>
 
-  <StateIcon type={issue.stateType} color={issue.stateColor} title={issue.stateName} size={13} />
+    <StateIcon type={issue.stateType} color={issue.stateColor} title={issue.stateName} size={13} />
 
-  <span class="title truncate">{issue.title}</span>
+    <span class="title truncate">{issue.title}</span>
 
-  {#if project}
-    <span class="project"><ProjectChip {project} /></span>
-  {/if}
-
-  {#if issue.subIssueCount > 0}
-    <span class="meta" title="{issue.subIssueCount} sub-issues">
-      <Icon name="corner-down-right" size={12} />
-      {issue.subIssueCount}
-    </span>
-  {/if}
-
-  {#if issue.commentCount > 0}
-    <span class="meta" title="{issue.commentCount} comments">
-      <Icon name="message-square" size={12} />
-      {issue.commentCount}
-    </span>
-  {/if}
-
-  <span class="labels">
-    {#each issue.labels.slice(0, 3) as label (label.id)}
-      <LabelChip {label} />
-    {/each}
-    {#if issue.labels.length > 3}
-      <span class="more">+{issue.labels.length - 3}</span>
+    {#if project}
+      <span class="project"><ProjectChip {project} /></span>
     {/if}
-  </span>
 
-  {#if issue.dueDate}
-    <span class="due" class:overdue title={overdue ? 'Overdue' : 'Due'}>
-      <Icon name="calendar" size={12} />
-      {formatDate(issue.dueDate)}
+    {#if issue.subIssueCount > 0}
+      <span class="meta" title="{issue.subIssueCount} sub-issues">
+        <Icon name="corner-down-right" size={12} />
+        {issue.subIssueCount}
+      </span>
+    {/if}
+
+    {#if issue.commentCount > 0}
+      <span class="meta" title="{issue.commentCount} comments">
+        <Icon name="message-square" size={12} />
+        {issue.commentCount}
+      </span>
+    {/if}
+
+    <span class="labels">
+      {#each issue.labels.slice(0, 3) as label (label.id)}
+        <LabelChip {label} />
+      {/each}
+      {#if issue.labels.length > 3}
+        <span class="more">+{issue.labels.length - 3}</span>
+      {/if}
     </span>
-  {/if}
 
-  {#if issue.estimate}
-    <span class="estimate" title="{issue.estimate} points">{issue.estimate}</span>
-  {/if}
+    {#if issue.dueDate}
+      <span class="due" class:overdue title={overdue ? 'Overdue' : 'Due'}>
+        <Icon name="calendar" size={12} />
+        {formatDate(issue.dueDate)}
+      </span>
+    {/if}
 
-  <span class="updated" title={formatExact(issue.updatedAt)}>{relativeTime(issue.updatedAt)}</span>
+    {#if issue.estimate}
+      <span class="estimate" title="{issue.estimate} points">{issue.estimate}</span>
+    {/if}
 
-  {#if issue.assignee}
-    <Avatar name={issue.assignee.displayName} seed={issue.assignee.email} size={18} />
-  {:else}
-    <span class="unassigned" title="Unassigned"><Icon name="circle-user" size={16} /></span>
-  {/if}
-</button>
+    <span class="updated" title={formatExact(issue.updatedAt)}>{relativeTime(issue.updatedAt)}</span>
+  </button>
+
+  <AssigneePicker {issue} size={18} />
+</div>
 
 <style>
   .row {
@@ -126,11 +130,25 @@
     width: 100%;
     height: var(--row-h);
     padding: 0 var(--s-5);
-    border: 0;
     border-left: 2px solid transparent;
-    background: none;
     color: var(--fg);
     font-size: var(--text-base);
+    cursor: default;
+  }
+
+  /* The row's whole width bar the assignee, so a click anywhere across it still selects. */
+  .main {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: var(--s-3);
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font-size: inherit;
     text-align: left;
     cursor: default;
   }
@@ -208,10 +226,6 @@
   .more {
     color: var(--fg-tertiary);
     font-size: var(--text-xs);
-  }
-
-  .unassigned {
-    color: var(--fg-disabled);
   }
 
   /* Narrow windows drop the decoration rather than wrapping the row. */

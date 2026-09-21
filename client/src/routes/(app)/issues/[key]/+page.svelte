@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DateInput from '$components/DateInput.svelte';
   import { page } from '$app/state';
   import { ApiError, issues as issuesApi, projects as projectsApi } from '$lib/api';
   import type {
@@ -413,6 +414,7 @@
         value: member.userId,
         label: member.displayName,
         avatarName: member.displayName,
+        avatarSeed: member.email,
         hint: member.email
       }))
   ]);
@@ -613,7 +615,7 @@
 
       <div class="property">
         <p class="caption">Due date</p>
-        <input bind:value={dueDate} class="input" type="date" disabled={!canWrite} aria-label="Due date" />
+        <DateInput bind:value={dueDate} class="input" disabled={!canWrite} aria-label="Due date" />
       </div>
 
       <div class="property">

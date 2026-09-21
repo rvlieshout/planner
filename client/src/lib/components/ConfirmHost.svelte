@@ -20,6 +20,19 @@
   size="s"
   onclose={() => confirm.answer(false)}>
   <p class="message">{pending?.message ?? ''}</p>
+  {#if pending?.requiredText !== undefined}
+    <div class="field confirmation">
+      <label for="confirmation-text">Type <strong>{pending.requiredText}</strong> to confirm.</label>
+      <input
+        id="confirmation-text"
+        class="input"
+        bind:value={confirm.confirmationText}
+        autocomplete="off"
+        spellcheck={false}
+        aria-describedby="confirmation-hint" />
+      <p id="confirmation-hint" class="message">The name must match exactly, including capital letters.</p>
+    </div>
+  {/if}
 
   {#snippet footer()}
     <span class="spacer"></span>
@@ -33,6 +46,7 @@
     <button
       type="button"
       class="btn {pending?.danger ? 'btn-danger' : 'btn-primary'}"
+      disabled={!confirm.canConfirm}
       onclick={() => confirm.answer(true)}>
       {pending?.confirmLabel ?? 'Discard'}
     </button>
@@ -40,6 +54,11 @@
 </Modal>
 
 <style>
+  .confirmation {
+    margin-top: var(--s-5);
+    overflow-wrap: anywhere;
+  }
+
   .message {
     color: var(--fg-secondary);
     line-height: var(--leading-relaxed);

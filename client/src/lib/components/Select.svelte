@@ -1,4 +1,5 @@
 <script lang="ts" generics="T">
+  import type { Snippet } from 'svelte';
   import Icon from './Icon.svelte';
   import Avatar from './Avatar.svelte';
   import Popover from './Popover.svelte';
@@ -25,6 +26,23 @@
     searchable?: boolean;
     label?: string;
     id?: string;
+    /**
+     * A control of the caller's own in place of the chip — a row's avatar, say.
+     *
+     * The list, the search and the keys are the same; only what opens them differs. The snippet is
+     * handed everything a trigger needs, and `onkeydown` is passed straight through so a custom
+     * control still opens on Enter and walks the list with the arrows.
+     */
+    trigger?: Snippet<
+      [
+        {
+          open: boolean;
+          selected: SelectOption<T> | undefined;
+          toggle: () => void;
+          onkeydown: (event: KeyboardEvent) => void;
+        }
+      ]
+    >;
   }
 
   let {
@@ -36,7 +54,8 @@
     disabled = false,
     searchable,
     label,
-    id
+    id,
+    trigger
   }: Props = $props();
 
   let open = $state(false);
@@ -115,11 +134,10 @@
   });
 </script>
 
-<Popover
-  {open}
-  onclose={() => (open = false)}
-  width={variant === 'field' ? 'trigger' : undefined}>
-  {#snippet trigger()}
+{#snippet chip()}
+  {#if trigger}
+    {@render trigger({ open, selected, toggle, onkeydown: onKeyDown })}
+  {:else}
     <button
       {id}
       type="button"
@@ -133,7 +151,7 @@
       onkeydown={onKeyDown}>
       {#if selected}
         {#if selected.avatarName !== undefined}
-          <Avatar name={selected.avatarName} size={16} />
+          <Avatar name={selected.avatarName} seed={selected.avatarSeed} size={16} />
         {:else if selected.icon}
           <span class="glyph" style:color={selected.color}>
             <Icon name={selected.icon} size={14} />
@@ -147,8 +165,14 @@
       {/if}
       <Icon name="chevron-down" size={12} class="caret" />
     </button>
-  {/snippet}
+  {/if}
+{/snippet}
 
+<Popover
+  {open}
+  onclose={() => (open = false)}
+  width={variant === 'field' ? 'trigger' : undefined}
+  trigger={chip}>
   <div class="menu" role="listbox" aria-label={label}>
     {#if showSearch}
       <div class="search">
@@ -175,7 +199,7 @@
         onmouseenter={() => (activeIndex = index)}
         onclick={() => choose(option)}>
         {#if option.avatarName !== undefined}
-          <Avatar name={option.avatarName} size={18} />
+          <Avatar name={option.avatarName} seed={option.avatarSeed} size={18} />
         {:else if option.icon}
           <span class="glyph" style:color={option.color}>
             <Icon name={option.icon} size={14} />

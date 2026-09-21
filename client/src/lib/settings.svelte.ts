@@ -14,6 +14,7 @@ export type BoardViewChoice = 'board' | 'list';
 
 const KEYS = {
   theme: 'planner.theme',
+  dateLocale: 'planner.dateLocale',
   sidebarWidth: 'planner.sidebarWidth',
   sidebarCollapsed: 'planner.sidebarCollapsed',
   lastTeamId: 'planner.lastTeamId',
@@ -25,6 +26,7 @@ const SIDEBAR_MIN = 180;
 const SIDEBAR_MAX = 420;
 
 class Settings {
+  dateLocale = $state('auto');
   theme = $state<ThemeChoice>('system');
   sidebarWidth = $state(236);
   sidebarCollapsed = $state(false);
@@ -42,6 +44,10 @@ class Settings {
   lastEmail = $state<string | null>(null);
 
   constructor() {
+    const dateLocale = read(KEYS.dateLocale);
+    if (dateLocale && ['auto', 'nl-NL', 'en-GB', 'en-US', 'de-DE', 'fr-FR'].includes(dateLocale)) {
+      this.dateLocale = dateLocale;
+    }
     const theme = read(KEYS.theme);
     if (theme === 'light' || theme === 'dark' || theme === 'system') this.theme = theme;
 
@@ -60,6 +66,11 @@ class Settings {
     this.theme = theme;
     write(KEYS.theme, theme);
     this.applyTheme();
+  }
+
+  setDateLocale(locale: string): void {
+    this.dateLocale = locale;
+    write(KEYS.dateLocale, locale);
   }
 
   /**

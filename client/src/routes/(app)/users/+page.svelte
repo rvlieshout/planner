@@ -17,6 +17,8 @@
   import { workspace } from '$lib/workspace.svelte';
   import Avatar from '$components/Avatar.svelte';
   import Icon from '$components/Icon.svelte';
+  import TimeZoneSelect from '$components/TimeZoneSelect.svelte';
+  import { defaultTimeZone } from '$lib/regional';
   import Modal from '$components/Modal.svelte';
   import Select from '$components/Select.svelte';
   import type { SelectOption } from '$components/select';
@@ -173,7 +175,7 @@
     newPassword = '';
     newPasswordConfirm = '';
     displayName = '';
-    timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    timeZone = defaultTimeZone();
     role = 'member';
     isActive = true;
     memberships = {};
@@ -550,7 +552,7 @@
 
           <div class="field">
             <label for="user-tz">Time zone</label>
-            <input id="user-tz" bind:value={timeZone} class="input" disabled={saving} />
+            <TimeZoneSelect id="user-tz" bind:value={timeZone} disabled={saving} />
           </div>
         </div>
 

@@ -3,11 +3,14 @@
   import { session } from '$lib/auth/session.svelte';
   import { chrome } from '$lib/chrome.svelte';
   import { settings, type ThemeChoice } from '$lib/settings.svelte';
+  import { regional } from '$lib/regional.svelte';
+  import { calendarDate } from '$lib/regional';
   import { realtime } from '$lib/realtime/hub.svelte';
   import { BUILD_SHA, VERSION } from '$lib/version';
   import { ORG_ROLE, TEAM_ROLE } from '$lib/meta';
   import Avatar from '$components/Avatar.svelte';
   import Icon from '$components/Icon.svelte';
+  import TimeZoneSelect from '$components/TimeZoneSelect.svelte';
   import { toasts } from '$components/toast.svelte';
 
   /**
@@ -141,7 +144,7 @@
 
       <div class="field">
         <label for="me-tz">Time zone</label>
-        <input id="me-tz" bind:value={timeZone} class="input" disabled={savingProfile} />
+        <TimeZoneSelect id="me-tz" bind:value={timeZone} disabled={savingProfile} />
       </div>
     </div>
 
@@ -204,6 +207,24 @@
         disabled={changingPassword || !currentPassword || !newPassword}>
         Change password
       </button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-title"><span>Date and time</span></div>
+    <div class="field">
+      <label for="date-locale">Regional format</label>
+      <select id="date-locale" class="input" value={settings.dateLocale}
+        onchange={(event) => settings.setDateLocale(event.currentTarget.value)}>
+        <option value="auto">Automatic (timezone hint, then browser)</option>
+        <option value="nl-NL">Nederlands (Nederland)</option>
+        <option value="en-GB">English (United Kingdom)</option>
+        <option value="en-US">English (United States)</option>
+        <option value="de-DE">Deutsch (Deutschland)</option>
+        <option value="fr-FR">Français (France)</option>
+      </select>
+      <p class="muted hint">Europe/Amsterdam selects Dutch formats automatically. This preference is saved in this browser; the interface stays English.</p>
+      <p class="muted hint">Example: {calendarDate('2026-09-18', regional.locale)} · {new Intl.DateTimeFormat(regional.locale, { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date('2026-09-18T14:30:00Z'))}</p>
     </div>
   </section>
 

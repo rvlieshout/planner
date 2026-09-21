@@ -14,6 +14,8 @@ export interface SelectOption<T> {
   color?: string;
   /** A monogram instead of an icon — assignees and leads. */
   avatarName?: string;
+  /** A different seed for the monogram's colour — an email, so a rename keeps the same colour. */
+  avatarSeed?: string;
   hint?: string;
   disabled?: boolean;
 }

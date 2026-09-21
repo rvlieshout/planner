@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DateInput from '$components/DateInput.svelte';
   import { ApiError, milestones as milestonesApi, projects as projectsApi } from '$lib/api';
   import type {
     CreateProjectRequest,
@@ -12,6 +13,7 @@
   } from '$lib/api/types';
   import { MILESTONE_STATUSES, PROJECT_HEALTHS, PROJECT_STATUSES } from '$lib/api/types';
   import { chrome } from '$lib/chrome.svelte';
+  import { Permission, session } from '$lib/auth/session.svelte';
   import { MILESTONE_STATUS, PROJECT_HEALTH, PROJECT_STATUS } from '$lib/meta';
   import { navigate } from '$lib/navigation.svelte';
   import { realtime } from '$lib/realtime/hub.svelte';
@@ -49,6 +51,8 @@
   let id = $state<Guid | null>(null);
   let loading = $state(true);
   let saving = $state(false);
+  let deleting = $state(false);
+  let loadedTeamId = $state<Guid | null>(null);
   let error = $state<string | null>(null);
   let fieldErrors = $state<Record<string, string>>({});
 
@@ -115,6 +119,7 @@
   }
 
   function apply(project: ProjectDto) {
+    loadedTeamId = project.teamId;
     name = project.name;
     summary = project.summary ?? '';
     description = project.description ?? '';
@@ -202,7 +207,7 @@
     });
 
     chrome.refresh = load;
-    chrome.busy = loading || saving;
+    chrome.busy = loading || saving || deleting;
     chrome.unsavedWork = () => (dirty ? 'this project’s unsaved changes' : null);
 
     return () => chrome.clear();
@@ -233,7 +238,7 @@
    * lies.
    */
   async function save() {
-    if (saving) return;
+    if (saving || deleting) return;
 
     if (!name.trim()) {
       fieldErrors = { name: 'A name is required.' };
@@ -379,6 +384,36 @@
     await navigate(id ? `/projects/${id}` : '/board');
   }
 
+  async function deleteProject() {
+    if (!id || loading || saving || deleting || !session.can(loadedTeamId, Permission.Administer)) return;
+
+    const projectToDelete = id;
+    const projectName = saved.name;
+    deleting = true;
+
+    try {
+      const answer = await confirm.ask({
+        title: 'Are you sure!',
+        message: `Permanently delete “${projectName}” and its milestones? Issues and documents stay in the team. Unsaved changes will be discarded. This cannot be undone.`,
+        requiredText: projectName,
+        confirmLabel: 'Delete project',
+        cancelLabel: 'Cancel',
+        danger: true
+      });
+
+      if (!answer || id !== projectToDelete) return;
+
+      await projectsApi.remove(projectToDelete);
+      workspace.projects = workspace.projects.filter((project) => project.id !== projectToDelete);
+      toasts.success('Project deleted.');
+      await navigate('/board', { force: true });
+    } catch (failure) {
+      toasts.error(failure instanceof ApiError ? failure.message : 'Deleting that project failed.');
+    } finally {
+      deleting = false;
+    }
+  }
+
   /* --------------------------------------------------------------- options ---- */
 
   const statusOptions = $derived<SelectOption<ProjectStatus>[]>(
@@ -407,6 +442,7 @@
         value: member.userId,
         label: member.displayName,
         avatarName: member.displayName,
+        avatarSeed: member.email,
         hint: member.email
       }))
   ]);
@@ -424,12 +460,12 @@
 {#snippet toolbar()}
   {#if dirty}<span class="dirty">Unsaved changes</span>{/if}
 
-  <button type="button" class="btn btn-sm" onclick={() => void close()}>Close</button>
+  <button type="button" class="btn btn-sm" onclick={() => void close()} disabled={deleting}>Close</button>
   <button
     type="button"
     class="btn btn-sm btn-primary"
     onclick={() => void save()}
-    disabled={saving || !name.trim()}>
+    disabled={saving || deleting || !name.trim()}>
     {#if saving}<Icon name="loader-circle" size={13} class="spin" />{/if}
     {id ? 'Save changes' : 'Create project'}
   </button>
@@ -503,12 +539,12 @@
 
         <div class="field">
           <label for="project-start">Start date</label>
-          <input id="project-start" bind:value={startDate} class="input" type="date" disabled={saving} />
+          <DateInput id="project-start" bind:value={startDate} class="input" disabled={saving} />
         </div>
 
         <div class="field">
           <label for="project-target">Target date</label>
-          <input id="project-target" bind:value={targetDate} class="input" type="date" disabled={saving} />
+          <DateInput id="project-target" bind:value={targetDate} class="input" disabled={saving} />
         </div>
       </div>
     </section>
@@ -529,10 +565,9 @@
                 aria-label="Milestone name"
                 disabled={row.busy || saving} />
 
-              <input
+              <DateInput
                 bind:value={row.targetDate}
                 class="input date"
-                type="date"
                 aria-label="Target date"
                 disabled={row.busy || saving} />
 
@@ -580,10 +615,9 @@
             placeholder="New milestone"
             aria-label="New milestone name"
             disabled={saving} />
-          <input
+          <DateInput
             bind:value={newMilestoneDate}
             class="input date"
-            type="date"
             aria-label="New milestone target date"
             disabled={saving} />
           <button
@@ -597,6 +631,20 @@
         </div>
       {/if}
     </section>
+    {#if id && saved.name && session.can(loadedTeamId, Permission.Administer)}
+      <section class="panel">
+        <div class="panel-title"><span>Delete project</span></div>
+        <p class="muted small">Permanently delete this project and its milestones. Issues and documents stay in the team.</p>
+        <button
+          type="button"
+          class="btn btn-danger"
+          disabled={saving || deleting}
+          onclick={() => void deleteProject()}>
+          <Icon name={deleting ? 'loader-circle' : 'trash-2'} size={14} class={deleting ? 'spin' : ''} />
+          {deleting ? 'Deleting…' : 'Delete project'}
+        </button>
+      </section>
+    {/if}
   {/if}
 </div>
 

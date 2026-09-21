@@ -2,13 +2,8 @@
 
 const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
 
-const day = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' });
-const dayWithYear = new Intl.DateTimeFormat(undefined, {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric'
-});
-const exact = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+import { regional } from './regional.svelte';
+import { dateOptions, exactDate } from './regional';
 
 /**
  * "3m", "yesterday", "12 Mar" — a column of these is read for its shape, so the recent past is
@@ -35,18 +30,25 @@ export function relativeTime(value: string | null | undefined): string {
 export function formatDate(value: string | null | undefined): string {
   if (!value) return '';
 
-  const date = parseDate(value);
-  if (!date) return '';
-
-  return date.getFullYear() === new Date().getFullYear() ? day.format(date) : dayWithYear.format(date);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const options = dateOptions(value, regional.timeZone);
+  const year = new Intl.DateTimeFormat('en', { year: 'numeric', ...options });
+  const currentYear = new Intl.DateTimeFormat('en', {
+    year: 'numeric', timeZone: regional.timeZone
+  }).format(new Date());
+  return new Intl.DateTimeFormat(regional.locale, {
+    day: 'numeric', month: 'short',
+    ...(year.format(date) !== currentYear ? { year: 'numeric' as const } : {}),
+    ...options
+  }).format(date);
 }
 
 /** The full moment, for the title attribute behind a relative time. */
 export function formatExact(value: string | null | undefined): string {
   if (!value) return '';
 
-  const date = parseDate(value);
-  return date ? exact.format(date) : '';
+  return exactDate(value, regional.locale, regional.timeZone);
 }
 
 /**

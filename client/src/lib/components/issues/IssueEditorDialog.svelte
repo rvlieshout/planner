@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DateInput from '$components/DateInput.svelte';
   import Modal from '$components/Modal.svelte';
   import Icon from '$components/Icon.svelte';
   import Select from '$components/Select.svelte';
@@ -213,6 +214,7 @@
         value: member.userId,
         label: member.displayName,
         avatarName: member.displayName,
+        avatarSeed: member.email,
         hint: member.email
       }))
   ]);
@@ -489,9 +491,8 @@
 
         <label class="due">
           <Icon name="calendar" size={13} />
-          <input
+          <DateInput
             bind:value={draft.dueDate}
-            type="date"
             aria-label="Due date"
             disabled={saving} />
         </label>
@@ -615,7 +616,7 @@
     font-size: var(--text-sm);
   }
 
-  .due input {
+  .due :global(.date-input) {
     border: 0;
     background: none;
     color: var(--fg);
