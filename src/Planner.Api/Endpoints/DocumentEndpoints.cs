@@ -20,14 +20,14 @@ public static class DocumentEndpoints
         var documents = app.MapGroup("/api/v1/documents").WithTags("Documents");
 
         documents.MapGet("/", ListAsync).WithSummary("Documents, filtered by team or project");
-        documents.MapGet("/{id:guid}", GetAsync).WithSummary("A document with its markdown body");
+        documents.MapGet("/{id:b58}", GetAsync).WithSummary("A document with its markdown body");
         documents.MapPost("/", CreateAsync).WithSummary("Create a document");
-        documents.MapPatch("/{id:guid}", UpdateAsync).WithSummary("Update a document");
-        documents.MapPost("/{id:guid}/archive", ArchiveAsync).WithSummary("Archive a document");
-        documents.MapPost("/{id:guid}/restore", RestoreAsync).WithSummary("Restore an archived document");
-        documents.MapDelete("/{id:guid}", DeleteAsync).WithSummary("Delete a document permanently");
+        documents.MapPatch("/{id:b58}", UpdateAsync).WithSummary("Update a document");
+        documents.MapPost("/{id:b58}/archive", ArchiveAsync).WithSummary("Archive a document");
+        documents.MapPost("/{id:b58}/restore", RestoreAsync).WithSummary("Restore an archived document");
+        documents.MapDelete("/{id:b58}", DeleteAsync).WithSummary("Delete a document permanently");
 
-        app.MapGet("/api/v1/projects/{projectId:guid}/documents", ListByProjectAsync)
+        app.MapGet("/api/v1/projects/{projectId:b58}/documents", ListByProjectAsync)
             .WithTags("Documents")
             .WithSummary("Documents attached to a project");
 
@@ -172,7 +172,7 @@ public static class DocumentEndpoints
             .Select(Mapping.DocumentSummaryProjection).FirstAsync(ct);
 
         await notifier.DocumentChanged(ChangeKind.Created, summary);
-        return Results.Created($"/api/v1/documents/{document.Id}", summary);
+        return Results.Created($"/api/v1/documents/{document.Id.ToBase58()}", summary);
     }
 
     private static async Task<IResult> UpdateAsync(

@@ -8,7 +8,7 @@ tables, 7 from ASP.NET Core Identity, 4 from OpenIddict.
 | Convention | Why |
 | --- | --- |
 | `snake_case` tables and columns | On-prem operators query this database by hand. Applied model-wide, so Identity's `AspNetUsers` becomes `users` and OpenIddict's tables follow suit. |
-| UUIDv7 primary keys (`Guid.CreateVersion7()`) | Sortable by creation time, so inserts stay at the right edge of the B-tree instead of scattering writes the way UUIDv4 does. Clients can still mint ids offline. |
+| UUIDv7 primary keys (`Guid.CreateVersion7()`) | Sortable by creation time, so inserts stay at the right edge of the B-tree instead of scattering writes the way UUIDv4 does. Clients can still mint ids offline. The columns are `uuid`; the API base58-encodes them on the way out and decodes on the way in, so a value seen in `psql` and the same one seen in a response look nothing alike. |
 | `timestamptz` everywhere | `DateTimeOffset` maps to it natively. No local-time columns exist. |
 | `date` for calendar fields | `start_date`, `target_date` and `due_date` are `DateOnly` — a due date has no timezone. |
 | Enums stored as `integer` | Compact and orderable, which `priority` needs (`ORDER BY priority` must put Urgent first). The API translates them to names on the wire, so no client sees the numbers. |

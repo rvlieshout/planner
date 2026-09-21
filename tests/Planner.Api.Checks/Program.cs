@@ -59,6 +59,8 @@ finally
     Directory.Delete(root, recursive: true);
 }
 
+await Planner.Api.Checks.Base58Checks.RunAsync(Check);
+
 static void Check(bool condition, string message)
 {
     if (!condition) throw new InvalidOperationException(message);

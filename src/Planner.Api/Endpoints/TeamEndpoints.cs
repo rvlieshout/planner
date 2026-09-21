@@ -3,6 +3,7 @@ using Planner.Api.Auth;
 using Planner.Api.Authorization;
 using Planner.Api.Common;
 using Planner.Api.Realtime;
+using Planner.Contracts.Common;
 using Planner.Contracts.Realtime;
 using Planner.Contracts.Teams;
 using Planner.Domain.Entities;
@@ -18,36 +19,36 @@ public static class TeamEndpoints
         var teams = app.MapGroup("/api/v1/teams").WithTags("Teams");
 
         teams.MapGet("/", ListAsync).WithSummary("Teams the caller can see");
-        teams.MapGet("/{id:guid}", GetAsync).WithSummary("A single team");
+        teams.MapGet("/{id:b58}", GetAsync).WithSummary("A single team");
 
         teams.MapPost("/", CreateAsync)
             .RequireAuthorization(PlannerPolicies.OrgAdmin)
             .WithSummary("Create a team, its default workflow states and its first member");
 
-        teams.MapPatch("/{id:guid}", UpdateAsync).WithSummary("Update team settings");
-        teams.MapPost("/{id:guid}/archive", ArchiveAsync).WithSummary("Archive a team");
-        teams.MapPost("/{id:guid}/restore", RestoreAsync).WithSummary("Restore an archived team");
+        teams.MapPatch("/{id:b58}", UpdateAsync).WithSummary("Update team settings");
+        teams.MapPost("/{id:b58}/archive", ArchiveAsync).WithSummary("Archive a team");
+        teams.MapPost("/{id:b58}/restore", RestoreAsync).WithSummary("Restore an archived team");
 
-        teams.MapGet("/{id:guid}/members", ListMembersAsync).WithSummary("Team membership");
-        teams.MapPost("/{id:guid}/members", AddMemberAsync).WithSummary("Add a user to the team");
-        teams.MapPatch("/{id:guid}/members/{userId:guid}", UpdateMemberAsync).WithSummary("Change a member's team role");
-        teams.MapDelete("/{id:guid}/members/{userId:guid}", RemoveMemberAsync).WithSummary("Remove a member");
+        teams.MapGet("/{id:b58}/members", ListMembersAsync).WithSummary("Team membership");
+        teams.MapPost("/{id:b58}/members", AddMemberAsync).WithSummary("Add a user to the team");
+        teams.MapPatch("/{id:b58}/members/{userId:b58}", UpdateMemberAsync).WithSummary("Change a member's team role");
+        teams.MapDelete("/{id:b58}/members/{userId:b58}", RemoveMemberAsync).WithSummary("Remove a member");
 
-        teams.MapGet("/{id:guid}/states", ListStatesAsync).WithSummary("Workflow states (board columns)");
-        teams.MapPost("/{id:guid}/states", CreateStateAsync).WithSummary("Add a workflow state");
-        teams.MapPatch("/{id:guid}/states/{stateId:guid}", UpdateStateAsync).WithSummary("Update a workflow state");
-        teams.MapDelete("/{id:guid}/states/{stateId:guid}", DeleteStateAsync).WithSummary("Delete an empty workflow state");
+        teams.MapGet("/{id:b58}/states", ListStatesAsync).WithSummary("Workflow states (board columns)");
+        teams.MapPost("/{id:b58}/states", CreateStateAsync).WithSummary("Add a workflow state");
+        teams.MapPatch("/{id:b58}/states/{stateId:b58}", UpdateStateAsync).WithSummary("Update a workflow state");
+        teams.MapDelete("/{id:b58}/states/{stateId:b58}", DeleteStateAsync).WithSummary("Delete an empty workflow state");
 
-        teams.MapGet("/{id:guid}/labels", ListTeamLabelsAsync).WithSummary("Labels usable by this team");
-        teams.MapPost("/{id:guid}/labels", CreateTeamLabelAsync).WithSummary("Create a team label");
+        teams.MapGet("/{id:b58}/labels", ListTeamLabelsAsync).WithSummary("Labels usable by this team");
+        teams.MapPost("/{id:b58}/labels", CreateTeamLabelAsync).WithSummary("Create a team label");
 
         var labels = app.MapGroup("/api/v1/labels").WithTags("Labels");
         labels.MapGet("/", ListLabelsAsync).WithSummary("All labels the caller can use");
         labels.MapPost("/", CreateOrgLabelAsync)
             .RequireAuthorization(PlannerPolicies.OrgAdmin)
             .WithSummary("Create an organisation-wide label");
-        labels.MapPatch("/{labelId:guid}", UpdateLabelAsync).WithSummary("Update a label");
-        labels.MapDelete("/{labelId:guid}", DeleteLabelAsync).WithSummary("Delete a label");
+        labels.MapPatch("/{labelId:b58}", UpdateLabelAsync).WithSummary("Update a label");
+        labels.MapDelete("/{labelId:b58}", DeleteLabelAsync).WithSummary("Delete a label");
 
         return app;
     }
@@ -129,7 +130,7 @@ public static class TeamEndpoints
 
         var dto = await db.Teams.AsNoTracking().Where(t => t.Id == team.Id).Select(Mapping.TeamProjection).FirstAsync(ct);
         await notifier.TeamChanged(ChangeKind.Created, dto);
-        return Results.Created($"/api/v1/teams/{team.Id}", dto);
+        return Results.Created($"/api/v1/teams/{team.Id.ToBase58()}", dto);
     }
 
     private static async Task<IResult> UpdateAsync(
@@ -273,7 +274,7 @@ public static class TeamEndpoints
         // Joined first, so the new member's open sockets receive the announcement of their own arrival.
         await subscriptions.SyncUserAsync(request.UserId);
         await notifier.TeamMemberChanged(ChangeKind.Created, dto);
-        return Results.Created($"/api/v1/teams/{id}/members/{request.UserId}", dto);
+        return Results.Created($"/api/v1/teams/{id.ToBase58()}/members/{request.UserId.ToBase58()}", dto);
     }
 
     private static async Task<IResult> UpdateMemberAsync(
@@ -432,7 +433,7 @@ public static class TeamEndpoints
 
         var dto = Mapping.ToWorkflowState(state);
         await notifier.WorkflowStateChanged(ChangeKind.Created, dto);
-        return Results.Created($"/api/v1/teams/{id}/states/{state.Id}", dto);
+        return Results.Created($"/api/v1/teams/{id.ToBase58()}/states/{state.Id.ToBase58()}", dto);
     }
 
     private static async Task<IResult> UpdateStateAsync(
@@ -613,7 +614,7 @@ public static class TeamEndpoints
             await notifier.LabelChanged(ChangeKind.Created, dto, scoped);
         }
 
-        return Results.Created($"/api/v1/labels/{label.Id}", dto);
+        return Results.Created($"/api/v1/labels/{label.Id.ToBase58()}", dto);
     }
 
     private static async Task<IResult> UpdateLabelAsync(

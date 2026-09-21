@@ -21,29 +21,29 @@ public static class IssueEndpoints
         issues.MapGet("/", ListAsync)
             .WithSummary("Filter issues across every team the caller can read");
 
-        issues.MapGet("/{id:guid}", GetAsync).WithSummary("An issue with sub-issues, relations and attachments");
+        issues.MapGet("/{id:b58}", GetAsync).WithSummary("An issue with sub-issues, relations and attachments");
         issues.MapGet("/by-key/{key}", GetByKeyAsync).WithSummary("Look an issue up by its human key, e.g. ENG-42");
 
         issues.MapPost("/", CreateAsync).WithSummary("Create an issue");
-        issues.MapPatch("/{id:guid}", UpdateAsync).WithSummary("Update an issue");
-        issues.MapPost("/{id:guid}/move", MoveAsync).WithSummary("Move an issue between board columns or ranks");
-        issues.MapPost("/{id:guid}/archive", ArchiveAsync).WithSummary("Archive an issue");
-        issues.MapPost("/{id:guid}/restore", RestoreAsync).WithSummary("Restore an archived issue");
-        issues.MapDelete("/{id:guid}", DeleteAsync).WithSummary("Delete an issue permanently");
+        issues.MapPatch("/{id:b58}", UpdateAsync).WithSummary("Update an issue");
+        issues.MapPost("/{id:b58}/move", MoveAsync).WithSummary("Move an issue between board columns or ranks");
+        issues.MapPost("/{id:b58}/archive", ArchiveAsync).WithSummary("Archive an issue");
+        issues.MapPost("/{id:b58}/restore", RestoreAsync).WithSummary("Restore an archived issue");
+        issues.MapDelete("/{id:b58}", DeleteAsync).WithSummary("Delete an issue permanently");
 
-        issues.MapGet("/{id:guid}/comments", ListCommentsAsync).WithSummary("Comments on an issue");
-        issues.MapPost("/{id:guid}/comments", CreateCommentAsync).WithSummary("Comment on an issue");
+        issues.MapGet("/{id:b58}/comments", ListCommentsAsync).WithSummary("Comments on an issue");
+        issues.MapPost("/{id:b58}/comments", CreateCommentAsync).WithSummary("Comment on an issue");
 
-        issues.MapPost("/{id:guid}/attachments", CreateAttachmentAsync).WithSummary("Attach a file reference or link");
-        issues.MapPost("/{id:guid}/relations", CreateRelationAsync).WithSummary("Relate this issue to another");
-        issues.MapDelete("/{id:guid}/relations/{relationId:guid}", DeleteRelationAsync).WithSummary("Remove a relation");
-        issues.MapGet("/{id:guid}/activity", ListIssueActivityAsync).WithSummary("Audit trail for one issue");
+        issues.MapPost("/{id:b58}/attachments", CreateAttachmentAsync).WithSummary("Attach a file reference or link");
+        issues.MapPost("/{id:b58}/relations", CreateRelationAsync).WithSummary("Relate this issue to another");
+        issues.MapDelete("/{id:b58}/relations/{relationId:b58}", DeleteRelationAsync).WithSummary("Remove a relation");
+        issues.MapGet("/{id:b58}/activity", ListIssueActivityAsync).WithSummary("Audit trail for one issue");
 
         var comments = app.MapGroup("/api/v1/comments").WithTags("Comments");
-        comments.MapPatch("/{commentId:guid}", UpdateCommentAsync).WithSummary("Edit your own comment");
-        comments.MapDelete("/{commentId:guid}", DeleteCommentAsync).WithSummary("Delete a comment");
+        comments.MapPatch("/{commentId:b58}", UpdateCommentAsync).WithSummary("Edit your own comment");
+        comments.MapDelete("/{commentId:b58}", DeleteCommentAsync).WithSummary("Delete a comment");
 
-        app.MapDelete("/api/v1/attachments/{attachmentId:guid}", DeleteAttachmentAsync)
+        app.MapDelete("/api/v1/attachments/{attachmentId:b58}", DeleteAttachmentAsync)
             .WithTags("Attachments")
             .WithSummary("Remove an attachment reference");
 
@@ -368,7 +368,7 @@ public static class IssueEndpoints
         await PublishRollupsAsync(db, notifier, issue.TeamId, null,
             new Rollup(issue.ProjectId, issue.MilestoneId, state.Type, Archived: false), ct);
 
-        return Results.Created($"/api/v1/issues/{issue.Id}", summary);
+        return Results.Created($"/api/v1/issues/{issue.Id.ToBase58()}", summary);
     }
 
     private static async Task<IResult> UpdateAsync(
@@ -791,7 +791,7 @@ public static class IssueEndpoints
             .Select(Mapping.CommentProjection).FirstAsync(ct);
 
         await notifier.CommentChanged(ChangeKind.Created, dto, issue.TeamId);
-        return Results.Created($"/api/v1/comments/{comment.Id}", dto);
+        return Results.Created($"/api/v1/comments/{comment.Id.ToBase58()}", dto);
     }
 
     private static async Task<IResult> UpdateCommentAsync(
@@ -929,7 +929,7 @@ public static class IssueEndpoints
             .Select(Mapping.AttachmentProjection).FirstAsync(ct);
 
         await notifier.AttachmentChanged(ChangeKind.Created, dto, issue.TeamId);
-        return Results.Created($"/api/v1/attachments/{attachment.Id}", dto);
+        return Results.Created($"/api/v1/attachments/{attachment.Id.ToBase58()}", dto);
     }
 
     private static async Task<IResult> DeleteAttachmentAsync(
@@ -1057,7 +1057,7 @@ public static class IssueEndpoints
             target.State.Type);
 
         await notifier.IssueRelationChanged(ChangeKind.Created, dto, id, issue.TeamId);
-        return Results.Created($"/api/v1/issues/{id}/relations/{relation.Id}", dto);
+        return Results.Created($"/api/v1/issues/{id.ToBase58()}/relations/{relation.Id.ToBase58()}", dto);
     }
 
     private static async Task<IResult> DeleteRelationAsync(

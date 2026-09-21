@@ -116,6 +116,10 @@ names and payloads are checked at compile time.
 Client-callable: `SubscribeToIssue(Guid) → bool`, `UnsubscribeFromIssue(Guid)`,
 `Resubscribe() → IReadOnlyList<string>`.
 
+Ids in these payloads are base58, exactly as over REST — the hub's serializer carries the same
+converters — so an id pushed over the socket compares equal to the one the client already fetched.
+Group names carry them too, so `team:<id>` can be built from an id the client already holds.
+
 ## A client sketch
 
 ```csharp

@@ -8,6 +8,19 @@ document is at `/openapi/v1.json`.
 
 **Enums travel as names.** `"priority": "Urgent"`, not `1` — over REST and over SignalR alike.
 
+**Ids are base58.** `"id": "1CFM9HDkWavHzjEZuAP3qG"` — 22 characters, everywhere an id appears: in a
+body, in a path, in a query string and in a SignalR payload. The database still stores uuids and the
+API decodes on the way in, so the two are the same value in different clothes:
+
+```
+019205f7-0c3e-7b6a-9f21-4d8c5e6a1b37  ->  1CFM9HDkWavHzjEZuAP3qG
+```
+
+The alphabet is Bitcoin's — the digits and letters minus `0`, `O`, `I` and `l` — so an id survives a
+double-click, a URL and a read-aloud unchanged. Treat one as opaque: compare them, do not build them.
+The canonical hyphenated form is still accepted on input, so an old link or a saved curl command
+keeps working, but nothing the API writes uses it.
+
 **Paging.** List endpoints that can grow take `?page=1&pageSize=50` (max 200) and answer with an
 envelope:
 
@@ -28,7 +41,7 @@ PATCH /api/v1/issues/{id}
 ```
 
 **Repeated query parameters are OR sets, different parameters are AND.**
-`?priority=Urgent&priority=High&assigneeId=<guid>` means *(Urgent or High) and assigned to that
+`?priority=Urgent&priority=High&assigneeId=<id>` means *(Urgent or High) and assigned to that
 person*. Labels are the exception: every requested label must be present, which is what a label
 filter on a board means.
 

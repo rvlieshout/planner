@@ -18,20 +18,20 @@ public static class ProjectEndpoints
         var projects = app.MapGroup("/api/v1/projects").WithTags("Projects");
 
         projects.MapGet("/", ListAsync).WithSummary("Projects across the teams the caller can see");
-        projects.MapGet("/{id:guid}", GetAsync).WithSummary("A single project with its issue rollup");
+        projects.MapGet("/{id:b58}", GetAsync).WithSummary("A single project with its issue rollup");
         projects.MapPost("/", CreateAsync).WithSummary("Create a project");
-        projects.MapPatch("/{id:guid}", UpdateAsync).WithSummary("Update a project");
-        projects.MapPost("/{id:guid}/archive", ArchiveAsync).WithSummary("Archive a project");
-        projects.MapPost("/{id:guid}/restore", RestoreAsync).WithSummary("Restore an archived project");
-        projects.MapDelete("/{id:guid}", DeleteAsync).WithSummary("Delete a project; its issues stay in the team");
+        projects.MapPatch("/{id:b58}", UpdateAsync).WithSummary("Update a project");
+        projects.MapPost("/{id:b58}/archive", ArchiveAsync).WithSummary("Archive a project");
+        projects.MapPost("/{id:b58}/restore", RestoreAsync).WithSummary("Restore an archived project");
+        projects.MapDelete("/{id:b58}", DeleteAsync).WithSummary("Delete a project; its issues stay in the team");
 
-        projects.MapGet("/{id:guid}/milestones", ListMilestonesAsync).WithSummary("Milestones of a project");
-        projects.MapPost("/{id:guid}/milestones", CreateMilestoneAsync).WithSummary("Add a milestone");
+        projects.MapGet("/{id:b58}/milestones", ListMilestonesAsync).WithSummary("Milestones of a project");
+        projects.MapPost("/{id:b58}/milestones", CreateMilestoneAsync).WithSummary("Add a milestone");
 
         var milestones = app.MapGroup("/api/v1/milestones").WithTags("Milestones");
-        milestones.MapGet("/{milestoneId:guid}", GetMilestoneAsync).WithSummary("A single milestone");
-        milestones.MapPatch("/{milestoneId:guid}", UpdateMilestoneAsync).WithSummary("Update a milestone");
-        milestones.MapDelete("/{milestoneId:guid}", DeleteMilestoneAsync).WithSummary("Delete a milestone");
+        milestones.MapGet("/{milestoneId:b58}", GetMilestoneAsync).WithSummary("A single milestone");
+        milestones.MapPatch("/{milestoneId:b58}", UpdateMilestoneAsync).WithSummary("Update a milestone");
+        milestones.MapDelete("/{milestoneId:b58}", DeleteMilestoneAsync).WithSummary("Delete a milestone");
 
         return app;
     }
@@ -170,7 +170,7 @@ public static class ProjectEndpoints
             .Select(Mapping.ProjectProjection).FirstAsync(ct);
 
         await notifier.ProjectChanged(ChangeKind.Created, dto);
-        return Results.Created($"/api/v1/projects/{project.Id}", dto);
+        return Results.Created($"/api/v1/projects/{project.Id.ToBase58()}", dto);
     }
 
     private static async Task<IResult> UpdateAsync(
@@ -389,7 +389,7 @@ public static class ProjectEndpoints
             .Select(Mapping.MilestoneProjection).FirstAsync(ct);
 
         await notifier.MilestoneChanged(ChangeKind.Created, dto, project.TeamId);
-        return Results.Created($"/api/v1/milestones/{milestone.Id}", dto);
+        return Results.Created($"/api/v1/milestones/{milestone.Id.ToBase58()}", dto);
     }
 
     private static async Task<IResult> GetMilestoneAsync(

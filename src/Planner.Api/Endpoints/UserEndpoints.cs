@@ -32,22 +32,22 @@ public static class UserEndpoints
         users.MapGet("/", ListAsync)
             .WithSummary("Directory of users, for assignee and lead pickers");
 
-        users.MapGet("/{id:guid}", GetAsync)
+        users.MapGet("/{id:b58}", GetAsync)
             .WithSummary("A single user");
 
         users.MapPost("/", CreateAsync)
             .RequireAuthorization(PlannerPolicies.OrgAdmin)
             .WithSummary("Create a user account");
 
-        users.MapPatch("/{id:guid}", UpdateAsync)
+        users.MapPatch("/{id:b58}", UpdateAsync)
             .RequireAuthorization(PlannerPolicies.OrgAdmin)
             .WithSummary("Update a user's profile, role or active state");
 
-        users.MapPost("/{id:guid}/password", ResetPasswordAsync)
+        users.MapPost("/{id:b58}/password", ResetPasswordAsync)
             .RequireAuthorization(PlannerPolicies.OrgAdmin)
             .WithSummary("Set a user's password without knowing the current one");
 
-        users.MapDelete("/{id:guid}", DeactivateAsync)
+        users.MapDelete("/{id:b58}", DeactivateAsync)
             .RequireAuthorization(PlannerPolicies.OrgAdmin)
             .WithSummary("Deactivate a user; authored content is kept");
 
@@ -245,7 +245,7 @@ public static class UserEndpoints
 
         var summary = Mapping.ToUserSummary(user);
         await notifier.UserChanged(ChangeKind.Created, summary);
-        return Results.Created($"/api/v1/users/{user.Id}", summary);
+        return Results.Created($"/api/v1/users/{user.Id.ToBase58()}", summary);
     }
 
     private static async Task<IResult> UpdateAsync(

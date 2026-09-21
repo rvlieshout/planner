@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Planner.Api.Authorization;
 using Planner.Api.Common;
 using Planner.Api.Realtime;
+using Planner.Contracts.Common;
 using Planner.Contracts.Realtime;
 using Planner.Domain.Entities;
 using Planner.Infrastructure;
@@ -15,8 +16,8 @@ public static class IssueFileEndpoints
 
     public static void MapIssueFiles(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/v1/issues/{id:guid}/files", UploadAsync).WithTags("Attachments");
-        app.MapGet("/api/v1/attachments/{attachmentId:guid}/content", DownloadAsync).WithTags("Attachments");
+        app.MapPost("/api/v1/issues/{id:b58}/files", UploadAsync).WithTags("Attachments");
+        app.MapGet("/api/v1/attachments/{attachmentId:b58}/content", DownloadAsync).WithTags("Attachments");
     }
 
     private static string FilePath(Guid id, IConfiguration config, IWebHostEnvironment environment) =>
@@ -93,7 +94,7 @@ public static class IssueFileEndpoints
         var dto = await db.Attachments.AsNoTracking().Where(a => a.Id == attachment.Id)
             .Select(Mapping.AttachmentProjection).FirstAsync(ct);
         await notifier.AttachmentChanged(ChangeKind.Created, dto, issue.TeamId);
-        return Results.Created($"/api/v1/attachments/{attachment.Id}", dto);
+        return Results.Created($"/api/v1/attachments/{attachment.Id.ToBase58()}", dto);
     }
 
     private static async Task<IResult> DownloadAsync(

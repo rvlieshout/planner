@@ -1,3 +1,5 @@
+using Planner.Contracts.Common;
+
 namespace Planner.Contracts.Realtime;
 
 public enum ChangeKind
@@ -35,9 +37,12 @@ public sealed record EntityChange<T>(
 /// </list></summary>
 public static class RealtimeGroups
 {
-    public static string Team(Guid teamId) => $"team:{teamId}";
-    public static string Issue(Guid issueId) => $"issue:{issueId}";
-    public static string User(Guid userId) => $"user:{userId}";
+    // Base58, like every other id the client sees. The names are sent to the caller in Subscribed, so
+    // a client that wants to ask "am I in this team's group?" can build the name from an id it already
+    // holds instead of re-encoding it.
+    public static string Team(Guid teamId) => $"team:{teamId.ToBase58()}";
+    public static string Issue(Guid issueId) => $"issue:{issueId.ToBase58()}";
+    public static string User(Guid userId) => $"user:{userId.ToBase58()}";
     public const string Organization = "org";
 }
 

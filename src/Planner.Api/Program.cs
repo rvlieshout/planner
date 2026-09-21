@@ -29,6 +29,10 @@ var connectionString = builder.Configuration.GetConnectionString("Planner")
 builder.Services.AddPlannerPersistence(connectionString);
 builder.Services.AddPlannerAuth(authOptions);
 
+// Ids are uuids in the database and base58 on the wire. This registers the {id:b58} route constraint;
+// the converters below and the middleware further down are the other two halves.
+builder.Services.AddBase58Ids();
+
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<ITeamAccess, TeamAccess>();
@@ -41,9 +45,15 @@ builder.Services.AddScoped<OpenIddictClientSeeder>();
 
 builder.Services
     .AddSignalR(options => options.EnableDetailedErrors = builder.Environment.IsDevelopment())
-    // SignalR carries its own serializer options, so the enum-as-name choice below has to be repeated
-    // here. Without this the same enum arrives as "Urgent" over REST and as 1 over the socket.
-    .AddJsonProtocol(options => options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+    // SignalR carries its own serializer options, so the enum-as-name and base58-id choices below have
+    // to be repeated here. Without this the same enum arrives as "Urgent" over REST and as 1 over the
+    // socket, and an issue id that the client just read from a REST response would not match the one
+    // in the change pushed to it.
+    .AddJsonProtocol(options =>
+    {
+        options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        options.PayloadSerializerOptions.Converters.AddIdConverters();
+    });
 
 // Keep data-protection keys on the same mounted volume as the token certificates. Left at its default
 // they land in the container filesystem and are lost on every redeploy.
@@ -54,7 +64,13 @@ builder.Services.AddDataProtection()
 // Enums travel as their names. A desktop client, curl session or log line reading "Urgent" beats one
 // reading "1", and adding a new member no longer shifts the meaning of existing numbers.
 builder.Services.ConfigureHttpJsonOptions(options =>
-    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+
+    // Ids leave as base58 and arrive as either form. The database column stays a uuid; this is the
+    // only place the two representations meet on the response side.
+    options.SerializerOptions.Converters.AddIdConverters();
+});
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<PlannerExceptionHandler>();
@@ -62,7 +78,11 @@ builder.Services.AddExceptionHandler<PlannerExceptionHandler>();
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<PlannerDbContext>("database");
 
-builder.Services.AddOpenApi(options => options.AddDocumentTransformer<OpenApiSecurityTransformer>());
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer<OpenApiSecurityTransformer>();
+    options.AddSchemaTransformer<Base58IdSchemaTransformer>();
+});
 
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
 {
@@ -124,6 +144,10 @@ if (authOptions.TrustedProxyHops > 0)
 }
 
 app.UseExceptionHandler();
+
+// After the implicit UseRouting at the head of the pipeline, so the matched endpoint is known, and
+// before anything binds parameters: base58 ids in the path and query are canonicalised here.
+app.UseBase58Ids();
 
 app.UseMiddleware<SignalRAuthenticationMiddleware>("/hubs");
 app.UseCors();

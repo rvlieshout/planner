@@ -5,13 +5,19 @@
  * for it. A browser cannot do that, so this file stands in its place: one module, ordered to match the
  * C# files it mirrors, so a contract change is a diff in the same shape here.
  *
- * Two server conventions the shapes below depend on:
+ * Three server conventions the shapes below depend on:
+ *   - Ids are base58, not hyphenated uuids. Still strings here, and still opaque, so nothing below
+ *     changes shape — but a hard-coded uuid in a test fixture or a URL will no longer match.
  *   - Enums travel as names. "Urgent", never 1 — over REST and over SignalR alike.
  *   - PATCH is a true patch. An absent key is untouched, an explicit null clears the field. That is
  *     what Optional<T> means on the server, and in TypeScript it falls out of `?:` plus `| null`.
  */
 
-/** A GUID, as the server writes it. Aliased so intent survives in a field list of strings. */
+/**
+ * A GUID, as the server writes it: base58, 22 characters, e.g. `1CFM9HDkWavHzjEZuAP3qG` — not the
+ * hyphenated form. Opaque either way: compare one, round-trip one, never build one. Aliased so intent
+ * survives in a field list of strings.
+ */
 export type Guid = string;
 
 /** ISO 8601 with an offset: `2026-08-27T15:44:45+00:00`. */

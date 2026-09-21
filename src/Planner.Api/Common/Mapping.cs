@@ -1,5 +1,8 @@
 using System.Linq.Expressions;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Planner.Contracts.Auth;
+using Planner.Contracts.Common;
 using Planner.Contracts.Issues;
 using Planner.Contracts.Projects;
 using Planner.Contracts.Teams;
@@ -241,8 +244,76 @@ public static class Mapping
             a.IssueId,
             ToUserSummary(a.Actor),
             a.Action,
-            a.Data?.RootElement,
+            ActivityData(a.Data),
             a.CreatedAt);
+
+    /// <summary>Re-encodes the ids buried in an audit payload.
+    ///
+    /// The jsonb column is written with the plain serializer, so a payload like
+    /// <c>{ "from": null, "to": "&lt;uuid&gt;" }</c> holds canonical uuids — including in rows written
+    /// before ids were base58 on the wire. The typed fields around it come back base58, so these have
+    /// to as well or a client cannot match "assignee changed to X" against the user X it already
+    /// holds. Only strings that are exactly a uuid are touched; a title or a state name never is.</summary>
+    private static JsonElement? ActivityData(JsonDocument? data)
+    {
+        if (data is null)
+        {
+            return null;
+        }
+
+        var converted = Encode(data.RootElement);
+
+        return converted is null ? data.RootElement : JsonSerializer.SerializeToElement(converted);
+
+        static JsonNode? Encode(JsonElement element)
+        {
+            switch (element.ValueKind)
+            {
+                case JsonValueKind.String:
+                    return Guid.TryParseExact(element.GetString(), "D", out var id)
+                        ? JsonValue.Create(id.ToBase58())
+                        : null;
+
+                case JsonValueKind.Array:
+                {
+                    JsonArray? rewritten = null;
+                    var index = 0;
+
+                    foreach (var item in element.EnumerateArray())
+                    {
+                        if (Encode(item) is { } encoded)
+                        {
+                            rewritten ??= JsonNode.Parse(element.GetRawText())!.AsArray();
+                            rewritten[index] = encoded;
+                        }
+
+                        index++;
+                    }
+
+                    return rewritten;
+                }
+
+                case JsonValueKind.Object:
+                {
+                    JsonObject? rewritten = null;
+
+                    foreach (var property in element.EnumerateObject())
+                    {
+                        if (Encode(property.Value) is { } encoded)
+                        {
+                            rewritten ??= JsonNode.Parse(element.GetRawText())!.AsObject();
+                            rewritten[property.Name] = encoded;
+                        }
+                    }
+
+                    return rewritten;
+                }
+
+                default:
+                    return null;
+            }
+        }
+    }
 
     /// <summary>Builds the detail view. Children and the comment count are passed in rather than read
     /// off navigations: counting an unloaded collection silently yields zero, and loading every comment
