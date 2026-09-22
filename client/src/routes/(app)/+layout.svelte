@@ -417,9 +417,14 @@
 {/if}
 
 <style>
+  /*
+   * The middle row is `minmax(0, 1fr)`, not `1fr`: a bare `1fr` is `minmax(auto, 1fr)`, which lets the
+   * row grow to fit its content — and then a board column with a hundred cards stretches the whole
+   * shell past the window and the document scrolls, instead of the column scrolling inside itself.
+   */
   .shell {
     display: grid;
-    grid-template-rows: var(--titlebar-h) 1fr var(--statusbar-h);
+    grid-template-rows: var(--titlebar-h) minmax(0, 1fr) var(--statusbar-h);
     grid-template-columns: var(--sidebar) 0 1fr;
     grid-template-areas:
       'title title title'
@@ -505,6 +510,7 @@
     grid-area: content;
     flex-direction: column;
     min-width: 0;
+    min-height: 0;
     background: var(--bg-surface);
   }
 
