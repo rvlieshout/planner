@@ -47,21 +47,21 @@ public sealed record WorkflowStateDto(
     string Name,
     WorkflowStateType Type,
     string Color,
-    int Position,
+    string Rank,
     bool IsDefault);
 
 public sealed record CreateWorkflowStateRequest(
     string Name,
     WorkflowStateType Type,
     string Color = "#95A2B3",
-    int? Position = null,
+    string? Rank = null,
     bool IsDefault = false);
 
 public sealed record UpdateWorkflowStateRequest(
     Optional<string> Name,
     Optional<WorkflowStateType> Type,
     Optional<string> Color,
-    Optional<int> Position,
+    Optional<string> Rank,
     Optional<bool> IsDefault);
 
 public sealed record LabelDto(Guid Id, Guid? TeamId, string Name, string Color, string? Description);

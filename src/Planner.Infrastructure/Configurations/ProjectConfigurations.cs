@@ -11,6 +11,7 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Project>
         builder.Property(p => p.Name).HasMaxLength(200).IsRequired();
         builder.Property(p => p.Summary).HasMaxLength(500);
         builder.Property(p => p.Color).HasMaxLength(9);
+        builder.Property(p => p.Rank).IsRank();
 
         builder.HasOne(p => p.Team)
             .WithMany(t => t.Projects)
@@ -24,6 +25,7 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Project>
 
         builder.HasIndex(p => new { p.TeamId, p.Name }).IsUnique();
         builder.HasIndex(p => new { p.TeamId, p.Status });
+        builder.HasIndex(p => new { p.TeamId, p.Rank });
         builder.HasIndex(p => p.TargetDate);
 
         builder.Property(x => x.UpdatedAt).IsConcurrencyToken();
@@ -36,6 +38,7 @@ public class MilestoneConfiguration : IEntityTypeConfiguration<Milestone>
     {
         builder.Property(m => m.Name).HasMaxLength(200).IsRequired();
         builder.Property(m => m.Description).HasMaxLength(4000);
+        builder.Property(m => m.Rank).IsRank();
 
         builder.HasOne(m => m.Project)
             .WithMany(p => p.Milestones)
@@ -43,7 +46,7 @@ public class MilestoneConfiguration : IEntityTypeConfiguration<Milestone>
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(m => new { m.ProjectId, m.Name }).IsUnique();
-        builder.HasIndex(m => new { m.ProjectId, m.SortOrder });
+        builder.HasIndex(m => new { m.ProjectId, m.Rank });
 
         builder.Property(x => x.UpdatedAt).IsConcurrencyToken();
     }

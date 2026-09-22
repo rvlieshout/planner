@@ -178,15 +178,18 @@ public static class IssueEndpoints
     /// injection bugs happen, and an unindexed sort is how a board view times out.</summary>
     private static IQueryable<Issue> ApplySort(IQueryable<Issue> query, string? sort) => sort switch
     {
-        "board" => query.OrderBy(i => i.State.Position).ThenBy(i => i.SortOrder),
+        // Two concurrent drops into the same gap can mint the same rank; the number settles the tie the
+        // same way the client does.
+        "board" => query.OrderBy(i => i.State.Rank).ThenBy(i => i.Rank).ThenBy(i => i.Number),
         "priority" => query.OrderBy(i => i.Priority == IssuePriority.None).ThenBy(i => i.Priority)
-            .ThenBy(i => i.SortOrder),
+            .ThenBy(i => i.Rank),
         "dueDate" => query.OrderBy(i => i.DueDate == null).ThenBy(i => i.DueDate),
         "createdAt" => query.OrderBy(i => i.CreatedAt),
         "-createdAt" => query.OrderByDescending(i => i.CreatedAt),
         "updatedAt" => query.OrderBy(i => i.UpdatedAt),
         "number" => query.OrderBy(i => i.TeamId).ThenBy(i => i.Number),
-        "sortOrder" => query.OrderBy(i => i.SortOrder),
+        // sortOrder is the name this sort had while ranks were numbers; existing callers keep working.
+        "rank" or "sortOrder" => query.OrderBy(i => i.Rank).ThenBy(i => i.Number),
         _ => query.OrderByDescending(i => i.UpdatedAt)
     };
 
@@ -243,7 +246,8 @@ public static class IssueEndpoints
     {
         var children = await db.Issues.AsNoTracking()
             .Where(i => i.ParentId == issue.Id)
-            .OrderBy(i => i.SortOrder)
+            .OrderBy(i => i.Rank)
+            .ThenBy(i => i.Number)
             .Select(Mapping.IssueSummaryProjection)
             .ToListAsync(ct);
 
@@ -303,7 +307,7 @@ public static class IssueEndpoints
             : await db.WorkflowStates
                 .Where(s => s.TeamId == request.TeamId)
                 .OrderByDescending(s => s.IsDefault)
-                .ThenBy(s => s.Position)
+                .ThenBy(s => s.Rank)
                 .FirstOrDefaultAsync(ct);
 
         if (state is null)
@@ -323,9 +327,8 @@ public static class IssueEndpoints
             return ApiResults.BadRequest("One or more labels do not exist or belong to another team.");
         }
 
-        var maxSort = await db.Issues
-            .Where(i => i.TeamId == request.TeamId && i.StateId == state.Id)
-            .MaxAsync(i => (double?)i.SortOrder, ct);
+        var rank = await Ranks.AppendAsync(
+            db.Issues.Where(i => i.TeamId == request.TeamId && i.StateId == state.Id).Select(i => i.Rank), ct);
 
         var issue = new Issue
         {
@@ -342,7 +345,7 @@ public static class IssueEndpoints
             ParentId = request.ParentId,
             Estimate = request.Estimate,
             DueDate = request.DueDate,
-            SortOrder = (maxSort ?? 0) + 1000,
+            Rank = rank,
             StartedAt = state.Type == WorkflowStateType.Started ? DateTimeOffset.UtcNow : null,
             CompletedAt = state.Type == WorkflowStateType.Completed ? DateTimeOffset.UtcNow : null,
             CanceledAt = state.Type == WorkflowStateType.Canceled ? DateTimeOffset.UtcNow : null
@@ -404,6 +407,11 @@ public static class IssueEndpoints
         if (request.Estimate.TryGet(out var estimate))
         {
             validation.Range(estimate, 0, 1000, "estimate");
+        }
+
+        if (request.Rank.TryGet(out var rank))
+        {
+            validation.Required(rank, "rank").RankKey(rank, "rank");
         }
 
         if (validation.HasErrors)
@@ -471,7 +479,7 @@ public static class IssueEndpoints
         issue.ParentId = parentId;
         issue.Estimate = request.Estimate.Or(issue.Estimate);
         issue.DueDate = request.DueDate.Or(issue.DueDate);
-        issue.SortOrder = request.SortOrder.Or(issue.SortOrder);
+        issue.Rank = request.Rank.Or(issue.Rank)!;
 
         if (request.LabelIds.TryGet(out var labelIds) && labelIds is not null)
         {
@@ -522,6 +530,12 @@ public static class IssueEndpoints
 
         var rollupBefore = RollupOf(issue);
 
+        var validation = new Validation().RankKey(request.Rank, "rank");
+        if (validation.HasErrors)
+        {
+            return validation.ToResult();
+        }
+
         if (request.StateId is { } stateId && stateId != issue.StateId)
         {
             var state = await db.WorkflowStates.FirstOrDefaultAsync(s => s.Id == stateId && s.TeamId == issue.TeamId, ct);
@@ -537,7 +551,7 @@ public static class IssueEndpoints
             ApplyStateTransition(issue, state);
         }
 
-        issue.SortOrder = await ResolveSortOrderAsync(db, issue, request, ct);
+        issue.Rank = await ResolveRankAsync(db, issue, request, ct);
 
         await db.SaveChangesAsync(ct);
 
@@ -551,50 +565,49 @@ public static class IssueEndpoints
         return Results.Ok(summary);
     }
 
-    /// <summary>Fractional ranking: an issue dropped between two neighbours takes the midpoint of their
-    /// ranks, so a reorder writes one row instead of renumbering the whole column.</summary>
-    private static async Task<double> ResolveSortOrderAsync(
+    /// <summary>
+    /// The rank a dropped issue takes: a key between its new neighbours', so a reorder writes one row
+    /// instead of renumbering the whole column.
+    ///
+    /// <para>The anchors say where it was dropped; the neighbours are read from the column as it is now.
+    /// The issue follows <c>afterIssueId</c> and takes a key before whatever the database has next —
+    /// which is <c>beforeIssueId</c> when the client's view was current, and something else when it was
+    /// not, in which case trusting both anchors could produce a key outside the gap or no key at all.
+    /// An anchor that is no longer in the target column is ignored. Archived issues are not neighbours:
+    /// the board does not show them, and the client computes the same key without them.</para>
+    /// </summary>
+    private static async Task<string> ResolveRankAsync(
         PlannerDbContext db,
         Issue issue,
         MoveIssueRequest request,
         CancellationToken ct)
     {
-        const double Gap = 1000d;
+        var column = db.Issues
+            .Where(i => i.TeamId == issue.TeamId && i.StateId == issue.StateId && i.Id != issue.Id && i.ArchivedAt == null);
 
-        var after = request.AfterIssueId is { } afterId
-            ? await db.Issues.Where(i => i.Id == afterId).Select(i => (double?)i.SortOrder).FirstOrDefaultAsync(ct)
+        async Task<string?> RankOf(Guid? anchorId) => anchorId is { } anchor
+            ? await column.Where(i => i.Id == anchor).Select(i => i.Rank).FirstOrDefaultAsync(ct)
             : null;
 
-        var before = request.BeforeIssueId is { } beforeId
-            ? await db.Issues.Where(i => i.Id == beforeId).Select(i => (double?)i.SortOrder).FirstOrDefaultAsync(ct)
-            : null;
+        var ranks = column.Select(i => i.Rank);
 
-        if (after is { } a && before is { } b)
+        if (await RankOf(request.AfterIssueId) is { } after)
         {
-            return (a + b) / 2;
+            return await Ranks.AfterAsync(ranks, after, ct);
         }
 
-        if (after is { } onlyAfter)
+        if (await RankOf(request.BeforeIssueId) is { } before)
         {
-            return onlyAfter + Gap;
+            return await Ranks.BeforeAsync(ranks, before, ct);
         }
 
-        if (before is { } onlyBefore)
+        if (request.Rank is { } explicitRank)
         {
-            return onlyBefore - Gap;
-        }
-
-        if (request.SortOrder is { } explicitOrder)
-        {
-            return explicitOrder;
+            return explicitRank;
         }
 
         // No anchors: drop it at the end of the target column.
-        var max = await db.Issues
-            .Where(i => i.TeamId == issue.TeamId && i.StateId == issue.StateId && i.Id != issue.Id)
-            .MaxAsync(i => (double?)i.SortOrder, ct);
-
-        return (max ?? 0) + Gap;
+        return await Ranks.AppendAsync(ranks, ct);
     }
 
     /// <summary>Keeps the lifecycle timestamps consistent with the state's semantic type, so reports do

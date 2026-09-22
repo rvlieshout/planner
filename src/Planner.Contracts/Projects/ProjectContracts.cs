@@ -17,7 +17,7 @@ public sealed record ProjectDto(
     UserSummary? Lead,
     DateOnly? StartDate,
     DateOnly? TargetDate,
-    double SortOrder,
+    string Rank,
     ProjectProgress Progress,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
@@ -54,7 +54,7 @@ public sealed record UpdateProjectRequest(
     Optional<Guid?> LeadUserId,
     Optional<DateOnly?> StartDate,
     Optional<DateOnly?> TargetDate,
-    Optional<double> SortOrder);
+    Optional<string> Rank);
 
 public sealed record MilestoneDto(
     Guid Id,
@@ -63,7 +63,7 @@ public sealed record MilestoneDto(
     string? Description,
     DateOnly? TargetDate,
     MilestoneStatus Status,
-    double SortOrder,
+    string Rank,
     ProjectProgress Progress,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
@@ -80,7 +80,7 @@ public sealed record UpdateMilestoneRequest(
     Optional<string?> Description,
     Optional<DateOnly?> TargetDate,
     Optional<MilestoneStatus> Status,
-    Optional<double> SortOrder);
+    Optional<string> Rank);
 
 public sealed record DocumentSummary(
     Guid Id,

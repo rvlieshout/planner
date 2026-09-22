@@ -187,7 +187,7 @@ export const drag = new Drag();
 /**
  * The two rows a drop landed between, as the anchors `POST /issues/{id}/move` takes.
  *
- * The server writes the midpoint of their ranks, so a reorder is one row updated rather than a column
+ * The server writes a rank key between theirs, so a reorder is one row updated rather than a column
  * renumbered. The issue being moved is skipped: dropping a card one place below itself must land
  * between its *other* neighbours, or the move resolves to where it already was.
  */

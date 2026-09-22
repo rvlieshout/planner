@@ -48,6 +48,7 @@ public class WorkflowStateConfiguration : IEntityTypeConfiguration<WorkflowState
     {
         builder.Property(s => s.Name).HasMaxLength(60).IsRequired();
         builder.Property(s => s.Color).HasMaxLength(9);
+        builder.Property(s => s.Rank).IsRank();
 
         builder.HasOne(s => s.Team)
             .WithMany(t => t.WorkflowStates)
@@ -55,7 +56,7 @@ public class WorkflowStateConfiguration : IEntityTypeConfiguration<WorkflowState
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(s => new { s.TeamId, s.Name }).IsUnique();
-        builder.HasIndex(s => new { s.TeamId, s.Position });
+        builder.HasIndex(s => new { s.TeamId, s.Rank });
     }
 }
 

@@ -14,7 +14,10 @@ public class Milestone : Entity
     public string? Description { get; set; }
     public DateOnly? TargetDate { get; set; }
     public MilestoneStatus Status { get; set; } = MilestoneStatus.Upcoming;
-    public double SortOrder { get; set; }
+
+    /// <summary>Position among the project's milestones, as a <see cref="Common.Rank"/> key.</summary>
+    public required string Rank { get; set; }
+
     public DateTimeOffset? CompletedAt { get; set; }
 
     public ICollection<Issue> Issues { get; set; } = [];

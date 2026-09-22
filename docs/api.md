@@ -186,9 +186,10 @@ Markdown project documentation — specs, briefs, decision records. Separate fro
 | `updatedSince` | ISO 8601. Delta sync for a client that was offline. |
 | `topLevelOnly=true` | Hide sub-issues |
 | `includeArchived=true` | Default is to hide them |
-| `sort` | `-updatedAt` (default), `updatedAt`, `board`, `priority`, `dueDate`, `createdAt`, `-createdAt`, `number`, `sortOrder` |
+| `sort` | `-updatedAt` (default), `updatedAt`, `board`, `priority`, `dueDate`, `createdAt`, `-createdAt`, `number`, `rank` (`sortOrder` is accepted as an older name for it) |
 
-`sort=board` orders by column position then rank — the exact order a board renders.
+`sort=board` orders by the column's rank, then the issue's rank, then its number — the exact order a
+board renders.
 
 Only these sort keys are accepted. An unrecognised value falls back to the default rather than
 reaching the query builder.
@@ -219,9 +220,24 @@ POST /api/v1/issues/{id}/move
 { "stateId": "…", "afterIssueId": "…", "beforeIssueId": "…" }
 ```
 
-Rank is fractional: dropped between two neighbours, an issue takes the midpoint of their `sortOrder`,
-so a drag writes one row. Give only `afterIssueId` or only `beforeIssueId` to land at an edge, or
-neither to append to the column.
+The issue lands after `afterIssueId` and takes a `rank` key between that issue's and the next one's in
+the column, so a drag writes one row. The next one is read from the database rather than taken from
+`beforeIssueId`, so a drop made against a stale view still lands in a real gap. Give only
+`beforeIssueId` to land at the top, or neither to append to the column. An explicit `rank` is used only
+when neither anchor is given.
+
+### Ordering
+
+Every hand-ordered list — a board column, a team's workflow states and projects, a project's
+milestones — is ordered by a `rank` string such as `a0`, `a0V` or `d0012`. Sort them **ordinally**
+(byte by byte; `<` in JavaScript, `StringComparer.Ordinal` in .NET), never with a locale-aware
+comparison: `a0V` sorts before `a0a`. Between any two keys there is always another, so reordering one
+row never renumbers its neighbours.
+
+Where the API takes a `rank` directly — `PATCH` on a project, milestone, workflow state or issue, and
+`POST /teams/{id}/states` — it must be a well-formed key of at most 128 characters. A client makes one
+by taking a key between the two rows it is placing between; `client/src/lib/rank.ts` and
+`Planner.Domain.Common.Rank` implement the same function. Omitted on create, a row goes to the end.
 
 Lifecycle stamps follow the target state's **type**, not its name: moving into anything typed
 `Started` sets `startedAt`, `Completed` sets `completedAt`, `Canceled` sets `canceledAt`, and moving

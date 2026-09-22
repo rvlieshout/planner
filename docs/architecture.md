@@ -112,12 +112,33 @@ to `null`". Without it, `PATCH {"assigneeId": null}` and `PATCH {"title": "x"}` 
 at the model level and clearing a field becomes impossible. A single `JsonConverter` handles it; the
 endpoints read `request.Field.Or(entity.Field)`.
 
-### Sort order is fractional
+### Order is a lexicographic rank key
 
-Board position is a `double`. An issue dropped between two neighbours takes the midpoint of their
-ranks, so a drag writes one row instead of renumbering a column. After roughly 50 consecutive
-midpoint inserts in the same gap the precision runs out; a periodic renumber job is the standard
-answer and is not implemented here.
+Every hand-ordered list — board columns and the issues in them, a team's projects, a project's
+milestones — is ordered by a `rank` string that sorts byte-wise into place. A row moved between two
+neighbours takes a key between theirs, so a drag writes one row instead of renumbering a column.
+
+The scheme is Figma's fractional indexing (as in Rocicorp's `fractional-indexing`) over base 62: an
+integer part whose first character gives its length (`a0`…`az`, `b00`…), then an optional fraction
+that never ends in `0`. Unlike the `double` midpoint it replaced, it never runs out of room: a gap
+split over and over just yields a longer key, about one character per six drops into the very same
+gap. Appending increments the integer part, so a list that only grows keeps keys of three or four
+characters.
+
+Three details keep it correct:
+
+- **Ordinal everywhere.** The columns are `COLLATE "C"`. Under the database's default linguistic
+  collation `a0a` sorts before `a0V`, and `ORDER BY rank` would quietly disagree with the keys.
+- **Neighbours come from the database.** A drop names the row it follows; the server finds whatever
+  comes next *now* and takes a key between those two, so a stale client view cannot produce a key
+  outside the gap.
+- **One algorithm, two ports.** `Planner.Domain.Common.Rank` and `client/src/lib/rank.ts` are
+  line-for-line equivalents held to the same test vectors, so the key the client shows optimistically
+  is the one the server writes.
+
+Two concurrent drops into the same gap can mint the same key. Nothing breaks: ties sort by issue
+number, and the next drop there steps past both. Keys are not rebalanced; a key only becomes long if
+hundreds of drops land in the same spot.
 
 ### Issue numbers come from the database
 

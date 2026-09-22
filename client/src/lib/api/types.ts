@@ -194,7 +194,7 @@ export interface WorkflowStateDto {
   name: string;
   type: WorkflowStateType;
   color: string;
-  position: number;
+  rank: string;
   isDefault: boolean;
 }
 
@@ -202,7 +202,7 @@ export interface CreateWorkflowStateRequest {
   name: string;
   type: WorkflowStateType;
   color?: string;
-  position?: number | null;
+  rank?: string | null;
   isDefault?: boolean;
 }
 
@@ -210,7 +210,7 @@ export interface UpdateWorkflowStateRequest {
   name?: string;
   type?: WorkflowStateType;
   color?: string;
-  position?: number;
+  rank?: string;
   isDefault?: boolean;
 }
 
@@ -259,7 +259,7 @@ export interface ProjectDto {
   lead: UserSummary | null;
   startDate: DateOnlyString | null;
   targetDate: DateOnlyString | null;
-  sortOrder: number;
+  rank: string;
   progress: ProjectProgress;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -290,7 +290,7 @@ export interface UpdateProjectRequest {
   leadUserId?: Guid | null;
   startDate?: DateOnlyString | null;
   targetDate?: DateOnlyString | null;
-  sortOrder?: number;
+  rank?: string;
 }
 
 export interface MilestoneDto {
@@ -300,7 +300,7 @@ export interface MilestoneDto {
   description: string | null;
   targetDate: DateOnlyString | null;
   status: MilestoneStatus;
-  sortOrder: number;
+  rank: string;
   progress: ProjectProgress;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -319,7 +319,7 @@ export interface UpdateMilestoneRequest {
   description?: string | null;
   targetDate?: DateOnlyString | null;
   status?: MilestoneStatus;
-  sortOrder?: number;
+  rank?: string;
 }
 
 /* --------------------------------------------------------------- documents ---- */
@@ -373,7 +373,7 @@ export interface IssueSummary {
   parentId: Guid | null;
   estimate: number | null;
   dueDate: DateOnlyString | null;
-  sortOrder: number;
+  rank: string;
   labels: LabelDto[];
   subIssueCount: number;
   commentCount: number;
@@ -405,7 +405,7 @@ export interface IssueDetail {
   parentKey: string | null;
   estimate: number | null;
   dueDate: DateOnlyString | null;
-  sortOrder: number;
+  rank: string;
   labels: LabelDto[];
   children: IssueSummary[];
   relations: IssueRelationDto[];
@@ -445,14 +445,14 @@ export interface UpdateIssueRequest {
   parentId?: Guid | null;
   estimate?: number | null;
   dueDate?: DateOnlyString | null;
-  sortOrder?: number;
+  rank?: string;
   labelIds?: Guid[];
 }
 
 /** Board drag-and-drop: change column and rank in one atomic call. */
 export interface MoveIssueRequest {
   stateId?: Guid | null;
-  sortOrder?: number | null;
+  rank?: string | null;
   afterIssueId?: Guid | null;
   beforeIssueId?: Guid | null;
 }
@@ -493,7 +493,7 @@ export type IssueSort =
   | 'createdAt'
   | '-createdAt'
   | 'number'
-  | 'sortOrder';
+  | 'rank';
 
 export interface IssueRelationDto {
   id: Guid;

@@ -261,10 +261,13 @@ the offset the rule is drawn at, so what is shown can never point at a different
 is used.
 
 The drop resolves to the two rows it landed between, which become the `afterIssueId` / `beforeIssueId`
-anchors of `POST /issues/{id}/move`. The server takes the midpoint of their ranks, so a reorder writes
-one row. The card moves first and the server is told afterwards: a drag that waits for a round trip
-before the card lands feels broken, and the realtime echo is the same idempotent upsert, so it only
-confirms what is on screen. A refusal puts the board back.
+anchors of `POST /issues/{id}/move`. The server gives the card a rank key between its new
+neighbours', so a reorder writes one row. The card moves first and the server is told afterwards: a
+drag that waits for a round trip before the card lands feels broken. The optimistic key comes from
+`src/lib/rank.ts`, a port of the server's `Rank` computed by the same rule, so the realtime echo — the
+same idempotent upsert as any other change — confirms the order on screen rather than rearranging it.
+Ranks are strings compared ordinally (`compareRank`), never with `localeCompare`. A refusal puts the
+board back.
 
 The list view of a board drags the same way, between its groups and within them: its groups are that
 team's own states, so a row landing in one means exactly what a card landing in that column means.
@@ -384,8 +387,8 @@ are shown as it writes them: a duplicate key, and demoting or removing a team's 
 
 A team's **workflow states** — its board's columns — are edited on the same page, one at a time like
 its labels: name, type, colour, and whether new issues start there. Move up and down reorders the
-board; every state whose position is not its index is renumbered, because positions are whatever the
-API was last given and a swap of two tied ones would move nothing. The type is spelled out in the
+board by writing one state: it takes a rank key between the two it now sits between (`rankAt`), and
+every other column keeps its own. The type is spelled out in the
 editor because it is what the application reads: it decides whether an issue counts as done in a
 rollup, which states the board stacks into one lane, and where My Issues groups it. The default is
 only ever moved, never cleared. Deleting is refused by the server while issues are still in the state,

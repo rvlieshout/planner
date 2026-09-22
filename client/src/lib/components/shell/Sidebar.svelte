@@ -7,6 +7,7 @@
   import TeamSwitcher from './TeamSwitcher.svelte';
   import { session } from '$lib/auth/session.svelte';
   import { workspace } from '$lib/workspace.svelte';
+  import { compareRank } from '$lib/rank';
   import { navigate } from '$lib/navigation.svelte';
   import { describe } from '$lib/shortcuts';
   import { realtime } from '$lib/realtime/hub.svelte';
@@ -32,7 +33,7 @@
   const projects = $derived(
     [...workspace.projects]
       .filter((project) => !project.archivedAt)
-      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+      .sort((a, b) => compareRank(a.rank, b.rank) || a.name.localeCompare(b.name))
   );
 
   const isActive = (href: Pathname, exact = true) =>

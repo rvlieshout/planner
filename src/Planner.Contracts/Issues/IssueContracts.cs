@@ -23,7 +23,7 @@ public sealed record IssueSummary(
     Guid? ParentId,
     int? Estimate,
     DateOnly? DueDate,
-    double SortOrder,
+    string Rank,
     IReadOnlyList<LabelDto> Labels,
     int SubIssueCount,
     int CommentCount,
@@ -54,7 +54,7 @@ public sealed record IssueDetail(
     string? ParentKey,
     int? Estimate,
     DateOnly? DueDate,
-    double SortOrder,
+    string Rank,
     IReadOnlyList<LabelDto> Labels,
     IReadOnlyList<IssueSummary> Children,
     IReadOnlyList<IssueRelationDto> Relations,
@@ -92,11 +92,13 @@ public sealed record UpdateIssueRequest(
     Optional<Guid?> ParentId,
     Optional<int?> Estimate,
     Optional<DateOnly?> DueDate,
-    Optional<double> SortOrder,
+    Optional<string> Rank,
     Optional<IReadOnlyList<Guid>> LabelIds);
 
-/// <summary>Drag-and-drop on a board: change column and/or rank in one atomic call.</summary>
-public sealed record MoveIssueRequest(Guid? StateId, double? SortOrder, Guid? AfterIssueId, Guid? BeforeIssueId);
+/// <summary>Drag-and-drop on a board: change column and/or rank in one atomic call. The anchors are the
+/// issues it was dropped between; the server takes a <c>Rank</c> key between theirs. An explicit
+/// <c>Rank</c> is used only when neither anchor is given.</summary>
+public sealed record MoveIssueRequest(Guid? StateId, string? Rank, Guid? AfterIssueId, Guid? BeforeIssueId);
 
 /// <summary>Issue list filter. Every field is optional and AND-combined; repeated query parameters
 /// (e.g. <c>?state=..&amp;state=..</c>) become OR sets within that field.</summary>

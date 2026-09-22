@@ -73,7 +73,7 @@ public static class ProjectEndpoints
 
         var total = await query.LongCountAsync(ct);
         var items = await query
-            .OrderBy(p => p.SortOrder)
+            .OrderBy(p => p.Rank)
             .ThenBy(p => p.Name)
             .Skip(paging.Skip)
             .Take(paging.NormalizedSize)
@@ -142,7 +142,7 @@ public static class ProjectEndpoints
             return ApiResults.BadRequest("The nominated lead does not exist.");
         }
 
-        var maxSort = await db.Projects.Where(p => p.TeamId == request.TeamId).MaxAsync(p => (double?)p.SortOrder, ct);
+        var rank = await Ranks.AppendAsync(db.Projects.Where(p => p.TeamId == request.TeamId).Select(p => p.Rank), ct);
 
         var project = new Project
         {
@@ -156,7 +156,7 @@ public static class ProjectEndpoints
             LeadUserId = request.LeadUserId,
             StartDate = request.StartDate,
             TargetDate = request.TargetDate,
-            SortOrder = (maxSort ?? 0) + 1000,
+            Rank = rank,
             CompletedAt = request.Status == ProjectStatus.Completed ? DateTimeOffset.UtcNow : null
         };
 
@@ -207,6 +207,15 @@ public static class ProjectEndpoints
             }
         }
 
+        if (request.Rank.TryGet(out var rank))
+        {
+            var validation = new Validation().Required(rank, "rank").RankKey(rank, "rank");
+            if (validation.HasErrors)
+            {
+                return validation.ToResult();
+            }
+        }
+
         if (request.LeadUserId.TryGet(out var leadId) && leadId is { } lead &&
             !await db.Users.AnyAsync(u => u.Id == lead, ct))
         {
@@ -224,7 +233,7 @@ public static class ProjectEndpoints
         project.LeadUserId = request.LeadUserId.Or(project.LeadUserId);
         project.StartDate = request.StartDate.Or(project.StartDate);
         project.TargetDate = request.TargetDate.Or(project.TargetDate);
-        project.SortOrder = request.SortOrder.Or(project.SortOrder);
+        project.Rank = request.Rank.Or(project.Rank)!;
 
         if (project.Status != previousStatus)
         {
@@ -328,7 +337,8 @@ public static class ProjectEndpoints
 
         var milestones = await db.Milestones.AsNoTracking()
             .Where(m => m.ProjectId == id)
-            .OrderBy(m => m.SortOrder)
+            .OrderBy(m => m.Rank)
+            .ThenBy(m => m.Name)
             .Select(Mapping.MilestoneProjection)
             .ToListAsync(ct);
 
@@ -366,7 +376,7 @@ public static class ProjectEndpoints
             return ApiResults.Conflict($"This project already has a milestone named {request.Name}.");
         }
 
-        var maxSort = await db.Milestones.Where(m => m.ProjectId == id).MaxAsync(m => (double?)m.SortOrder, ct);
+        var rank = await Ranks.AppendAsync(db.Milestones.Where(m => m.ProjectId == id).Select(m => m.Rank), ct);
 
         var milestone = new Milestone
         {
@@ -375,7 +385,7 @@ public static class ProjectEndpoints
             Description = request.Description,
             TargetDate = request.TargetDate,
             Status = request.Status,
-            SortOrder = (maxSort ?? 0) + 1000,
+            Rank = rank,
             CompletedAt = request.Status == MilestoneStatus.Completed ? DateTimeOffset.UtcNow : null
         };
 
@@ -438,13 +448,22 @@ public static class ProjectEndpoints
             return denied;
         }
 
+        if (request.Rank.TryGet(out var rank))
+        {
+            var validation = new Validation().Required(rank, "rank").RankKey(rank, "rank");
+            if (validation.HasErrors)
+            {
+                return validation.ToResult();
+            }
+        }
+
         var previousStatus = milestone.Status;
 
         milestone.Name = request.Name.Or(milestone.Name)!;
         milestone.Description = request.Description.Or(milestone.Description);
         milestone.TargetDate = request.TargetDate.Or(milestone.TargetDate);
         milestone.Status = request.Status.Or(milestone.Status);
-        milestone.SortOrder = request.SortOrder.Or(milestone.SortOrder);
+        milestone.Rank = request.Rank.Or(milestone.Rank)!;
 
         if (milestone.Status != previousStatus)
         {

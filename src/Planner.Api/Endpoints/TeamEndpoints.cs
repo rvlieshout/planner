@@ -378,7 +378,8 @@ public static class TeamEndpoints
 
         var states = await db.WorkflowStates.AsNoTracking()
             .Where(s => s.TeamId == id)
-            .OrderBy(s => s.Position)
+            .OrderBy(s => s.Rank)
+            .ThenBy(s => s.Name)
             .Select(Mapping.WorkflowStateProjection)
             .ToListAsync(ct);
 
@@ -398,7 +399,11 @@ public static class TeamEndpoints
             return denied;
         }
 
-        var validation = new Validation().Required(request.Name, "name").MaxLength(request.Name, 60, "name");
+        var validation = new Validation()
+            .Required(request.Name, "name")
+            .MaxLength(request.Name, 60, "name")
+            .RankKey(request.Rank, "rank");
+
         if (validation.HasErrors)
         {
             return validation.ToResult();
@@ -409,9 +414,8 @@ public static class TeamEndpoints
             return ApiResults.Conflict($"This team already has a state named {request.Name}.");
         }
 
-        var position = request.Position
-                       ?? await db.WorkflowStates.Where(s => s.TeamId == id).MaxAsync(s => (int?)s.Position, ct) + 1
-                       ?? 0;
+        var rank = request.Rank
+                   ?? await Ranks.AppendAsync(db.WorkflowStates.Where(s => s.TeamId == id).Select(s => s.Rank), ct);
 
         var state = new WorkflowState
         {
@@ -419,7 +423,7 @@ public static class TeamEndpoints
             Name = request.Name.Trim(),
             Type = request.Type,
             Color = request.Color,
-            Position = position,
+            Rank = rank,
             IsDefault = request.IsDefault
         };
 
@@ -475,13 +479,22 @@ public static class TeamEndpoints
             state.Name = name;
         }
 
+        if (request.Rank.TryGet(out var rank))
+        {
+            var validation = new Validation().Required(rank, "rank").RankKey(rank, "rank");
+            if (validation.HasErrors)
+            {
+                return validation.ToResult();
+            }
+        }
+
         if (request.IsDefault.TryGet(out var isDefault) && isDefault)
         {
             await ClearDefaultStateAsync(db, id, ct);
         }
         state.Type = request.Type.Or(state.Type);
         state.Color = request.Color.Or(state.Color)!;
-        state.Position = request.Position.Or(state.Position);
+        state.Rank = request.Rank.Or(state.Rank)!;
         state.IsDefault = request.IsDefault.Or(state.IsDefault);
 
         await db.SaveChangesAsync(ct);

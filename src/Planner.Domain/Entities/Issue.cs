@@ -42,9 +42,9 @@ public class Issue : Entity, IArchivable
 
     public DateOnly? DueDate { get; set; }
 
-    /// <summary>Fractional rank for manual board ordering. New items are inserted at the midpoint
-    /// between neighbours so a reorder touches a single row.</summary>
-    public double SortOrder { get; set; }
+    /// <summary>Position within its board column, as a <see cref="Common.Rank"/> key. A drop takes a key
+    /// between its new neighbours' keys, so a reorder touches a single row.</summary>
+    public required string Rank { get; set; }
 
     public DateTimeOffset? StartedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }

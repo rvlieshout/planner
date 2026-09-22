@@ -8,6 +8,7 @@ import type {
   WorkflowStateDto
 } from '$lib/api/types';
 import { session } from '$lib/auth/session.svelte';
+import { compareRank } from '$lib/rank';
 import { realtime } from '$lib/realtime/hub.svelte';
 import { settings } from '$lib/settings.svelte';
 
@@ -166,7 +167,7 @@ class Workspace {
   async stateOfType(teamId: Guid, type: WorkflowStateDto['type']): Promise<WorkflowStateDto | null> {
     const states = await this.statesFor(teamId);
 
-    return states.filter((state) => state.type === type).sort((a, b) => a.position - b.position)[0] ?? null;
+    return states.filter((state) => state.type === type).sort((a, b) => compareRank(a.rank, b.rank))[0] ?? null;
   }
 
   /** Drops a team's caches, after its states, labels or membership changed. */

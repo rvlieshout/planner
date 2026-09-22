@@ -10,6 +10,7 @@ public class IssueConfiguration : IEntityTypeConfiguration<Issue>
     {
         builder.Property(i => i.Title).HasMaxLength(500).IsRequired();
         builder.Property(i => i.Description).HasColumnType("text");
+        builder.Property(i => i.Rank).IsRank();
 
         builder.HasOne(i => i.Team)
             .WithMany(t => t.Issues)
@@ -49,7 +50,7 @@ public class IssueConfiguration : IEntityTypeConfiguration<Issue>
             .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(i => new { i.TeamId, i.Number }).IsUnique();
-        builder.HasIndex(i => new { i.TeamId, i.StateId, i.SortOrder });
+        builder.HasIndex(i => new { i.TeamId, i.StateId, i.Rank });
         builder.HasIndex(i => i.AssigneeId);
         builder.HasIndex(i => i.ProjectId);
         builder.HasIndex(i => i.MilestoneId);

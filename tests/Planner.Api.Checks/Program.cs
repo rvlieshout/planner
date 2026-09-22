@@ -60,6 +60,7 @@ finally
 }
 
 await Planner.Api.Checks.Base58Checks.RunAsync(Check);
+Planner.Api.Checks.RankChecks.Run(Check);
 
 static void Check(bool condition, string message)
 {

@@ -13,8 +13,8 @@ public class WorkflowState : Entity
     public WorkflowStateType Type { get; set; }
     public string Color { get; set; } = "#95A2B3";
 
-    /// <summary>Left-to-right board ordering within the team.</summary>
-    public int Position { get; set; }
+    /// <summary>Left-to-right board ordering within the team, as a <see cref="Common.Rank"/> key.</summary>
+    public required string Rank { get; set; }
 
     /// <summary>State new issues land in when the caller does not specify one.</summary>
     public bool IsDefault { get; set; }

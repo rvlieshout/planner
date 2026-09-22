@@ -50,7 +50,7 @@ public static class Mapping
     public static readonly Func<TeamMember, TeamMemberDto> ToTeamMember = TeamMemberProjection.Compile();
 
     public static readonly Expression<Func<WorkflowState, WorkflowStateDto>> WorkflowStateProjection =
-        s => new WorkflowStateDto(s.Id, s.TeamId, s.Name, s.Type, s.Color, s.Position, s.IsDefault);
+        s => new WorkflowStateDto(s.Id, s.TeamId, s.Name, s.Type, s.Color, s.Rank, s.IsDefault);
 
     public static readonly Func<WorkflowState, WorkflowStateDto> ToWorkflowState = WorkflowStateProjection.Compile();
 
@@ -80,7 +80,7 @@ public static class Mapping
                     p.LeadUser.IsActive),
             p.StartDate,
             p.TargetDate,
-            p.SortOrder,
+            p.Rank,
             new ProjectProgress(
                 p.Issues.Count(i => i.ArchivedAt == null),
                 p.Issues.Count(i => i.ArchivedAt == null && i.State.Type == WorkflowStateType.Completed),
@@ -101,7 +101,7 @@ public static class Mapping
             m.Description,
             m.TargetDate,
             m.Status,
-            m.SortOrder,
+            m.Rank,
             new ProjectProgress(
                 m.Issues.Count(i => i.ArchivedAt == null),
                 m.Issues.Count(i => i.ArchivedAt == null && i.State.Type == WorkflowStateType.Completed),
@@ -189,7 +189,7 @@ public static class Mapping
             i.ParentId,
             i.Estimate,
             i.DueDate,
-            i.SortOrder,
+            i.Rank,
             i.Labels
                 .Select(l => new LabelDto(l.Label.Id, l.Label.TeamId, l.Label.Name, l.Label.Color, l.Label.Description))
                 .ToList(),
@@ -363,7 +363,7 @@ public static class Mapping
             issue.Parent is null ? null : $"{issue.Team.Key}-{issue.Parent.Number}",
             issue.Estimate,
             issue.DueDate,
-            issue.SortOrder,
+            issue.Rank,
             issue.Labels.Select(l => ToLabel(l.Label)).ToList(),
             children,
             relations,

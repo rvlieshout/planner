@@ -3,6 +3,7 @@ import type { Guid, IssueSummary, WorkflowStateDto } from '$lib/api/types';
 import { issuesIn } from '$lib/board';
 import { moveAnchors } from '$lib/dnd.svelte';
 import { announce } from '$lib/issues/changes';
+import { rankBetween } from '$lib/rank';
 import { toasts } from '$components/toast.svelte';
 
 /*
@@ -51,11 +52,13 @@ export async function moveIssue({ issue, stateId, index, states, issues, apply }
 
   const previous = issues;
 
-  // Put it where it was dropped straight away, with a rank between its new neighbours so the
-  // optimistic order matches the one the server is about to write.
-  const after = column.find((candidate) => candidate.id === anchors.afterIssueId);
-  const before = column.find((candidate) => candidate.id === anchors.beforeIssueId);
-  const sortOrder = midpoint(after?.sortOrder, before?.sortOrder, column);
+  // Put it where it was dropped straight away, with the rank the server is about to write, so the
+  // realtime echo confirms the order on screen rather than rearranging it.
+  const rank = rankFor(
+    column.filter((candidate) => candidate.id !== issue.id && !candidate.archivedAt),
+    anchors.afterIssueId,
+    anchors.beforeIssueId
+  );
 
   apply(
     issues.map((candidate) =>
@@ -66,7 +69,7 @@ export async function moveIssue({ issue, stateId, index, states, issues, apply }
             stateName: target.name,
             stateType: target.type,
             stateColor: target.color,
-            sortOrder
+            rank
           }
         : candidate
     )
@@ -87,11 +90,19 @@ export async function moveIssue({ issue, stateId, index, states, issues, apply }
   }
 }
 
-/** The rank a card takes between two neighbours — the same midpoint the server computes. */
-function midpoint(after: number | undefined, before: number | undefined, column: IssueSummary[]): number {
-  if (after !== undefined && before !== undefined) return (after + before) / 2;
-  if (after !== undefined) return after + 1;
-  if (before !== undefined) return before - 1;
+/**
+ * The rank a dropped card takes — the same rule `ResolveRankAsync` applies on the server.
+ *
+ * It follows the card above it and takes a key before whatever comes next in the column, rather than
+ * trusting the card below as well: two cards can share a rank after concurrent drops, and a key
+ * "between" equal ranks does not exist. `others` is the column in rank order, without the card itself.
+ */
+function rankFor(others: IssueSummary[], afterId: Guid | null, beforeId: Guid | null): string {
+  const after = others.find((candidate) => candidate.id === afterId);
+  if (after) return rankBetween(after.rank, others.find((candidate) => candidate.rank > after.rank)?.rank);
 
-  return column.length === 0 ? 0 : Math.min(...column.map((issue) => issue.sortOrder)) - 1;
+  const before = others.find((candidate) => candidate.id === beforeId);
+  if (before) return rankBetween(others.findLast((candidate) => candidate.rank < before.rank)?.rank, before.rank);
+
+  return rankBetween(others.at(-1)?.rank, null);
 }

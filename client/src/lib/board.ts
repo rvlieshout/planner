@@ -1,4 +1,5 @@
 import type { IssueSummary, WorkflowStateDto } from '$lib/api/types';
+import { compareRank } from '$lib/rank';
 
 /*
  * How a board is laid out.
@@ -34,11 +35,11 @@ export interface BoardLane {
 export function issuesIn(issues: IssueSummary[], stateId: string): IssueSummary[] {
   return issues
     .filter((issue) => issue.stateId === stateId)
-    .sort((a, b) => a.sortOrder - b.sortOrder || a.number - b.number);
+    .sort((a, b) => compareRank(a.rank, b.rank) || a.number - b.number);
 }
 
 export function layOut(states: WorkflowStateDto[], issues: IssueSummary[]): BoardLane[] {
-  const ordered = [...states].sort((a, b) => a.position - b.position);
+  const ordered = [...states].sort((a, b) => compareRank(a.rank, b.rank) || a.name.localeCompare(b.name));
 
   const columnsOf = (state: WorkflowStateDto): BoardColumn => ({
     state,

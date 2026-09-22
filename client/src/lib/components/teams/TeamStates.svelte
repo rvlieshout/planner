@@ -2,6 +2,7 @@
   import { ApiError, teams as teamsApi } from '$lib/api';
   import { WORKFLOW_STATE_TYPES, type Guid, type WorkflowStateDto, type WorkflowStateType } from '$lib/api/types';
   import { STATE_TYPE } from '$lib/meta';
+  import { compareRank, rankAt } from '$lib/rank';
   import { realtime } from '$lib/realtime/hub.svelte';
   import { workspace } from '$lib/workspace.svelte';
   import ColorPicker from '$components/ColorPicker.svelte';
@@ -59,7 +60,7 @@
   let error = $state<string | null>(null);
   let fieldErrors = $state<Record<string, string>>({});
 
-  const ordered = $derived([...states].sort((a, b) => a.position - b.position));
+  const ordered = $derived([...states].sort((a, b) => compareRank(a.rank, b.rank) || a.name.localeCompare(b.name)));
 
   async function load() {
     loading = true;
@@ -155,36 +156,34 @@
   /**
    * Moves a state one place along the board.
    *
-   * Every state whose position is not its index is renumbered, not just the two that swap: positions
-   * are whatever the API was last given, which may have gaps or ties, and a swap of two tied
-   * positions would move nothing.
+   * Only the state that moves is written: it takes a rank key between the two states it now sits
+   * between, and every other column keeps the key it has.
    */
   async function move(state: WorkflowStateDto, offset: -1 | 1) {
-    const list = [...ordered];
-    const from = list.findIndex((candidate) => candidate.id === state.id);
+    const from = ordered.findIndex((candidate) => candidate.id === state.id);
     const to = from + offset;
-    if (busy || from < 0 || to < 0 || to >= list.length) return;
+    if (busy || from < 0 || to < 0 || to >= ordered.length) return;
 
-    [list[from], list[to]] = [list[to], list[from]];
+    // Where it lands among the others: past the one below it, or ahead of the one above it.
+    const others = ordered.filter((candidate) => candidate.id !== state.id);
+    const rank = rankAt(
+      others.map((candidate) => candidate.rank),
+      offset === 1 ? from + 1 : from - 1
+    );
 
     const previous = states;
-    states = list.map((candidate, index) => ({ ...candidate, position: index }));
+    states = states.map((candidate) => (candidate.id === state.id ? { ...candidate, rank } : candidate));
     busy = true;
 
     try {
-      for (const [index, candidate] of list.entries()) {
-        if (candidate.position !== index) {
-          await teamsApi.updateState(teamId, candidate.id, { position: index });
-        }
-      }
-
+      await teamsApi.updateState(teamId, state.id, { rank });
       workspace.invalidate(teamId);
     } catch (failure) {
       states = previous;
       toasts.error(failure instanceof ApiError ? failure.message : 'Moving the state failed.');
     } finally {
       busy = false;
-      // Whatever landed — all of it, or some of it before a failure — the server's order is the truth.
+      // Landed or refused, the server's order is the truth.
       void load();
     }
   }

@@ -29,7 +29,9 @@ public class Project : Entity, IArchivable
 
     public DateTimeOffset? CompletedAt { get; set; }
     public DateTimeOffset? ArchivedAt { get; set; }
-    public double SortOrder { get; set; }
+
+    /// <summary>Position among the team's projects, as a <see cref="Common.Rank"/> key.</summary>
+    public required string Rank { get; set; }
 
     public ICollection<Milestone> Milestones { get; set; } = [];
     public ICollection<Issue> Issues { get; set; } = [];

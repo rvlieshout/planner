@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Planner.Domain.Common;
 using Planner.Domain.Entities;
 using Planner.Contracts.Enums;
 using Planner.Domain.Identity;
@@ -127,7 +128,7 @@ public sealed class DatabaseSeeder(
             LeadUserId = owner.Id,
             StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
             TargetDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(60)),
-            SortOrder = 1000
+            Rank = Rank.First
         };
         db.Projects.Add(project);
 
@@ -138,7 +139,7 @@ public sealed class DatabaseSeeder(
             Description = "Read-only board with live updates.",
             TargetDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(21)),
             Status = MilestoneStatus.Active,
-            SortOrder = 1000
+            Rank = Rank.First
         };
         var beta = new Milestone
         {
@@ -146,7 +147,7 @@ public sealed class DatabaseSeeder(
             Name = "Beta",
             Description = "Full editing, offline queue, attachments.",
             TargetDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(50)),
-            SortOrder = 2000
+            Rank = Rank.Between(Rank.First, null)
         };
         db.Milestones.AddRange(alpha, beta);
 
@@ -163,6 +164,7 @@ public sealed class DatabaseSeeder(
         var inProgress = states.First(s => s.Type == WorkflowStateType.Started);
 
         var number = 0;
+        string? rank = null;
         Issue NewIssue(string title, WorkflowState state, IssuePriority priority, Guid? assignee, Milestone milestone)
         {
             number++;
@@ -177,7 +179,7 @@ public sealed class DatabaseSeeder(
                 CreatorId = owner.Id,
                 ProjectId = project.Id,
                 MilestoneId = milestone.Id,
-                SortOrder = number * 1000d,
+                Rank = rank = Rank.Between(rank, null),
                 StartedAt = state.Type == WorkflowStateType.Started ? DateTimeOffset.UtcNow : null
             };
         }

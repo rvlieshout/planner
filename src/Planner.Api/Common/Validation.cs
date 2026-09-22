@@ -53,6 +53,19 @@ public sealed class Validation
         return this;
     }
 
+    /// <summary>A <see cref="Domain.Common.Rank"/> key sent by a client. A malformed one would sort
+    /// somewhere, but no key could ever be made next to it.</summary>
+    public Validation RankKey(string? value, string field)
+    {
+        if (value is not null && (value.Length > Domain.Common.Rank.MaxLength || !Domain.Common.Rank.IsValid(value)))
+        {
+            Add(field, $"{field} must be a rank key of at most {Domain.Common.Rank.MaxLength} characters, " +
+                       "such as one taken from another row of the same list.");
+        }
+
+        return this;
+    }
+
     public Validation Range(int? value, int min, int max, string field)
     {
         if (value is { } v && (v < min || v > max))
