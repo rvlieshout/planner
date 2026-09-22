@@ -456,12 +456,29 @@ public static class TeamEndpoints
             return ApiResults.NotFound("That workflow state");
         }
 
+        // The same rules a new state is held to, or a rename could empty a column's name or give two
+        // columns the same one.
+        if (request.Name.TryGet(out var name))
+        {
+            var validation = new Validation().Required(name, "name").MaxLength(name, 60, "name");
+            if (validation.HasErrors)
+            {
+                return validation.ToResult();
+            }
+
+            name = name!.Trim();
+            if (await db.WorkflowStates.AnyAsync(s => s.TeamId == id && s.Name == name && s.Id != stateId, ct))
+            {
+                return ApiResults.Conflict($"This team already has a state named {name}.");
+            }
+
+            state.Name = name;
+        }
+
         if (request.IsDefault.TryGet(out var isDefault) && isDefault)
         {
             await ClearDefaultStateAsync(db, id, ct);
         }
-
-        state.Name = request.Name.Or(state.Name)!;
         state.Type = request.Type.Or(state.Type);
         state.Color = request.Color.Or(state.Color)!;
         state.Position = request.Position.Or(state.Position);

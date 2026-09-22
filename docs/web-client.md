@@ -305,8 +305,14 @@ ordinary way. Blobs are cached per attachment for the session and revoked on sig
 
 Each mounted editor owns its Carta instance, including its selection and undo history. Uploads insert at the selection and show progress or an inline error. Editing and saving that field pause until the upload finishes.
 
-A pasted image is an ordinary attachment, so it also appears in the issue's Attachments list. Delete
-it there and the reference renders as "attachment unavailable" rather than as a broken image.
+A pasted image is an ordinary attachment, so it also appears in the issue's Attachments list — at
+once, before anything is saved, because the editor announces each upload and the issue page adds it.
+Delete it there and the reference renders as "attachment unavailable" rather than as a broken image.
+
+An image is drawn no wider than the text and, by default, no taller than 360px. Clicking one in the
+editor's Preview puts a size bar over it — Auto, S, M, L, Full — and the choice is written into the
+reference itself (`attachment:0199ab…#size=m`), so it is plain markdown that undoes like typing.
+Clicking an image while reading opens it in a lightbox, fitted to the screen or at its actual size.
 
 A project description has no issue behind it and therefore nowhere to put a file, so it says so
 instead of swallowing the paste.
@@ -375,6 +381,15 @@ Archived teams are listed last rather than left out, because restoring one is on
 that still shows it. The key is set once, at creation, and validated here before the request goes out,
 because a rejected key is otherwise a round trip to learn a typo. Two refusals belong to the server and
 are shown as it writes them: a duplicate key, and demoting or removing a team's only lead.
+
+A team's **workflow states** — its board's columns — are edited on the same page, one at a time like
+its labels: name, type, colour, and whether new issues start there. Move up and down reorders the
+board; every state whose position is not its index is renumbered, because positions are whatever the
+API was last given and a swap of two tied ones would move nothing. The type is spelled out in the
+editor because it is what the application reads: it decides whether an issue counts as done in a
+rollup, which states the board stacks into one lane, and where My Issues groups it. The default is
+only ever moved, never cleared. Deleting is refused by the server while issues are still in the state,
+or when it is the team's last one, and the refusal is shown as it is written.
 
 **Users & access** covers the directory including inactive accounts, and previews *effective* access
 per team using the same ladder the server computes — admins and owners administer every team, guests
@@ -480,7 +495,5 @@ Every control is a real element: buttons are `<button>`, the modal is `<dialog>`
   only the issue picker on the relations panel uses `?search=`.
 - **Documents.** `GET /api/v1/documents` is complete on the server and unused here.
 - **The activity feed.** Read on the issue page only; `/api/v1/activity` across teams has no view.
-- **Workflow states.** The teams page covers a team's settings, membership and labels (and, for
-  administrators, organisation-wide labels); its columns are still administered through the API alone.
 - **Archiving and restoring projects,** which needs somewhere to see archived ones first.
 - Offline queueing of writes.

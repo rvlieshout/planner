@@ -15,7 +15,7 @@ const root = resolve(here, '..');
 /** Lucide icon names, sorted. Anything not listed here is not shipped. */
 const ICONS = [
   'archive', 'archive-restore', 'arrow-left', 'ban', 'calendar', 'check', 'chevron-down',
-  'chevron-left', 'chevron-right', 'circle', 'circle-alert', 'circle-arrow-up', 'circle-check',
+  'chevron-left', 'chevron-right', 'chevron-up', 'circle', 'circle-alert', 'circle-arrow-up', 'circle-check',
   'circle-dashed', 'circle-dot', 'circle-user', 'clock', 'command', 'copy', 'corner-down-right', 'download',
   'ellipsis', 'external-link', 'file-text', 'filter', 'flag', 'folder', 'folder-kanban',
   'grip-vertical', 'image', 'inbox', 'info', 'key-round', 'layout-grid', 'link', 'list', 'loader-circle',
