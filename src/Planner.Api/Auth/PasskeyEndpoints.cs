@@ -16,12 +16,22 @@ public static class PasskeyEndpoints
             $"{context.Request.Scheme}://{context.Request.Host}", StringComparison.OrdinalIgnoreCase) &&
         uri.AbsolutePath == "/" && string.IsNullOrEmpty(uri.Query) && string.IsNullOrEmpty(uri.Fragment);
 
+    private static IResult OriginMismatch(HttpContext context)
+    {
+        context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Planner.Passkeys")
+            .LogWarning("Passkey origin mismatch: browser {Origin}, server {Scheme}://{Host}. Check trusted proxy forwarding.",
+                context.Request.Headers.Origin.ToString(), context.Request.Scheme, context.Request.Host.ToString());
+        return Results.Problem(
+            "The workspace address does not match the address seen by the server. Ask your administrator to check HTTPS proxy forwarding.",
+            statusCode: StatusCodes.Status400BadRequest, title: "Passkey origin mismatch");
+    }
+
     public static IEndpointRouteBuilder MapPasskeyEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/connect/passkey/options", async (HttpContext context,
             IPasskeyHandler<AppUser> handler, PasskeyCeremonies ceremonies) =>
         {
-            if (!IsSameOrigin(context, context.Request.Headers.Origin)) return Results.BadRequest();
+            if (!IsSameOrigin(context, context.Request.Headers.Origin)) return OriginMismatch(context);
             var options = await handler.MakeRequestOptionsAsync(null, context);
             ceremonies.Begin(context, "login", options.AssertionState);
             return Results.Content(options.RequestOptionsJson, "application/json");
@@ -45,7 +55,7 @@ public static class PasskeyEndpoints
         {
             var user = await users.GetUserAsync(context.User);
             if (user is null || !user.IsActive) return Results.Unauthorized();
-            if (!IsSameOrigin(context, context.Request.Headers.Origin)) return Results.BadRequest();
+            if (!IsSameOrigin(context, context.Request.Headers.Origin)) return OriginMismatch(context);
             if ((await users.GetPasskeysAsync(user)).Count >= 10)
                 return Results.Problem("Remove an unused passkey before adding another.", statusCode: 400);
             var options = await handler.MakeCreationOptionsAsync(new PasskeyUserEntity

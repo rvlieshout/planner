@@ -196,3 +196,25 @@ the environment does not reset credentials that already exist in a populated dat
   downtime below.
 - **This is a single server.** Deploys and restores mean brief downtime; clients reconnect on their
   own.
+
+## Passkey setup returns 400 behind Coolify
+
+Check `https://YOUR_HOST/.well-known/openid-configuration`. Its `issuer` and `token_endpoint`
+should both use `https`. If they use `http`, the public TLS scheme was lost between proxies and
+passkey origin validation will reject the browser's HTTPS origin.
+
+`deploy/Caddyfile` trusts forwarding headers from the private IPv4 ranges used by Coolify and the
+API. This preserves Coolify's `X-Forwarded-Proto: https` through the internal HTTP hop. The API's
+`Planner__Auth__TrustedProxyHops` remains `2`. Keep the web container behind Coolify; if the proxy
+network changes, update both layers' trusted networks. Do not bypass the passkey origin check or
+force all incoming requests to HTTPS regardless of their source.
+
+The Caddyfile is baked into the **web image**: rebuild/publish that image and redeploy it, rather
+than only restarting the API. The API image adds an actionable origin-mismatch response and logs
+both the browser origin and reconstructed server origin. Deploy it too for those diagnostics.
+After deployment, verify that discovery advertises HTTPS, then try adding a passkey again.
+Existing sessions issued under the incorrect HTTP issuer may need a fresh sign-in.
+
+To run the proxy regression checks locally, install Caddy 2 and set `CADDY_BIN` to its executable,
+then run `python -m unittest discover -s tests/deploy -v`. These tests launch Caddy on loopback and
+verify trusted HTTPS forwarding, rejection of untrusted forwarding headers, and ordinary HTTP.

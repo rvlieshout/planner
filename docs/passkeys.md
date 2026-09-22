@@ -41,6 +41,7 @@ stored refresh token. Users should sign out on shared devices.
 - The proxy must preserve the public Host and forward the original HTTPS scheme. Configure
   `Planner__Auth__TrustedProxyHops` correctly for the deployment. The Vite API/auth proxies preserve
   Host for localhost development. Origin validation matches the exact public scheme, host, and port.
+  Caddy must also trust the upstream proxy to preserve HTTPS; see [production 400 troubleshooting](deploy-coolify.md#passkey-setup-returns-400-behind-coolify).
 - Changing the hostname requires enrolling passkeys for the new hostname using the recovery path.
 - Pending ceremonies are held in a bounded in-process cache for five minutes and consumed atomically.
   An HttpOnly, SameSite Strict cookie binds each ceremony to its browser; registration state is also

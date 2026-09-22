@@ -1,3 +1,13 @@
+{
+    servers {
+        # Coolify terminates TLS before this private container. Trust its forwarded scheme
+        # and client IP, using the same private network ranges as the API. Without this,
+        # Caddy replaces X-Forwarded-Proto: https with its internal HTTP connection scheme.
+        trusted_proxies static 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+        trusted_proxies_strict
+    }
+}
+
 # Internal web server. Public TLS, certificates and routing into this container are Coolify's job;
 # this only decides what belongs to the website, what belongs to the web client, and what belongs to
 # the API.
