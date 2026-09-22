@@ -42,6 +42,11 @@ public static class AuthEndpoints
         var request = context.GetOpenIddictServerRequest()
                       ?? throw new InvalidOperationException("The OpenID Connect request is not available.");
 
+        if (request.GrantType == PasskeyEndpoints.GrantType)
+        {
+            return await HandlePasskeyGrantAsync(context, request, userManager, signInManager);
+        }
+
         if (request.IsPasswordGrantType())
         {
             return await HandlePasswordGrantAsync(request, userManager, signInManager);
@@ -52,7 +57,33 @@ public static class AuthEndpoints
             return await HandleRefreshGrantAsync(context, userManager);
         }
 
-        return Reject(Errors.UnsupportedGrantType, "Only the password and refresh_token grants are supported.");
+        return Reject(Errors.UnsupportedGrantType, "The requested sign-in method is not supported.");
+    }
+
+    private static async Task<IResult> HandlePasskeyGrantAsync(HttpContext context,
+        OpenIddictRequest request, UserManager<AppUser> users, SignInManager<AppUser> signInManager)
+    {
+        var ceremonies = context.RequestServices.GetRequiredService<PasskeyCeremonies>();
+        var state = ceremonies.Take(context, "login");
+        var credential = (string?)request.GetParameter("credential");
+        if (state is null || string.IsNullOrWhiteSpace(credential) || credential.Length > 65536)
+            return Reject(Errors.InvalidGrant, "Passkey sign-in expired. Please try again.");
+        var handler = context.RequestServices.GetRequiredService<IPasskeyHandler<AppUser>>();
+        var result = await handler.PerformAssertionAsync(new PasskeyAssertionContext
+        {
+            HttpContext = context, CredentialJson = credential, AssertionState = state
+        });
+        if (!result.Succeeded || !result.User.IsActive ||
+            !await signInManager.CanSignInAsync(result.User) || await users.IsLockedOutAsync(result.User))
+            return Reject(Errors.InvalidGrant, "The passkey could not sign in to an active account.");
+        // Assertion updates the authenticator counter and backup flags; persist before issuing tokens.
+        if (!(await users.AddOrUpdatePasskeyAsync(result.User, result.Passkey)).Succeeded)
+            return Reject(Errors.InvalidGrant, "The passkey could not be updated. Please try again.");
+        result.User.LastSeenAt = DateTimeOffset.UtcNow;
+        if (!(await users.UpdateAsync(result.User)).Succeeded)
+            return Reject(Errors.InvalidGrant, "The account could not be updated. Please try again.");
+        var principal = await BuildPrincipalAsync(result.User, users, request.GetScopes());
+        return Results.SignIn(principal, null, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
     private static async Task<IResult> HandlePasswordGrantAsync(

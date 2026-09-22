@@ -10,6 +10,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
+    "check:auth": "node scripts/check-auth.mjs",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "icons": "node scripts/build-icons.mjs"
   },

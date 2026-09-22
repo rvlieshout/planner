@@ -50,6 +50,7 @@ public sealed class OpenIddictClientSeeder(
                 Permissions.Endpoints.Token,
                 Permissions.GrantTypes.Password,
                 Permissions.GrantTypes.RefreshToken,
+                Permissions.Prefixes.GrantType + PasskeyEndpoints.GrantType,
                 Permissions.Scopes.Email,
                 Permissions.Scopes.Profile,
                 Permissions.Scopes.Roles,

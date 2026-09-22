@@ -20,9 +20,9 @@ export default defineConfig({
     port: 5175,
     strictPort: true,
     proxy: {
-      '/api': { target: api, changeOrigin: true },
-      '/connect': { target: api, changeOrigin: true },
-      '/hubs': { target: api, changeOrigin: true, ws: true }
+      '/api': { target: api, changeOrigin: false },
+      '/connect': { target: api, changeOrigin: false },
+      '/hubs': { target: api, changeOrigin: false, ws: true }
     }
   }
 });

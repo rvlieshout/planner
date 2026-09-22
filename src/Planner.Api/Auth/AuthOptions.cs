@@ -13,7 +13,7 @@ public sealed class PlannerAuthOptions
 
     public int AccessTokenMinutes { get; set; } = 60;
 
-    public int RefreshTokenDays { get; set; } = 14;
+    public int RefreshTokenDays { get; set; } = 30;
 
     /// <summary>Client id the desktop and any other first-party app authenticates with. Public client:
     /// a desktop binary cannot keep a secret, so it does not get one.</summary>

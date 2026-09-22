@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { assertPasskey, passkeyError, passkeysAvailable } from '$lib/auth/passkeys';
   import { ApiError } from '$lib/api';
   import { session } from '$lib/auth/session.svelte';
   import { settings } from '$lib/settings.svelte';
@@ -12,6 +13,8 @@
    * pointed anywhere; this application was served by the installation it talks to, so the address is
    * already settled and asking for it again would only be a way to get it wrong.
    */
+  let recovery = $state(false);
+  const supportsPasskeys = passkeysAvailable();
   let email = $state(settings.lastEmail ?? '');
   let password = $state('');
   let busy = $state(false);
@@ -29,8 +32,21 @@
   const resuming = Boolean(settings.lastEmail);
 
   $effect(() => {
-    if (resuming) passwordField?.focus();
+    if (resuming && recovery) passwordField?.focus();
   });
+
+  async function signInWithPasskey() {
+    if (busy) return;
+    busy = true;
+    error = null;
+    try {
+      await session.signInWithPasskey(await assertPasskey());
+    } catch (failure) {
+      error = passkeyError(failure);
+    } finally {
+      busy = false;
+    }
+  }
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();
@@ -80,6 +96,21 @@
       </div>
     {/if}
 
+    <button type="button" class="btn btn-primary btn-lg btn-block"
+      disabled={busy || !supportsPasskeys} onclick={() => void signInWithPasskey()}>
+      {busy && !recovery ? 'Signing in…' : 'Sign in with a passkey'}
+    </button>
+    <p class="muted">Use your fingerprint, face, device PIN, or security key.</p>
+    {#if !supportsPasskeys}
+      <p class="muted">Passkeys need a supported browser over HTTPS (or localhost). You can still use setup and recovery below.</p>
+    {/if}
+    <p class="muted">You’ll stay signed in on this browser. Sign out when using a shared device.</p>
+    <button type="button" class="btn btn-sm" disabled={busy} aria-expanded={recovery}
+      onclick={() => { recovery = !recovery; error = null; }}>
+      {recovery ? 'Hide setup and recovery' : 'First-time setup or recovery'}
+    </button>
+    {#if recovery}
+    <p class="muted">Sign in with your existing password, then add a passkey in Preferences. If you’ve lost access, ask your administrator to reset your password and share it with you directly. No email is sent.</p>
     <div class="field">
       <label for="email">Email</label>
       <input
@@ -110,9 +141,10 @@
         <Icon name="loader-circle" size={15} class="spin" />
         Signing in…
       {:else}
-        Sign in
+        Continue with password
       {/if}
     </button>
+    {/if}
   </form>
 </div>
 
@@ -120,7 +152,7 @@
   .screen {
     display: grid;
     place-items: center;
-    height: 100%;
+    min-height: 100%;
     padding: var(--s-6);
     background:
       radial-gradient(circle at 50% -10%, var(--accent-subtle), transparent 55%),
@@ -137,7 +169,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--s-5);
-    width: min(360px, 100%);
+    width: min(420px, 100%);
     padding: var(--s-8);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);

@@ -27,6 +27,7 @@ export type Permission = (typeof Permission)[keyof typeof Permission];
 
 class Session {
   status = $state<SessionStatus>('unknown');
+  suggestPasskeySetup = false;
   user = $state<MeResponse | null>(null);
 
   /** Set when restoring a stored session failed for a reason worth telling the user about. */
@@ -113,8 +114,17 @@ class Session {
     return this.isAdmin;
   }
 
+  async signInWithPasskey(credential: string): Promise<void> {
+    await tokens.signInWithPasskey(credential);
+    this.suggestPasskeySetup = false;
+    this.user = await meApi.get();
+    this.restoreError = null;
+    this.status = 'signed-in';
+  }
+
   async signIn(email: string, password: string): Promise<void> {
     await tokens.signIn(email, password);
+    this.suggestPasskeySetup = true;
     this.user = await meApi.get();
     this.restoreError = null;
     this.status = 'signed-in';

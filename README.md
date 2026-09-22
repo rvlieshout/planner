@@ -15,7 +15,7 @@ to keep updated, and no CORS to configure.
 | Runtime | .NET 10, minimal APIs |
 | Database | PostgreSQL 18, EF Core 10 (Npgsql) |
 | Identity | ASP.NET Core Identity, users and roles in the same database |
-| Tokens | OpenIddict 7 — self-hosted OAuth 2.0 / OIDC, password + refresh grants, plain JWTs |
+| Tokens | OpenIddict 7 — self-hosted OAuth 2.0 / OIDC, passkey + password recovery + refresh grants, plain JWTs |
 | Realtime | SignalR hub at `/hubs/planner`, strongly typed against a shared interface |
 | Client | SvelteKit 2 / Svelte 5 — static bundle, custom CSS, self-hosted Inter and Lucide |
 | Client hosting | Caddy, same origin as the API, at `/app` |
@@ -24,6 +24,13 @@ to keep updated, and no CORS to configure.
 
 71 HTTP operations across teams, members, workflow states, labels, projects, milestones, documents,
 issues, sub-issues, relations, comments, attachments, users and the activity feed.
+
+## Sign-in
+
+Passkeys are the primary login. Existing users sign in once through **First-time setup or recovery**
+and add a passkey in Preferences. Sessions are remembered for 30 days and renewed through use.
+Recovery uses the existing password or an administrator reset, without email. See [passkey setup
+and hosting](docs/passkeys.md).
 
 ## Run it
 
@@ -195,7 +202,7 @@ Every setting binds from environment variables using `__` as the separator
 | `Planner__Auth__KeyDirectory` | `/var/lib/planner/keys` | Where token certificates live. Must be a persistent volume. |
 | `Planner__Auth__KeyPassword` | — | Protects those certificates at rest. |
 | `Planner__Auth__AccessTokenMinutes` | `60` | Access token lifetime. |
-| `Planner__Auth__RefreshTokenDays` | `14` | Refresh token lifetime. |
+| `Planner__Auth__RefreshTokenDays` | `30` | Refresh token lifetime, renewed on refresh. |
 | `Planner__Auth__AllowInsecureHttp` | `false` | Allow plain HTTP on the token endpoint. True behind a TLS proxy. |
 | `Planner__Auth__TrustedProxyHops` | `0` | Reverse proxies in front of the API. Needed for per-client rate limiting; `2` on the Coolify VPS. |
 | `Planner__Auth__AllowedOrigins__0` | — | CORS origins, one per index. The web client does not need it: it is served from this API's own origin. Set it only for a browser application hosted somewhere else. |

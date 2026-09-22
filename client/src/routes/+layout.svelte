@@ -49,7 +49,7 @@
     }
 
     if (session.status === 'signed-in' && onLogin) {
-      void goto(resolve('/'), { replaceState: true });
+      void goto(session.suggestPasskeySetup ? resolve('/settings') : resolve('/'), { replaceState: true });
     }
   });
 

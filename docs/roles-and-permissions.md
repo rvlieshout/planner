@@ -83,6 +83,13 @@ Organisation-level actions bypass teams entirely:
 
 ## Token flow
 
+The browser uses a passkey first: request options from `/connect/passkey/options`, complete
+the WebAuthn prompt, then submit the credential to `/connect/token` with
+`grant_type=urn:planner:params:oauth:grant-type:passkey`. The five-minute, single-use ceremony
+is bound to the browser. See [passkey setup and recovery](passkeys.md).
+
+The password grant remains for first-time setup, recovery, and service integrations:
+
 ```
 POST /connect/token
   grant_type=password
@@ -91,7 +98,7 @@ POST /connect/token
   password=<password>
   scope=openid profile roles offline_access planner.api
       ↓
-  { access_token (JWT, 60 min), refresh_token (14 days), token_type: "Bearer" }
+  { access_token (JWT, 60 min), refresh_token (30 days), token_type: "Bearer" }
 ```
 
 The access token carries `sub`, `name`, `email` and `role`. Refreshing rebuilds those claims from the
@@ -100,7 +107,7 @@ at the next refresh rather than at the next sign-in.
 
 Both `planner-web` and `planner-desktop` are **public** clients: a binary on every workstation cannot
 keep a secret, and a browser application is source anyone can read, so each has an identifier rather
-than a credential. The user's password is the credential. They are registered separately so the two
+than a credential. The user's passkey or recovery password is the credential. They are registered separately so the two
 can be told apart in the logs and revoked independently. The token endpoint is rate-limited to 20
 requests per minute per IP, and Identity locks an account for 15 minutes after 10 failed attempts.
 

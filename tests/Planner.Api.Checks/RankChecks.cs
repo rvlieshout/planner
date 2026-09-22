@@ -1,5 +1,3 @@
-using Planner.Domain.Common;
-
 namespace Planner.Api.Checks;
 
 /// <summary>Covers <see cref="Rank"/>: the keys themselves against vectors from Rocicorp's

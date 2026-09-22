@@ -26,6 +26,16 @@ public class PlannerDbContext(DbContextOptions<PlannerDbContext> options)
     {
         base.OnModelCreating(builder);
 
+        // Add the Identity passkey store without changing existing identity column lengths.
+        builder.Entity<Microsoft.AspNetCore.Identity.IdentityUserPasskey<Guid>>(passkey =>
+        {
+            passkey.ToTable("user_passkeys");
+            passkey.HasKey(p => p.CredentialId);
+            passkey.Property(p => p.CredentialId).HasMaxLength(1024);
+            passkey.OwnsOne(p => p.Data).ToJson("data");
+            passkey.HasOne<AppUser>().WithMany().HasForeignKey(p => p.UserId).IsRequired();
+        });
+
         // Trigram indexes back the ILIKE title/description search on issues.
         builder.HasPostgresExtension("pg_trgm");
 

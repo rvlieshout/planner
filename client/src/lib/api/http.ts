@@ -123,7 +123,8 @@ async function send(
   if (response.status === 401 && !options.anonymous) {
     try {
       response = await attempt(await tokens.refresh());
-    } catch {
+    } catch (error) {
+      if (error instanceof ApiError && (error.status === 0 || error.status === 429 || error.status >= 500)) throw error;
       onUnauthorized?.();
       throw new ApiError(401, 'Your session has expired. Sign in again.');
     }

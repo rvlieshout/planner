@@ -8,6 +8,7 @@
   import { realtime } from '$lib/realtime/hub.svelte';
   import { BUILD_SHA, VERSION } from '$lib/version';
   import { ORG_ROLE, TEAM_ROLE } from '$lib/meta';
+  import PasskeySettings from '$components/PasskeySettings.svelte';
   import Avatar from '$components/Avatar.svelte';
   import Icon from '$components/Icon.svelte';
   import TimeZoneSelect from '$components/TimeZoneSelect.svelte';
@@ -111,6 +112,7 @@
 </script>
 
 <div class="settings">
+  <PasskeySettings />
   <section class="panel">
     <div class="panel-title"><span>Profile</span></div>
 
@@ -160,7 +162,7 @@
   </section>
 
   <section class="panel">
-    <div class="panel-title"><span>Password</span></div>
+    <div class="panel-title"><span>Recovery password</span></div>
 
     {#if passwordError}
       <div class="alert alert-error"><Icon name="circle-alert" size={15} /><span>{passwordError}</span></div>

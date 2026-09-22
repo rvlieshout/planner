@@ -121,7 +121,7 @@ builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-    // Password grants are the one endpoint worth brute-forcing, so it gets its own budget per client IP.
+    // Bound credential attempts and passkey ceremonies per client IP.
     options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions
@@ -164,6 +164,7 @@ app.MapScalarApiReference(options => options
     .AllowAnonymous();
 
 app.MapAuthEndpoints();
+app.MapPasskeyEndpoints();
 app.MapUserEndpoints();
 app.MapTeamEndpoints();
 app.MapProjectEndpoints();

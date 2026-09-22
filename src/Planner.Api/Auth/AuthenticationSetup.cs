@@ -45,6 +45,15 @@ public static class AuthenticationSetup
             .AddSignInManager()
             .AddDefaultTokenProviders();
 
+        services.AddSingleton<PasskeyCeremonies>();
+        services.Configure<IdentityPasskeyOptions>(options =>
+        {
+            options.ResidentKeyRequirement = "required";
+            options.UserVerificationRequirement = "required";
+            options.ValidateOrigin = context => ValueTask.FromResult(
+                !context.CrossOrigin && PasskeyEndpoints.IsSameOrigin(context.HttpContext, context.Origin));
+        });
+
         // Make Identity emit the claim names OpenIddict and the rest of the API expect.
         services.Configure<IdentityOptions>(options =>
         {
@@ -63,11 +72,11 @@ public static class AuthenticationSetup
                 options.SetTokenEndpointUris("connect/token")
                     .SetUserInfoEndpointUris("connect/userinfo");
 
-                // Resource-owner password + refresh. A first-party desktop client on an on-prem network
-                // has no browser to redirect through; see docs/roles-and-permissions.md for the
-                // authorization-code + PKCE upgrade path when one is available.
+                // Passkeys are the primary browser login; password remains for setup/recovery and API tools.
+                // Both issue renewable sessions and rebuild authorization claims on refresh.
                 options.AllowPasswordFlow()
-                    .AllowRefreshTokenFlow();
+                    .AllowRefreshTokenFlow()
+                    .AllowCustomFlow(PasskeyEndpoints.GrantType);
 
                 options.RegisterScopes(
                     Scopes.OpenId,

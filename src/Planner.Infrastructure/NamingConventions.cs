@@ -12,6 +12,9 @@ public static class NamingConventions
     {
         foreach (var entity in builder.Model.GetEntityTypes())
         {
+            // JSON-owned data has JSON property names, never relational column names.
+            if (entity.IsMappedToJson()) continue;
+
             var table = entity.GetTableName();
             if (table is not null)
             {

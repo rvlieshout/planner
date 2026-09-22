@@ -55,6 +55,12 @@ class Tokens {
     );
   }
 
+  async signInWithPasskey(credential: string): Promise<void> {
+    this.#apply(await this.#grant({
+      grant_type: 'urn:planner:params:oauth:grant-type:passkey', credential, scope: SCOPE
+    }));
+  }
+
   /** The token to put on the next request, refreshed first if it is spent or about to be. */
   async fresh(): Promise<string | null> {
     if (this.#access && Date.now() < this.#expiresAt - EXPIRY_MARGIN_MS) {
@@ -96,7 +102,7 @@ class Tokens {
     } catch (error) {
       // A refresh token the server has rejected will not start working on the third attempt, and
       // retrying only hammers the token endpoint. Drop it and let the caller send the user to sign in.
-      if (error instanceof ApiError && error.status !== 0 && error.status < 500) {
+      if (error instanceof ApiError && [400, 401, 403].includes(error.status)) {
         this.clear();
       }
 
@@ -161,7 +167,7 @@ async function toOAuthError(response: Response): Promise<ApiError> {
   }
 
   if (payload.error === 'invalid_grant') {
-    return new ApiError(401, 'That email address and password do not match an active account.');
+    return new ApiError(401, payload.error_description ?? 'Sign-in failed. Try again or use setup and recovery.');
   }
 
   if (response.status === 429) {
