@@ -5,13 +5,15 @@
   import Avatar from '$components/Avatar.svelte';
   import Popover from '$components/Popover.svelte';
   import TeamSwitcher from './TeamSwitcher.svelte';
-  import { session } from '$lib/auth/session.svelte';
+  import { Permission, session } from '$lib/auth/session.svelte';
   import { workspace } from '$lib/workspace.svelte';
   import { compareRank } from '$lib/rank';
+  import { arrangeProject } from '$lib/projects/arrange';
   import { navigate } from '$lib/navigation.svelte';
   import { describe } from '$lib/shortcuts';
   import { realtime } from '$lib/realtime/hub.svelte';
   import type { Pathname } from '$app/types';
+  import type { ProjectDto } from '$lib/api/types';
 
   /**
    * The application's map.
@@ -35,6 +37,104 @@
       .filter((project) => !project.archivedAt)
       .sort((a, b) => compareRank(a.rank, b.rank) || a.name.localeCompare(b.name))
   );
+
+  /* -------------------------------------------------------- arranging ---- */
+
+  /*
+   * A team lead puts the team's projects in order by dragging one, or with Alt+↑/↓ on a focused row.
+   * Everyone else gets the list as the lead left it. A press only becomes a drag once the pointer has
+   * travelled, so a click still opens the project.
+   */
+  const THRESHOLD = 4;
+
+  const canArrange = $derived(session.can(teamId, Permission.Administer));
+
+  let list = $state<HTMLElement | null>(null);
+  let press: { project: ProjectDto; y: number } | null = null;
+  let dragged = $state<ProjectDto | null>(null);
+  /** Where the dragged project would land, as an index among the *other* projects. */
+  let dropIndex = $state<number | null>(null);
+  let dropOffset = $state<number | null>(null);
+  let swallowClick = false;
+
+  function onPress(event: PointerEvent, project: ProjectDto) {
+    if (!canArrange || event.button !== 0) return;
+
+    press = { project, y: event.clientY };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', endDrag);
+  }
+
+  function onMove(event: PointerEvent) {
+    if (!press || !list) return;
+
+    if (!dragged) {
+      if (Math.abs(event.clientY - press.y) < THRESHOLD) return;
+      dragged = press.project;
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'grabbing';
+    }
+
+    // The gap is the first row whose middle is below the pointer; the dragged row is not counted, so
+    // the index is the one `arrangeProject` expects.
+    const rows = [...list.querySelectorAll<HTMLElement>('[data-project-id]')];
+    let index = 0;
+    let offset: number | null = null;
+
+    for (const row of rows) {
+      const box = row.getBoundingClientRect();
+      if (event.clientY < box.top + box.height / 2) {
+        offset = row.offsetTop;
+        break;
+      }
+      if (row.dataset.projectId !== dragged.id) index++;
+    }
+
+    const last = rows.at(-1);
+    dropIndex = index;
+    dropOffset = offset ?? (last ? last.offsetTop + last.offsetHeight : 0);
+  }
+
+  function onUp() {
+    const project = dragged;
+    const index = dropIndex;
+
+    endDrag();
+
+    if (project && index !== null) {
+      // The release lands on a row, whose click would otherwise open it.
+      swallowClick = true;
+      setTimeout(() => (swallowClick = false));
+      void arrangeProject(projects, project, index);
+    }
+  }
+
+  function endDrag() {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', endDrag);
+
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+
+    press = null;
+    dragged = null;
+    dropIndex = null;
+    dropOffset = null;
+  }
+
+  function onRowKey(event: KeyboardEvent, project: ProjectDto, index: number) {
+    if (!canArrange || !event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
+
+    event.preventDefault();
+    void arrangeProject(projects, project, event.key === 'ArrowUp' ? index - 1 : index + 1);
+  }
+
+  function openProject(project: ProjectDto) {
+    if (swallowClick) return;
+    void go(`/projects/${project.id}`);
+  }
 
   const isActive = (href: Pathname, exact = true) =>
     exact ? path === resolve(href) : path.startsWith(resolve(href));
@@ -108,21 +208,32 @@
           </button>
         </div>
 
-        {#each projects as project (project.id)}
-          <button
-            type="button"
-            class="row"
-            class:active={isActive(`/projects/${project.id}`)}
-            onclick={() => go(`/projects/${project.id}`)}>
-            <span class="project-dot" style:background={project.color}></span>
-            <span class="truncate">{project.name}</span>
-            {#if project.progress.total > 0}
-              <span class="count">{project.progress.completed}/{project.progress.total}</span>
-            {/if}
-          </button>
-        {:else}
-          <p class="hint">No projects yet.</p>
-        {/each}
+        <div class="projects" bind:this={list}>
+          {#each projects as project, index (project.id)}
+            <button
+              type="button"
+              class="row"
+              class:active={isActive(`/projects/${project.id}`)}
+              class:dragging={dragged?.id === project.id}
+              data-project-id={project.id}
+              title={canArrange ? 'Drag, or Alt+↑/↓, to reorder' : undefined}
+              onclick={() => openProject(project)}
+              onpointerdown={(event) => onPress(event, project)}
+              onkeydown={(event) => onRowKey(event, project, index)}>
+              <span class="project-dot" style:background={project.color}></span>
+              <span class="truncate">{project.name}</span>
+              {#if project.progress.total > 0}
+                <span class="count">{project.progress.completed}/{project.progress.total}</span>
+              {/if}
+            </button>
+          {:else}
+            <p class="hint">No projects yet.</p>
+          {/each}
+
+          {#if dragged && dropOffset !== null}
+            <span class="drop" style:top="{dropOffset}px" aria-hidden="true"></span>
+          {/if}
+        </div>
       </section>
     {/if}
   </div>
@@ -248,6 +359,26 @@
     background: var(--bg-selected);
     color: var(--accent);
     font-weight: 500;
+  }
+
+  /* The positioned parent, so a row's offsetTop is where the drop rule is drawn. */
+  .projects {
+    position: relative;
+  }
+
+  .row.dragging {
+    opacity: 0.4;
+  }
+
+  .drop {
+    position: absolute;
+    right: var(--s-3);
+    left: var(--s-3);
+    height: 2px;
+    margin-top: -1px;
+    border-radius: 1px;
+    background: var(--accent);
+    pointer-events: none;
   }
 
   .project-dot {

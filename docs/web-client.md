@@ -194,6 +194,7 @@ page's and the shell's, so `Ctrl+S` saves the dialog and `Ctrl+K` lists only wha
 | `E` | Edit the description, on an issue |
 | `V` | Switch a board between columns and rows |
 | `Ctrl+Enter` | Save, in a form |
+| `Alt+↑` / `Alt+↓` | Move the focused project up or down the sidebar (team leads; dragging works too) |
 | `Enter`, double-click | Open the selected issue |
 | Drag a row or a card | Move it to another column or group, or reorder it in place |
 | `Esc` | Close the dialog |

@@ -21,6 +21,7 @@
   import { installNavigationGuard, mayDiscard, navigate } from '$lib/navigation.svelte';
   import { commands, type Command, type CommandGroup } from '$lib/commands.svelte';
   import { describe } from '$lib/shortcuts';
+  import { compareRank } from '$lib/rank';
   import { BUILD_LABEL, VERSION } from '$lib/version';
   import { appUpdate } from '$lib/update.svelte';
 
@@ -229,6 +230,7 @@
     label: 'Projects',
     items: workspace.projects
       .filter((project) => !project.archivedAt)
+      .sort((a, b) => compareRank(a.rank, b.rank) || a.name.localeCompare(b.name))
       .map((project) => ({
         label: project.name,
         icon: 'folder' as const,

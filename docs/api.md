@@ -126,7 +126,7 @@ the default for new issues.
 | `GET /api/v1/projects` | `?teamId=&status=&search=&includeArchived=&page=` | Read |
 | `GET /api/v1/projects/{id}` | | Read |
 | `POST /api/v1/projects` | | Write |
-| `PATCH /api/v1/projects/{id}` | | Write |
+| `PATCH /api/v1/projects/{id}` | Changing `rank` — the team's project order — needs Administer | Write |
 | `POST /api/v1/projects/{id}/archive` · `/restore` | | Write |
 | `DELETE /api/v1/projects/{id}` | Issues survive and stay in the team | Administer |
 | `GET \| POST /api/v1/projects/{id}/milestones` | | Read / Write |

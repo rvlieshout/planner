@@ -209,6 +209,13 @@ public static class ProjectEndpoints
 
         if (request.Rank.TryGet(out var rank))
         {
+            // The order of a team's projects is the team's, not one member's: arranging it is a lead's
+            // call, like the order of its board's columns.
+            if (await ApiResults.RequireTeamAsync(access, project.TeamId, TeamPermission.Administer, ct) is { } notLead)
+            {
+                return notLead;
+            }
+
             var validation = new Validation().Required(rank, "rank").RankKey(rank, "rank");
             if (validation.HasErrors)
             {
