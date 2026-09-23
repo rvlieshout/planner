@@ -41,8 +41,17 @@ function isTyping(target: EventTarget | null): boolean {
   );
 }
 
+/** A dialog that offers commands of its own while it is open — the issue editor's Save, say. */
+export interface ModalCommands {
+  element: HTMLElement;
+  groups: CommandGroup[];
+}
+
 class Commands {
   paletteOpen = $state(false);
+
+  /** While set, its commands stand in for the page's: the page behind a modal is not what a key means. */
+  modal = $state<ModalCommands | null>(null);
 
   /** The first key of a sequence, while the second is still expected. */
   #pending: { chord: Chord; at: number } | null = null;
@@ -60,7 +69,8 @@ class Commands {
    *
    * A printable key never fires while a field has focus, or a shortcut would eat what is being typed;
    * a chord with Ctrl or a function key does, because typing cannot produce one. Nothing fires while a
-   * modal is open — the dialog owns the keyboard, and the command would act on the page behind it.
+   * modal is open — the dialog owns the keyboard, and the command would act on the page behind it —
+   * unless the key was pressed in the modal that published `modal`, whose commands `groups` then are.
    */
   handle(event: KeyboardEvent, groups: CommandGroup[]): void {
     if (event.defaultPrevented || event.isComposing || event.repeat || isModifierOnly(event)) return;
@@ -69,7 +79,12 @@ class Commands {
       this.#pending && Date.now() - this.#pending.at < SEQUENCE_TIMEOUT_MS ? this.#pending.chord : null;
     this.#pending = null;
 
-    if (document.querySelector('dialog[open]')) return;
+    // Focus is trapped in the topmost modal, so the dialog the key came from is the one in charge.
+    // A confirmation raised over the editor, or the palette itself, is not the editor.
+    const owner =
+      (event.target instanceof Element ? event.target.closest('dialog[open]') : null) ??
+      document.querySelector('dialog[open]');
+    if (owner && owner !== this.modal?.element) return;
 
     const typing = isTyping(event.target);
     const bound = groups

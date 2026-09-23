@@ -173,7 +173,9 @@ palette is Bits UI's `Command` inside a native `<dialog>`.
 
 Menu, palette and keyboard read one list (`commands.svelte.ts`). The shell contributes what is always
 there; a page adds its own through `chrome.set({ commands })`. A command that is listed is a command
-that works, and a shortcut that is captioned is a shortcut that is bound.
+that works, and a shortcut that is captioned is a shortcut that is bound. A modal with commands of its
+own — the issue editor — publishes them through `commands.modal`; while it is open they replace the
+page's and the shell's, so `Ctrl+S` saves the dialog and `Ctrl+K` lists only what it can do.
 
 | Gesture | Does |
 | --- | --- |
@@ -185,7 +187,7 @@ that works, and a shortcut that is captioned is a shortcut that is bound.
 | `G` then `B` | The team board |
 | `G` then `U` / `T` / `S` | Users & access / Teams / Preferences |
 | `Ctrl+B` | Show or hide the sidebar |
-| `Ctrl+S` | Save — an issue, a team, a user, your profile |
+| `Ctrl+S` | Save — an issue (also in the new-issue dialog), a team, a user, your profile |
 | `Shift+C` | New sub-issue, on an issue |
 | `G` then `P` | The parent issue, on an issue |
 | `O` | Show or hide the overview, on a project |

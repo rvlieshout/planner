@@ -19,7 +19,7 @@
   import { realtime } from '$lib/realtime/hub.svelte';
   import { issueEditor } from '$lib/issues/editor.svelte';
   import { installNavigationGuard, mayDiscard, navigate } from '$lib/navigation.svelte';
-  import { commands, type CommandGroup } from '$lib/commands.svelte';
+  import { commands, type Command, type CommandGroup } from '$lib/commands.svelte';
   import { describe } from '$lib/shortcuts';
   import { BUILD_LABEL, VERSION } from '$lib/version';
   import { appUpdate } from '$lib/update.svelte';
@@ -98,6 +98,13 @@
     await realtime.disconnect();
     await goto(resolve('/login'), { replaceState: true });
   }
+
+  const paletteCommand: Command = {
+    label: 'Command palette',
+    icon: 'command',
+    shortcut: 'mod+k',
+    run: () => commands.openPalette()
+  };
 
   const menu = $derived<CommandGroup[]>([
     {
@@ -183,12 +190,7 @@
     {
       label: 'View',
       items: [
-        {
-          label: 'Command palette',
-          icon: 'command',
-          shortcut: 'mod+k',
-          run: () => commands.openPalette()
-        },
+        paletteCommand,
         {
           label: 'Keyboard shortcuts',
           icon: 'command',
@@ -235,7 +237,16 @@
       }))
   });
 
-  const bound = $derived([pageGroup, ...menu]);
+  /*
+   * A modal with commands of its own replaces the page and the shell: behind a dialog, "new issue" or
+   * "go to the board" would act on a screen nobody is looking at. The palette stays reachable, since
+   * it is how those commands are found.
+   */
+  const modalGroups = $derived(
+    commands.modal ? [...commands.modal.groups, { label: 'View', items: [paletteCommand] }] : null
+  );
+
+  const bound = $derived(modalGroups ?? [pageGroup, ...menu]);
 
   /* ----------------------------------------------------------- shortcuts ---- */
 
@@ -412,7 +423,7 @@
 </div>
 
 <IssueEditorDialog />
-<CommandPalette groups={[pageGroup, ...menu, projectGroup]} />
+<CommandPalette groups={modalGroups ?? [pageGroup, ...menu, projectGroup]} />
 <DragGhost />
 {/if}
 

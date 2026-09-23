@@ -24,6 +24,8 @@
     onclose: () => void;
     children: Snippet;
     footer?: Snippet;
+    /** The <dialog> itself, for whoever needs to tell a key pressed inside it from one pressed elsewhere. */
+    dialog?: HTMLDialogElement | null;
   }
 
   let {
@@ -34,10 +36,9 @@
     dismissible = true,
     onclose,
     children,
-    footer
+    footer,
+    dialog = $bindable(null)
   }: Props = $props();
-
-  let dialog = $state<HTMLDialogElement | null>(null);
 
   $effect(() => {
     if (!dialog) return;

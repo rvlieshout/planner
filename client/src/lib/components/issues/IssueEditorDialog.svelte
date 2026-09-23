@@ -23,6 +23,7 @@
   import { workspace, loadIssueFormData } from '$lib/workspace.svelte';
   import { toasts } from '$components/toast.svelte';
   import { confirm } from '$components/confirm.svelte';
+  import { commands } from '$lib/commands.svelte';
 
   /**
    * One form, both directions.
@@ -72,6 +73,7 @@
   let fieldErrors = $state<Record<string, string>>({});
 
   let titleInput = $state<HTMLTextAreaElement | null>(null);
+  let dialog = $state<HTMLDialogElement | null>(null);
 
   // Opening is an effect rather than a call, because the dialog is mounted once and the thing that
   // opens it may be three components away.
@@ -399,6 +401,56 @@
     issueEditor.close();
   }
 
+  /*
+   * While the form is open its commands are the keyboard's and the palette's: Ctrl+S saves the issue
+   * rather than the page behind it, and Ctrl+K lists what this dialog can do.
+   */
+  $effect(() => {
+    if (!issueEditor.isOpen || !dialog) return;
+
+    commands.modal = {
+      element: dialog,
+      groups: [
+        {
+          label: editing ? (issueKey ?? 'Issue') : 'New issue',
+          items: [
+            {
+              label: editing ? 'Save changes' : 'Create issue',
+              icon: 'check',
+              shortcut: 'mod+s',
+              keywords: ['save', 'create', 'submit'],
+              // Enabled without a title, so the shortcut says why it cannot save instead of nothing.
+              disabled: !draft || loading || saving,
+              run: () => void save()
+            },
+            ...(editing
+              ? [
+                  {
+                    label: 'Archive issue',
+                    icon: 'archive' as const,
+                    danger: true,
+                    disabled: saving,
+                    run: () => void archive()
+                  }
+                ]
+              : []),
+            {
+              label: 'Close',
+              icon: 'x',
+              keywords: ['cancel', 'discard'],
+              disabled: saving,
+              run: () => void close()
+            }
+          ]
+        }
+      ]
+    };
+
+    return () => {
+      commands.modal = null;
+    };
+  });
+
   /** Ctrl+Enter saves, because a form whose only commit is a mouse click is a form people abandon. */
   function onKeyDown(event: KeyboardEvent) {
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
@@ -409,6 +461,7 @@
 </script>
 
 <Modal
+  bind:dialog
   open={issueEditor.isOpen}
   title={editing ? (issueKey ?? 'Issue') : 'New issue'}
   subtitle={workspace.teams.find((team) => team.id === teamId)?.name}
