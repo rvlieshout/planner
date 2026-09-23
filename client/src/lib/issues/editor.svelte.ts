@@ -16,6 +16,8 @@ export interface IssueEditorTarget {
   projectId?: Guid | null;
   milestoneId?: Guid | null;
   parentId?: Guid | null;
+  /** Pre-selected when the form is opened from a column's "+", so the issue lands in that column. */
+  stateId?: Guid | null;
 }
 
 class IssueEditor {

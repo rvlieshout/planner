@@ -86,7 +86,7 @@
               class="add"
               title="New issue in {column.state.name}"
               aria-label="New issue in {column.state.name}"
-              onclick={() => issueEditor.create({ teamId, projectId, milestoneId })}>
+              onclick={() => issueEditor.create({ teamId, projectId, milestoneId, stateId: column.state.id })}>
               <Icon name="plus" size={13} />
             </button>
           </header>

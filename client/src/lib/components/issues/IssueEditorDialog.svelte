@@ -137,7 +137,11 @@
         const next: Draft = {
           title: '',
           description: '',
-          stateId: states.find((state) => state.isDefault)?.id ?? states[0]?.id ?? NONE,
+          stateId:
+            states.find((state) => state.id === request.stateId)?.id ??
+            states.find((state) => state.isDefault)?.id ??
+            states[0]?.id ??
+            NONE,
           priority: 'None',
           assigneeId: NONE,
           projectId: request.projectId ?? NONE,
