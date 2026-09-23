@@ -95,7 +95,7 @@ jobs:
           OWNER: ${{ steps.owner.outputs.name }}
           SHA: ${{ steps.rev.outputs.sha }}
         run: |
-          curl --fail --silent --show-error --location --request PATCH \
+          curl --fail-with-body --silent --show-error --location --request PATCH \
             --header "Authorization: Bearer $COOLIFY_TOKEN" \
             --header "Content-Type: application/json" \
             --data @- \
