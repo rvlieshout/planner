@@ -323,10 +323,12 @@
   }
 
   .theme {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: var(--s-1);
     padding: var(--s-4);
+    padding-right: calc(var(--s-4) * 2 + 14px);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--bg-surface);
@@ -349,6 +351,8 @@
 
   .theme :global(.tick) {
     position: absolute;
+    top: var(--s-4);
+    right: var(--s-4);
     color: var(--accent);
   }
 
