@@ -30,6 +30,8 @@ services:
 
       Planner__Auth__KeyDirectory: /var/lib/planner/keys
       Planner__Auth__KeyPassword: ${PLANNER_KEY_PASSWORD:?set PLANNER_KEY_PASSWORD}
+      # Stable across HTTP negotiation and WebSocket upgrade requests through the proxies.
+      Planner__Auth__Issuer: ${PLANNER_PUBLIC_URL:-https://planner.lyste.net/}
       # TLS terminates at Coolify's proxy. The API is reachable only over the container network, and
       # X-Forwarded-Proto tells it the public request was HTTPS. Leaving this on is a safety net: it
       # permits plain HTTP on the token endpoint, it does not force it.

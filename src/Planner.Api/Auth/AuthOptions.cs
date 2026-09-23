@@ -4,6 +4,11 @@ public sealed class PlannerAuthOptions
 {
     public const string SectionName = "Planner:Auth";
 
+    /// <summary>Canonical public issuer, e.g. https://planner.lyste.net/. Set behind reverse proxies
+    /// so token issuance and validation do not depend on the scheme/host of each transport.
+    /// When omitted, local installations derive the issuer from the request.</summary>
+    public string? Issuer { get; set; }
+
     /// <summary>Directory holding the token signing/encryption certificates. Mount this as a volume so
     /// tokens stay valid across container restarts.</summary>
     public string KeyDirectory { get; set; } = "/var/lib/planner/keys";

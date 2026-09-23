@@ -22,6 +22,7 @@ jobs:
       # The AppHost is left out on purpose: it bundles the Aspire CLI and only ever runs on a
       # developer machine. What ships is the API image.
       - run: dotnet build src/Planner.Api/Planner.Api.csproj -c Release
+      - run: dotnet run --project tests/Planner.Auth.Checks -c Release
 
   website:
     name: Build website

@@ -84,6 +84,7 @@ Then, before the first deploy:
 | `PLANNER_DB_HOST` | The database container name from step 3 |
 | `PLANNER_DB_NAME`, `PLANNER_DB_USER`, `PLANNER_DB_PASSWORD` | From the database resource |
 | `PLANNER_KEY_PASSWORD` | `openssl rand -hex 24`. Never changes; see below. |
+| `PLANNER_PUBLIC_URL` | Canonical public issuer, including trailing slash. Defaults to `https://planner.lyste.net/`; override for another domain. |
 | `PLANNER_OWNER_EMAIL` | The first account that can sign in |
 | `PLANNER_OWNER_PASSWORD` | `openssl rand -hex 24`, at least 12 characters |
 | `PLANNER_OWNER_NAME` | Optional display name |
@@ -218,3 +219,19 @@ Existing sessions issued under the incorrect HTTP issuer may need a fresh sign-i
 To run the proxy regression checks locally, install Caddy 2 and set `CADDY_BIN` to its executable,
 then run `python -m unittest discover -s tests/deploy -v`. These tests launch Caddy on loopback and
 verify trusted HTTPS forwarding, rejection of untrusted forwarding headers, and ordinary HTTP.
+
+## SignalR returns 401 with an invalid issuer
+
+The API uses `Planner__Auth__Issuer` for both issuing and validating tokens. The Coolify compose
+file sets it from `PLANNER_PUBLIC_URL` (default `https://planner.lyste.net/`), so HTTP negotiation
+and WebSocket upgrades agree even if their forwarded scheme or host differs. Issuer and signature
+validation remain enabled. Local runs that omit this setting keep deriving the issuer from requests.
+
+Rebuild the API image and redeploy with the updated compose configuration. Verify discovery's
+`issuer` matches the configured public URL, then check that `/hubs/planner` upgrades successfully
+(HTTP 101). Tokens already issued with that issuer remain valid; sessions with a different issuer
+need a fresh sign-in. Keep the forwarded-header configuration above for origin checks and client IPs.
+
+Run `dotnet run --project tests/Planner.Auth.Checks -c Release` to verify public-issuer discovery,
+API authentication, SignalR negotiation and WebSocket upgrades over an internal HTTP origin,
+and rejection of tokens signed by the same key but carrying another issuer. CI runs these checks.

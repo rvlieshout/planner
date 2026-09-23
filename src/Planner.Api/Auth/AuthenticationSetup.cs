@@ -69,6 +69,11 @@ public static class AuthenticationSetup
                 .UseDbContext<PlannerDbContext>())
             .AddServer(options =>
             {
+                if (!string.IsNullOrWhiteSpace(auth.Issuer))
+                {
+                    options.SetIssuer(auth.Issuer);
+                }
+
                 options.SetTokenEndpointUris("connect/token")
                     .SetUserInfoEndpointUris("connect/userinfo");
 
@@ -108,6 +113,7 @@ public static class AuthenticationSetup
             })
             .AddValidation(options =>
             {
+                // Imports the configured issuer as well as the server's signing keys.
                 options.UseLocalServer();
                 options.UseAspNetCore();
             });
