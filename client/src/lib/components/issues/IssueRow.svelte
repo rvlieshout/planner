@@ -1,8 +1,8 @@
 <script lang="ts">
   import AssigneePicker from './AssigneePicker.svelte';
+  import PriorityPicker from './PriorityPicker.svelte';
   import Icon from '$components/Icon.svelte';
   import LabelChip from '$components/LabelChip.svelte';
-  import PriorityIcon from '$components/PriorityIcon.svelte';
   import ProjectChip from '$components/ProjectChip.svelte';
   import StateIcon from '$components/StateIcon.svelte';
   import { formatDate, formatExact, isOverdue, relativeTime } from '$lib/format';
@@ -54,8 +54,8 @@
   handled, which is what lets a click still select and a double-click still open while a drag starts
   from the same gesture.
 
-  The assignee is a control of its own, so it is a sibling of that button rather than a button nested
-  inside one: the row keeps its single Enter target, the picker keeps its own, and neither has to
+  The priority and the assignee are controls of their own, so they are siblings of that button rather
+  than buttons nested inside it: the row keeps its single Enter target, the picker keeps its own, and neither has to
   swallow the other's clicks to stay out of its way.
 -->
 <div
@@ -63,6 +63,8 @@
   class:selected
   class:dragging={drag.isDragging(issue.id)}
   data-issue-id={issue.id}>
+  <PriorityPicker {issue} size={13} />
+
   <button
     type="button"
     class="main"
@@ -70,8 +72,6 @@
     ondblclick={() => onopen?.(issue)}
     onkeydown={onKeyDown}
     onpointerdown={draggable ? (event) => onpress?.(event, issue) : undefined}>
-    <PriorityIcon priority={issue.priority} size={13} />
-
     <span class="issue-key">{issue.key}</span>
 
     <StateIcon type={issue.stateType} color={issue.stateColor} title={issue.stateName} size={13} />
@@ -136,7 +136,7 @@
     cursor: default;
   }
 
-  /* The row's whole width bar the assignee, so a click anywhere across it still selects. */
+  /* The row's whole width bar the priority and the assignee, so a click anywhere across it selects. */
   .main {
     display: flex;
     flex: 1;

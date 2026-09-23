@@ -1,8 +1,8 @@
 <script lang="ts">
   import AssigneePicker from './AssigneePicker.svelte';
+  import PriorityPicker from './PriorityPicker.svelte';
   import Icon from '$components/Icon.svelte';
   import LabelChip from '$components/LabelChip.svelte';
-  import PriorityIcon from '$components/PriorityIcon.svelte';
   import ProjectChip from '$components/ProjectChip.svelte';
   import { drag } from '$lib/dnd.svelte';
   import { formatDate, isOverdue } from '$lib/format';
@@ -38,10 +38,10 @@
 </script>
 
 <!--
-  The card is a wrapper, and everything it says is one real button inside it. The assignee is a
-  control rather than a caption, so it sits beside that button rather than inside it — a button
-  nested in a button is neither valid nor navigable — and is placed over the corner the head keeps
-  clear for it.
+  The card is a wrapper, and everything it says is one real button inside it. The priority and the
+  assignee are controls rather than captions, so they sit beside that button rather than inside it —
+  a button nested in a button is neither valid nor navigable — and are placed over the two corners
+  the head keeps clear for them.
 -->
 <div
   class="card"
@@ -61,7 +61,6 @@
     }}
     onpointerdown={(event) => onpress?.(event, issue)}>
     <div class="head">
-      <PriorityIcon priority={issue.priority} size={13} />
       <span class="issue-key">{issue.key}</span>
       {#if project}
         <ProjectChip {project} />
@@ -101,6 +100,10 @@
     {/if}
   </button>
 
+  <span class="priority">
+    <PriorityPicker {issue} size={13} />
+  </span>
+
   <span class="assignee">
     <AssigneePicker {issue} size={18} />
   </span>
@@ -135,11 +138,21 @@
     cursor: default;
   }
 
+  .priority,
   .assignee {
     position: absolute;
     top: var(--s-3);
-    right: var(--s-4);
     display: flex;
+    align-items: center;
+    height: 18px;
+  }
+
+  .priority {
+    left: var(--s-4);
+  }
+
+  .assignee {
+    right: var(--s-4);
   }
 
   .card:hover {
@@ -163,8 +176,13 @@
     gap: var(--s-2);
   }
 
-  /* The corner the assignee is placed over, kept clear so a long project name stops short of it. */
+  /*
+   * The corners the priority and the assignee are placed over: the key starts after the one, and a
+   * long project name stops short of the other. One line as tall as the avatar, so all three align.
+   */
   .head {
+    min-height: 18px;
+    padding-left: calc(13px + var(--s-2));
     padding-right: calc(18px + var(--s-2));
   }
 
