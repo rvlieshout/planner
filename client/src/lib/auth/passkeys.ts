@@ -7,6 +7,19 @@ export function passkeysAvailable(): boolean {
     typeof PublicKeyCredential !== 'undefined' && !!navigator.credentials;
 }
 
+// Only prompt automatically when this device can enroll a passkey. External security keys
+// remain available through Preferences even when there is no platform authenticator.
+export async function passkeySetupAvailable(): Promise<boolean> {
+  if (!passkeysAvailable() || typeof navigator.credentials.create !== 'function' ||
+      typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable !== 'function') return false;
+  try {
+    return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  } catch {
+    // Capability detection must never prevent password sign-in.
+    return false;
+  }
+}
+
 export function passkeyError(error: unknown): string {
   if (error instanceof DOMException) {
     if (error.name === 'NotAllowedError' || error.name === 'AbortError')

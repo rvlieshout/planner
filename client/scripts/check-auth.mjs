@@ -9,11 +9,34 @@ globalThis.localStorage = {
   removeItem: key => values.delete(key)
 };
 const originalFetch = globalThis.fetch;
+const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+const originalCredential = Object.getOwnPropertyDescriptor(globalThis, 'PublicKeyCredential');
 const server = await createServer({ server: { middlewareMode: true }, appType: 'custom' });
 const ok = () => Response.json({ access_token: 'access', refresh_token: 'renewed', expires_in: 3600 });
 try {
   const { tokens } = await server.ssrLoadModule('/src/lib/auth/tokens.svelte.ts');
   const { request, setUnauthorizedHandler } = await server.ssrLoadModule('/src/lib/api/http.ts');
+  const { passkeySetupAvailable, passkeysAvailable } = await server.ssrLoadModule('/src/lib/auth/passkeys.ts');
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: { isSecureContext: true } });
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { credentials: { create() {} } } });
+  Object.defineProperty(globalThis, 'PublicKeyCredential', { configurable: true, value: {
+    isUserVerifyingPlatformAuthenticatorAvailable: async () => true
+  } });
+  assert.equal(await passkeySetupAvailable(), true);
+  window.isSecureContext = false;
+  assert.equal(await passkeySetupAvailable(), false);
+  window.isSecureContext = true;
+  PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable = async () => false;
+  assert.equal(await passkeySetupAvailable(), false);
+  assert.equal(passkeysAvailable(), true, 'Manual security-key enrollment remains available');
+  PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable = async () => { throw new Error('Unavailable'); };
+  assert.equal(await passkeySetupAvailable(), false);
+  delete PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable;
+  assert.equal(await passkeySetupAvailable(), false);
+  delete globalThis.PublicKeyCredential;
+  assert.equal(await passkeySetupAvailable(), false);
+  console.log('PASS: Automatic setup only runs on supported devices; failed detection safely bypasses it');
   assert.equal(tokens.canRestore, true);
   globalThis.fetch = async (_url, init) => {
     assert.equal(init.body.get('grant_type'), 'refresh_token');
@@ -67,5 +90,9 @@ try {
 } finally {
   globalThis.fetch = originalFetch;
   delete globalThis.localStorage;
+  for (const [name, descriptor] of [['window', originalWindow], ['navigator', originalNavigator], ['PublicKeyCredential', originalCredential]]) {
+    if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+    else delete globalThis[name];
+  }
   await server.close();
 }

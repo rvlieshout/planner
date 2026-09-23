@@ -2,6 +2,7 @@ import { me as meApi, ApiError } from '$lib/api';
 import { revokeAttachments } from '$lib/markdown/attachments';
 import type { Guid, MeResponse, OrgRole, TeamRole } from '$lib/api/types';
 import { tokens } from './tokens.svelte';
+import { passkeySetupAvailable } from './passkeys';
 
 /*
  * Who is signed in, and what they are allowed to do.
@@ -27,7 +28,7 @@ export type Permission = (typeof Permission)[keyof typeof Permission];
 
 class Session {
   status = $state<SessionStatus>('unknown');
-  suggestPasskeySetup = false;
+  suggestPasskeySetup = $state(false);
   user = $state<MeResponse | null>(null);
 
   /** Set when restoring a stored session failed for a reason worth telling the user about. */
@@ -124,8 +125,8 @@ class Session {
 
   async signIn(email: string, password: string): Promise<void> {
     await tokens.signIn(email, password);
-    this.suggestPasskeySetup = true;
     this.user = await meApi.get();
+    this.suggestPasskeySetup = await passkeySetupAvailable();
     this.restoreError = null;
     this.status = 'signed-in';
   }
@@ -162,6 +163,7 @@ class Session {
   /** Called when a request comes back 401 and the refresh could not save it. */
   expire(): void {
     tokens.clear();
+    this.suggestPasskeySetup = false;
     this.user = null;
     this.status = 'signed-out';
 

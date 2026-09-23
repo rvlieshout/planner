@@ -13,12 +13,13 @@
   import LightboxHost from '$components/LightboxHost.svelte';
   import ToastHost from '$components/ToastHost.svelte';
   import Icon from '$components/Icon.svelte';
+  import PasskeySetup from '$components/PasskeySetup.svelte';
 
   /**
    * The outermost shell: the theme, the session, and the two hosts that any screen can call into.
    *
-   * It owns exactly one decision — signed in or not — and routes on it. Everything about what a
-   * signed-in application looks like belongs to the (app) layout underneath.
+   * It routes on session state and presents passkey onboarding before mounting the workspace.
+   * Everything about the signed-in workspace belongs to the (app) layout underneath.
    */
   let { children } = $props();
 
@@ -49,7 +50,7 @@
     }
 
     if (session.status === 'signed-in' && onLogin) {
-      void goto(session.suggestPasskeySetup ? resolve('/settings') : resolve('/'), { replaceState: true });
+      void goto(resolve('/'), { replaceState: true });
     }
   });
 
@@ -72,6 +73,8 @@
     <Icon name="loader-circle" size={22} class="spin" />
     <p>Resuming your session…</p>
   </div>
+{:else if session.isSignedIn && session.suggestPasskeySetup}
+  <PasskeySetup onComplete={() => { session.suggestPasskeySetup = false; }} />
 {:else}
   {@render children()}
 {/if}

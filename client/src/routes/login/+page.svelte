@@ -110,7 +110,7 @@
       {recovery ? 'Hide setup and recovery' : 'First-time setup or recovery'}
     </button>
     {#if recovery}
-    <p class="muted">Sign in with your existing password, then add a passkey in Preferences. If you’ve lost access, ask your administrator to reset your password and share it with you directly. No email is sent.</p>
+    <p class="muted">Sign in with your existing password. On supported devices, we’ll guide you through setting up a passkey next. If you’ve lost access, ask your administrator to reset your password and share it with you directly. No email is sent.</p>
     <div class="field">
       <label for="email">Email</label>
       <input

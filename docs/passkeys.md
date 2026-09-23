@@ -8,7 +8,11 @@ ASP.NET Core Identity's verifier; it does not use an external identity provider 
 1. An administrator creates the account using the existing Users screen and shares its initial
    password directly through an appropriate channel.
 2. The user opens **First-time setup or recovery**, signs in once with that password, and is taken
-   to **Preferences**, where they name and add a passkey.
+   to an isolated passkey setup wizard, with a prominent **Create passkey** action and a confirmation
+   step. **Skip this step** at the bottom opens Planner; setup remains available in Preferences.
+   The wizard is bypassed when secure WebAuthn registration or a user-verifying platform authenticator
+   is unavailable (including when the capability check fails). External security keys can still be
+   added manually in Preferences. Passkey sign-in and restored sessions do not show the wizard.
 3. Future sign-ins use the passkey, without entering an email address or Planner password.
 4. Add a second passkey on another device or hardware key as a backup. Preferences lists registered
    passkeys and lets their owner remove unused or lost credentials.
