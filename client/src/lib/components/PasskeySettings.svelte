@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { passkeys, passkeyError, passkeysAvailable, type SavedPasskey } from '$lib/auth/passkeys';
   import { confirm } from '$components/confirm.svelte';
+  import { formatDate, formatExact } from '$lib/format';
 
   let keys = $state<SavedPasskey[]>([]);
   let loading = $state(true);
@@ -56,7 +57,7 @@
     <ul>
       {#each keys as key (key.id)}
         <li>
-          <span>{key.name ?? 'Passkey'} <small class="muted">Added {new Date(key.createdAt).toLocaleDateString()}</small></span>
+          <span>{key.name ?? 'Passkey'} <small class="muted" title={formatExact(key.createdAt)}>Added {formatDate(key.createdAt)}</small></span>
           <button type="button" class="btn btn-sm" disabled={busy} onclick={() => void remove(key)} aria-label={`Remove ${key.name ?? 'passkey'}`}>Remove</button>
         </li>
       {/each}
