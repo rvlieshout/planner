@@ -117,7 +117,7 @@ The deploy step itself depends on repository secrets, and each one is skipped un
 | `COOLIFY_TOKEN` | Created under **Keys & Tokens -> API tokens**. Needed by both steps below. |
 | `COOLIFY_URL` | The Coolify instance's base URL, e.g. `https://coolify.example.com`. |
 | `COOLIFY_APP_UUID` | The stack's UUID: the last segment of its Coolify URL, which must read `/application/<uuid>`. With `COOLIFY_URL`, the workflow rewrites `PLANNER_API_IMAGE` and `PLANNER_WEB_IMAGE` to this commit's SHA tags before deploying. |
-| `COOLIFY_WEBHOOK_URL` | From the resource's **Webhooks** tab. Triggers the deployment. Without it, press **Deploy** in Coolify. |
+| `COOLIFY_WEBHOOK_URL` | Copy **Deploy Webhook (auth required)** from the application's **Webhooks** tab: `https://YOUR_COOLIFY_HOST/api/v1/deploy?uuid=APPLICATION_UUID&force=false`. The workflow sends POST with the API token. Without it, press **Deploy** in Coolify. |
 
 Set all four and the stack's variables always name the exact commit that is running, which is what
 makes the rollback below a lookup rather than a reconstruction. Set only the webhook pair and

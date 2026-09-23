@@ -109,8 +109,8 @@ jobs:
       # Both images exist before anything is deployed, so a failed build never leaves the stack
       # half-updated. Skipped automatically until the Coolify secrets are configured.
       - name: Trigger the Coolify deployment
-        if: ${{ env.COOLIFY_WEBHOOK_URL != '' }}
+        if: ${{ env.COOLIFY_WEBHOOK_URL != '' && env.COOLIFY_TOKEN != '' }}
         run: |
-          curl --fail --silent --show-error --location \
+          curl --fail-with-body --silent --show-error --request POST \
             --header "Authorization: Bearer $COOLIFY_TOKEN" \
             "$COOLIFY_WEBHOOK_URL"
