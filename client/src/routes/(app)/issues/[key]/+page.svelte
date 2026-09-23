@@ -108,7 +108,11 @@
 
     try {
       const loaded = await issuesApi.byKey(requested);
-      if (key !== requested) return;
+
+      // Read from the router rather than `key`: the response may land after this page has been left
+      // (archiving navigates away while the socket's echo is still reloading), and a derived of a
+      // destroyed component must not be read. Another route has no key, so that load stops here too.
+      if (page.params.key !== requested) return;
 
       issue = loaded;
 
