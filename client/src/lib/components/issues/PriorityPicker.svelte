@@ -22,7 +22,7 @@
 
   let { issue, size = 13 }: Props = $props();
 
-  const canWrite = $derived(session.can(issue.teamId, Permission.Write));
+  const canWrite = $derived(!issue.archivedAt && session.can(issue.teamId, Permission.Write));
   const meta = $derived(PRIORITY[issue.priority] ?? PRIORITY.None);
 
   const options = $derived<SelectOption<IssuePriority>[]>(

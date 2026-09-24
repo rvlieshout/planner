@@ -18,13 +18,16 @@
    * — the way to pull a person into an issue they have not touched — or take one off. Filing the issue,
    * being assigned it and commenting on it all follow it automatically, on the server, so the list is
    * re-read when one of those happens rather than guessed at here.
+   *
+   * An archived issue gains no followers. Leaving one still works — it only changes your own inbox.
    */
   interface Props {
     issueId: Guid;
     teamId: Guid;
+    archived?: boolean;
   }
 
-  let { issueId, teamId }: Props = $props();
+  let { issueId, teamId, archived = false }: Props = $props();
 
   let followers = $state<UserSummary[]>([]);
   let busy = $state(false);
@@ -32,6 +35,7 @@
   const me = $derived(session.user?.id);
   const following = $derived(followers.some((follower) => follower.id === me));
   const canManage = $derived(session.can(teamId, Permission.Write));
+  const canAdd = $derived(canManage && !archived);
 
   const addable = $derived<SelectOption<Guid>[]>(
     workspace
@@ -99,7 +103,7 @@
   <header class="section-header">
     <h3 class="caption">Followers</h3>
 
-    {#if canManage}
+    {#if canAdd}
       <Select options={addable} value={''} onchange={(userId) => void change(userId, true)} label="Add a follower">
         {#snippet trigger({ open, toggle, onkeydown })}
           <button
@@ -123,14 +127,16 @@
     {/if}
   </header>
 
-  <button
-    type="button"
-    class="btn btn-sm btn-block"
-    disabled={busy || !me}
-    onclick={() => me && void change(me, !following)}>
-    <Icon name={following ? 'bell-off' : 'bell'} size={13} />
-    {following ? 'Unfollow' : 'Follow'}
-  </button>
+  {#if following || !archived}
+    <button
+      type="button"
+      class="btn btn-sm btn-block"
+      disabled={busy || !me}
+      onclick={() => me && void change(me, !following)}>
+      <Icon name={following ? 'bell-off' : 'bell'} size={13} />
+      {following ? 'Unfollow' : 'Follow'}
+    </button>
+  {/if}
 
   <ul class="list">
     {#each followers as follower (follower.id)}
@@ -153,7 +159,7 @@
         {/if}
       </li>
     {:else}
-      <li class="none muted">Nobody follows this issue.</li>
+      <li class="none muted">{archived ? 'Nobody follows this archived issue.' : 'Nobody follows this issue.'}</li>
     {/each}
   </ul>
 </section>

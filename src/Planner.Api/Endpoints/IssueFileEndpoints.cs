@@ -49,6 +49,8 @@ public static class IssueFileEndpoints
         if (issue is null) return ApiResults.NotFound("That issue");
         if (await ApiResults.RequireTeamAsync(access, issue.TeamId, TeamPermission.Comment, ct) is { } denied)
             return denied;
+        if (ApiResults.RejectArchived(issue.ArchivedAt) is { } archived)
+            return archived;
         var name = Path.GetFileName(fileName.Replace('\\', '/')).Trim();
         if (string.IsNullOrWhiteSpace(name) || name.Length > 300)
             return ApiResults.BadRequest("Choose a file with a name of 300 characters or fewer.");

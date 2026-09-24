@@ -23,7 +23,10 @@
    */
   interface Props {
     issueId: Guid;
-    /** False for a reader with no comment permission — the box is not offered rather than refused. */
+    /**
+     * False for a reader with no comment permission, and on an archived issue — the box and the edit
+     * and delete buttons are not offered rather than refused.
+     */
     canComment: boolean;
     /** True while there is an unposted draft, so the page's own guard can mention it. */
     ondraft?: (hasDraft: boolean) => void;
@@ -242,7 +245,7 @@
 
         <span class="spacer"></span>
 
-        {#if mine(item)}
+        {#if mine(item) && canComment}
           <button
             type="button"
             class="icon-action"
@@ -254,7 +257,7 @@
             <Icon name="pencil" size={12} />
           </button>
         {/if}
-        {#if mine(item) || session.isAdmin}
+        {#if canComment && (mine(item) || session.isAdmin)}
           <button type="button" class="icon-action" aria-label="Delete" onclick={() => void remove(item)}>
             <Icon name="trash-2" size={12} />
           </button>

@@ -12,6 +12,10 @@ namespace Planner.Api.Endpoints;
 /// it needs write access, and the person added must be able to read the team: an inbox entry they cannot
 /// open is worse than none.
 ///
+/// <para>An archived issue gains no followers — nothing will happen to it that is worth hearing about,
+/// and it is read-only in every other respect. Leaving one is still allowed: that changes nothing on the
+/// issue, only what reaches your own inbox.</para>
+///
 /// <para>Every route answers with the full list, so a client can replace what it shows.</para></summary>
 public static class IssueSubscriptionEndpoints
 {
@@ -47,10 +51,15 @@ public static class IssueSubscriptionEndpoints
         CancellationToken ct)
     {
         var required = userId == current.Id ? TeamPermission.Read : TeamPermission.Write;
-        var (teamId, denied) = await AuthorizeAsync(db, access, id, required, ct);
+        var (teamId, archivedAt, denied) = await AuthorizeAsync(db, access, id, required, ct);
         if (denied is not null)
         {
             return denied;
+        }
+
+        if (archivedAt is not null)
+        {
+            return ApiResults.Conflict("This issue is archived and cannot gain followers. Restore it first.");
         }
 
         if (userId != current.Id)
@@ -90,20 +99,23 @@ public static class IssueSubscriptionEndpoints
         return Results.Ok(await SubscribersAsync(db, id, ct));
     }
 
-    private static async Task<(Guid TeamId, IResult? Denied)> AuthorizeAsync(
+    private static async Task<(Guid TeamId, DateTimeOffset? ArchivedAt, IResult? Denied)> AuthorizeAsync(
         PlannerDbContext db,
         ITeamAccess access,
         Guid issueId,
         TeamPermission required,
         CancellationToken ct)
     {
-        var teamId = await db.Issues.Where(i => i.Id == issueId).Select(i => (Guid?)i.TeamId).FirstOrDefaultAsync(ct);
-        if (teamId is null)
+        var issue = await db.Issues.Where(i => i.Id == issueId)
+            .Select(i => new { i.TeamId, i.ArchivedAt })
+            .FirstOrDefaultAsync(ct);
+
+        if (issue is null)
         {
-            return (Guid.Empty, ApiResults.NotFound("That issue"));
+            return (Guid.Empty, null, ApiResults.NotFound("That issue"));
         }
 
-        return (teamId.Value, await ApiResults.RequireTeamAsync(access, teamId.Value, required, ct));
+        return (issue.TeamId, issue.ArchivedAt, await ApiResults.RequireTeamAsync(access, issue.TeamId, required, ct));
     }
 
     private static Task<List<UserSummary>> SubscribersAsync(PlannerDbContext db, Guid issueId, CancellationToken ct) =>

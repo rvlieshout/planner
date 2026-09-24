@@ -322,6 +322,11 @@ public static class IssueEndpoints
             return linkError;
         }
 
+        if (request.ParentId is { } newParent && await IsArchivedAsync(db, newParent, ct))
+        {
+            return ApiResults.BadRequest("Sub-issues cannot be added to an archived issue.");
+        }
+
         var labelIds = request.LabelIds ?? [];
         if (labelIds.Count > 0 && await CountUsableLabelsAsync(db, request.TeamId, labelIds, ct) != labelIds.Count)
         {
@@ -395,6 +400,11 @@ public static class IssueEndpoints
             return denied;
         }
 
+        if (ApiResults.RejectArchived(issue.ArchivedAt) is { } archived)
+        {
+            return archived;
+        }
+
         // Captured before any field is written, so the rollups the old project and milestone
         // reported can be republished alongside the new ones.
         var rollupBefore = RollupOf(issue);
@@ -428,6 +438,11 @@ public static class IssueEndpoints
         if (parentId == issue.Id)
         {
             return ApiResults.BadRequest("An issue cannot be its own parent.");
+        }
+
+        if (parentId != issue.ParentId && parentId is { } movedUnder && await IsArchivedAsync(db, movedUnder, ct))
+        {
+            return ApiResults.BadRequest("Sub-issues cannot be added to an archived issue.");
         }
 
         if (await ValidateLinksAsync(db, issue.TeamId, projectId, milestoneId, parentId, assigneeId, ct)
@@ -577,6 +592,11 @@ public static class IssueEndpoints
         if (await ApiResults.RequireTeamAsync(access, issue.TeamId, TeamPermission.Write, ct) is { } denied)
         {
             return denied;
+        }
+
+        if (ApiResults.RejectArchived(issue.ArchivedAt) is { } archived)
+        {
+            return archived;
         }
 
         var rollupBefore = RollupOf(issue);
@@ -753,6 +773,9 @@ public static class IssueEndpoints
         PlannerDbContext db,
         ITeamAccess access,
         IRealtimeNotifier notifier,
+        IConfiguration config,
+        IWebHostEnvironment environment,
+        ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
         var issue = await db.Issues.Include(i => i.State).FirstOrDefaultAsync(i => i.Id == id, ct);
@@ -774,8 +797,26 @@ public static class IssueEndpoints
         await db.ActivityEvents.Where(a => a.IssueId == id)
             .ExecuteUpdateAsync(a => a.SetProperty(x => x.IssueId, (Guid?)null), ct);
 
+        // Read before the cascade takes the rows: the bytes of uploaded files live on disk, not in them.
+        var stored = await db.Attachments.AsNoTracking().Where(a => a.IssueId == id).ToListAsync(ct);
+
         db.Issues.Remove(issue);
         await db.SaveChangesAsync(ct);
+
+        // After the commit, and never a reason to fail: the issue is gone either way, and a file left
+        // behind is an orphan an operator can sweep, where a refused delete would be a stuck issue.
+        foreach (var attachment in stored)
+        {
+            try
+            {
+                IssueFileEndpoints.DeleteStoredFile(attachment, config, environment);
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                loggerFactory.CreateLogger("Planner.Api.Attachments").LogWarning(error,
+                    "Deleted issue {IssueId} left its stored attachment {AttachmentId} on disk", id, attachment.Id);
+            }
+        }
 
         await notifier.IssueChanged(ChangeKind.Deleted, summary);
         await PublishRollupsAsync(db, notifier, issue.TeamId, rollupBefore, null, ct);
@@ -835,6 +876,11 @@ public static class IssueEndpoints
             return denied;
         }
 
+        if (ApiResults.RejectArchived(issue.ArchivedAt) is { } archived)
+        {
+            return archived;
+        }
+
         var validation = new Validation().Required(request.Body, "body");
         if (validation.HasErrors)
         {
@@ -886,6 +932,11 @@ public static class IssueEndpoints
         if (await ApiResults.RequireTeamAsync(access, comment.Issue.TeamId, TeamPermission.Read, ct) is { } denied)
         {
             return denied;
+        }
+
+        if (ApiResults.RejectArchived(comment.Issue.ArchivedAt) is { } archived)
+        {
+            return archived;
         }
 
         // Editing someone else's words is not an administrative power.
@@ -940,6 +991,11 @@ public static class IssueEndpoints
             return ApiResults.Forbidden("Only the author or a team lead can delete this comment.");
         }
 
+        if (ApiResults.RejectArchived(comment.Issue.ArchivedAt) is { } archived)
+        {
+            return archived;
+        }
+
         var dto = await db.Comments.AsNoTracking().Where(c => c.Id == commentId)
             .Select(Mapping.CommentProjection).FirstAsync(ct);
 
@@ -969,6 +1025,11 @@ public static class IssueEndpoints
         if (await ApiResults.RequireTeamAsync(access, issue.TeamId, TeamPermission.Comment, ct) is { } denied)
         {
             return denied;
+        }
+
+        if (ApiResults.RejectArchived(issue.ArchivedAt) is { } archived)
+        {
+            return archived;
         }
 
         var validation = new Validation()
@@ -1036,6 +1097,11 @@ public static class IssueEndpoints
             return ApiResults.Forbidden("Only the uploader or a team member can remove this attachment.");
         }
 
+        if (ApiResults.RejectArchived(attachment.Issue.ArchivedAt) is { } archived)
+        {
+            return archived;
+        }
+
         var dto = await db.Attachments.AsNoTracking().Where(a => a.Id == attachmentId)
             .Select(Mapping.AttachmentProjection).FirstAsync(ct);
 
@@ -1080,6 +1146,11 @@ public static class IssueEndpoints
             return denied;
         }
 
+        if (ApiResults.RejectArchived(issue.ArchivedAt) is { } archived)
+        {
+            return archived;
+        }
+
         if (request.TargetIssueId == id)
         {
             return ApiResults.BadRequest("An issue cannot be related to itself.");
@@ -1099,6 +1170,11 @@ public static class IssueEndpoints
         if (await ApiResults.RequireTeamAsync(access, target.TeamId, TeamPermission.Read, ct) is { } targetDenied)
         {
             return targetDenied;
+        }
+
+        if (target.ArchivedAt is not null)
+        {
+            return ApiResults.Conflict($"{target.Team.Key}-{target.Number} is archived and cannot gain relations.");
         }
 
         if (await db.IssueRelations.AnyAsync(
@@ -1158,6 +1234,13 @@ public static class IssueEndpoints
             is { } denied)
         {
             return denied;
+        }
+
+        // From the live end a link to an archived issue can still be cut; the archived end is frozen.
+        var fromArchived = relation.SourceIssueId == id ? relation.SourceIssue.ArchivedAt : relation.TargetIssue.ArchivedAt;
+        if (ApiResults.RejectArchived(fromArchived) is { } archived)
+        {
+            return archived;
         }
 
         var dto = new IssueRelationDto(
@@ -1251,6 +1334,9 @@ public static class IssueEndpoints
         return Results.Ok(new PagedResult<ActivityEventDto>(
             await ActivityFeed.ToDtosAsync(db, events, ct), paging.NormalizedPage, paging.NormalizedSize, total));
     }
+
+    private static Task<bool> IsArchivedAsync(PlannerDbContext db, Guid issueId, CancellationToken ct) =>
+        db.Issues.AnyAsync(i => i.Id == issueId && i.ArchivedAt != null, ct);
 
     /// <summary>Checks that every optional link on an issue points somewhere real and in-scope: a
     /// milestone from another project or a parent from another team would corrupt the hierarchy.</summary>

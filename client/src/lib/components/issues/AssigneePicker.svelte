@@ -30,7 +30,8 @@
 
   const NONE = '';
 
-  const canAssign = $derived(session.can(issue.teamId, Permission.Write));
+  // An archived issue is read-only; a sub-issue row on an issue page can be one.
+  const canAssign = $derived(!issue.archivedAt && session.can(issue.teamId, Permission.Write));
   const assignee = $derived(issue.assignee);
   const members = $derived(workspace.membersNow(issue.teamId));
 

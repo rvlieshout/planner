@@ -167,7 +167,7 @@ Markdown project documentation — specs, briefs, decision records. Separate fro
 | `PATCH /api/v1/issues/{id}` | | Write |
 | `POST /api/v1/issues/{id}/move` | Board drag-and-drop | Write |
 | `POST /api/v1/issues/{id}/archive` · `/restore` | | Write |
-| `DELETE /api/v1/issues/{id}` | | Administer |
+| `DELETE /api/v1/issues/{id}` | Permanently, archived or not. Comments, files (bytes included), relations and inbox entries go with it; sub-issues become top-level; its history stays | Administer |
 | `GET /api/v1/issues/{id}/activity` | Audit trail for this issue | Read |
 | `GET /api/v1/issues/{id}/subscribers` | People following the issue | Read |
 | `PUT /api/v1/issues/{id}/subscribers/{userId}` | Follow — yourself with Read, anyone else with Write | Read / Write |
@@ -273,6 +273,13 @@ External links are detached only; Planner does not delete files at external loca
 `Attachments__Path` must be an absolute, writable directory in any container deployment — the default
 lives under the application folder, which the image's non-root user cannot create. Back it up with the
 database.
+
+An archived issue is read-only. Updating or moving it, commenting on it or editing and deleting its
+comments, adding or removing its files, and relating to or from it all answer `409 Conflict` until it is
+restored; so does filing a sub-issue under it, moving another issue beneath it, or following it — for
+yourself or for someone else. Reading it, seeing and removing its followers, restoring it and a team
+lead's permanent delete still work, and a relation to an archived issue can still be removed from the
+live end.
 
 Relations are stored once and shown from both ends: create "A blocks B" and issue B reports it as an
 inbound relation with `"isOutgoing": false`. Cross-team relations are allowed, provided you can read

@@ -98,8 +98,22 @@
   let hasAttachmentDraft = $state(false);
   let selectedChildId = $state<string | null>(null);
 
-  const canWrite = $derived(session.can(issue?.teamId, Permission.Write));
-  const canComment = $derived(session.can(issue?.teamId, Permission.Comment));
+  /*
+   * An archived issue is a record. It opens — the inbox and the feeds link to it — but nothing on it
+   * changes until someone restores it, and the server refuses the same writes these flags hide.
+   * Following it is still allowed: that is about the reader, not the issue.
+   */
+  const archived = $derived(Boolean(issue?.archivedAt));
+  const canRestore = $derived(archived && session.can(issue?.teamId, Permission.Write));
+  const canWrite = $derived(!archived && session.can(issue?.teamId, Permission.Write));
+  const canComment = $derived(!archived && session.can(issue?.teamId, Permission.Comment));
+
+  // Destroying an issue is a lead's decision — the team's leads and organisation admins — and it
+  // works on an archived issue too: that is where most of them will be deleted from.
+  const canDelete = $derived(session.can(issue?.teamId, Permission.Administer));
+
+  /** Set once this page has deleted the issue, so the socket's echo does not try to reload it. */
+  let deleted = false;
 
   /* ----------------------------------------------------------------- load ---- */
 
@@ -203,7 +217,7 @@
       // An echo of this page's own save is already on screen. Anything else — including this user in
       // another tab — is news, and the detail carries children, relations and attachments that a
       // summary does not, so it is reloaded rather than patched.
-      if (!isLocalEcho(change)) void load(true);
+      if (!isLocalEcho(change) && !deleted) void load(true);
     })
   );
 
@@ -334,6 +348,53 @@
     }
   }
 
+  async function remove() {
+    if (!issue || !canDelete) return;
+
+    const target = issue;
+    const children = target.children.length;
+
+    const answer = await confirm.ask({
+      title: `Delete ${target.key} permanently?`,
+      message:
+        'Its comments, files and relations are deleted with it, and so are the inbox entries about it. ' +
+        (children > 0
+          ? `Its ${children === 1 ? 'sub-issue becomes' : `${children} sub-issues become`} top-level issues. `
+          : '') +
+        'Its activity history is kept. This cannot be undone.' +
+        (dirty ? ' Unsaved changes will be discarded.' : ''),
+      requiredText: target.key,
+      confirmLabel: 'Delete issue',
+      cancelLabel: 'Cancel',
+      danger: true
+    });
+
+    if (!answer || issue?.id !== target.id) return;
+
+    try {
+      deleted = true;
+      await issuesApi.remove(target.id);
+      toasts.success(`${target.key} deleted.`);
+      await navigate('/my-issues', { force: true });
+    } catch (failure) {
+      deleted = false;
+      toasts.error(failure instanceof ApiError ? failure.message : 'Deleting failed.');
+    }
+  }
+
+  async function restore() {
+    if (!issue || !canRestore) return;
+
+    try {
+      const result = await issuesApi.restore(issue.id);
+      announce('Restored', result);
+      toasts.success(`${result.key} restored.`);
+      await load(true);
+    } catch (failure) {
+      toasts.error(failure instanceof ApiError ? failure.message : 'Restoring failed.');
+    }
+  }
+
   async function onProjectChange(value: Guid | '') {
     projectId = value;
     milestoneId = NONE;
@@ -397,12 +458,28 @@
               }
             ]
           : []),
+        archived
+          ? {
+              label: 'Restore issue',
+              icon: 'archive-restore' as const,
+              keywords: ['unarchive'],
+              disabled: !canRestore,
+              run: () => void restore()
+            }
+          : {
+              label: 'Archive issue',
+              icon: 'archive' as const,
+              danger: true,
+              disabled: !canWrite || !issue,
+              run: () => void archive()
+            },
         {
-          label: 'Archive issue',
-          icon: 'archive',
+          label: 'Delete issue',
+          icon: 'trash-2',
+          keywords: ['remove', 'destroy', 'permanently'],
           danger: true,
-          disabled: !canWrite || !issue || Boolean(issue.archivedAt),
-          run: () => void archive()
+          disabled: !canDelete || !issue,
+          run: () => void remove()
         }
       ]
     });
@@ -474,6 +551,12 @@
 </script>
 
 {#snippet toolbar()}
+  {#if archived}
+    <button type="button" class="btn btn-sm btn-primary" onclick={() => void restore()} disabled={!canRestore}>
+      <Icon name="archive-restore" size={13} />
+      Restore
+    </button>
+  {:else}
   {#if dirty}
     <span class="dirty">Unsaved changes</span>
     <button type="button" class="btn btn-sm" onclick={revert} disabled={saving || descriptionUploading}>Revert</button>
@@ -495,6 +578,7 @@
     <Icon name="corner-down-right" size={13} />
     Sub-issue
   </button>
+  {/if}
 {/snippet}
 
 {#if error}
@@ -531,6 +615,20 @@
 
         {#if issue.archivedAt}<span class="chip">Archived</span>{/if}
       </nav>
+
+      {#if archived}
+        <div class="alert archived-note">
+          <Icon name="archive" size={15} />
+          <span>
+            Archived {relativeTime(issue.archivedAt)}. It can be read, but not changed or followed{canRestore
+              ? ' until it is restored'
+              : ''}.
+          </span>
+          {#if canRestore}
+            <button type="button" class="btn btn-sm" onclick={() => void restore()}>Restore</button>
+          {/if}
+        </div>
+      {/if}
 
       <textarea
         bind:value={title}
@@ -677,7 +775,7 @@
 
       <hr />
 
-      <IssueSubscribers issueId={issue.id} teamId={issue.teamId} />
+      <IssueSubscribers issueId={issue.id} teamId={issue.teamId} {archived} />
 
       <hr />
 
@@ -720,6 +818,13 @@
         <button type="button" class="btn btn-danger btn-sm btn-block" onclick={() => void archive()}>
           <Icon name="archive" size={13} />
           Archive issue
+        </button>
+      {/if}
+
+      {#if canDelete}
+        <button type="button" class="btn btn-danger btn-sm btn-block" onclick={() => void remove()}>
+          <Icon name="trash-2" size={13} />
+          Delete issue
         </button>
       {/if}
     </aside>
@@ -868,6 +973,14 @@
     align-items: center;
     gap: var(--s-2);
     min-width: 0;
+  }
+
+  .archived-note {
+    align-items: center;
+  }
+
+  .archived-note span {
+    flex: 1;
   }
 
   .dirty {

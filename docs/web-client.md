@@ -374,6 +374,15 @@ away. In the right column, **Followers** lists who hears about the issue, with F
 yourself and — for members — a way to add or remove a teammate. Opening the issue marks everything
 in your inbox about it read, including entries that arrive while it is open.
 
+An **archived** issue still opens — the inbox and the feeds link to it — but read-only: no field,
+comment, file or relation can change, and the pickers on its sub-issue rows are inert. A banner says so,
+and members get **Restore** in the banner, the toolbar and the command palette. It cannot be followed
+either; someone already following it can still unfollow.
+
+Team leads and organisation admins also get **Delete issue**, beside Archive and in the command
+palette, on live and archived issues alike. It asks for the issue's key to be typed first, says how many
+sub-issues will become top-level, and lands on My Issues afterwards. The API enforces the same rule and answers `409` to any write, so this is not only a UI rule.
+
 Every event is worded by `src/lib/activity.ts`, the one place the feed, the inbox and the history get
 their sentences from. The server stores what changed; users and labels are stored by id and resolved
 from the workspace's per-team caches.

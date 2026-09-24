@@ -24,7 +24,7 @@ GET /api/v1/attachments/{id}/content checks the issue's read permission and serv
 
 Attachments:Path (environment variable Attachments__Path) must be an absolute, writable directory in any container deployment: the default, App_Data/attachments beneath the API content root, sits inside the application folder, which the image's non-root user cannot create — uploads fail with a 500. Both docker-compose.yml and docker-compose.coolify.yml now set it to /var/lib/planner/attachments and mount a volume there. Back up that directory together with the database; the rows point at files that exist only there. Multiple API instances must share it. No database migration is needed.
 
-Deleting metadata or an issue does not currently purge stored file bytes. Keep retention/cleanup in mind when operating the storage directory.
+Removing an attachment deletes its bytes first and keeps the row if that fails, so removal can be retried. Deleting an issue deletes the rows first and then the bytes of its uploaded files; a file that cannot be removed is logged and left behind rather than blocking the delete, so the storage directory may still hold the occasional orphan.
 
 ## Verification
 
