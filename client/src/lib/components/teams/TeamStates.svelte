@@ -20,8 +20,7 @@
    * can see is being edited.
    *
    * A state's name is what people read; its type is what the application reads. The type decides
-   * whether an issue there counts as done in a rollup, which states the board stacks into one lane,
-   * and where My Issues groups it — so the editor says so, rather than leaving it to be discovered.
+   * whether an issue there counts as done in a rollup and where My Issues groups it — so the editor says so, rather than leaving it to be discovered.
    */
   interface Props {
     teamId: Guid;
@@ -33,8 +32,8 @@
   const DEFAULT_COLOR = '#95A2B3';
 
   const TYPE_HINT: Record<WorkflowStateType, string> = {
-    Backlog: 'Not planned yet. Stacked under Todo on the board.',
-    Unstarted: 'Planned, not started. Stacked over Backlog on the board.',
+    Backlog: 'Not planned yet.',
+    Unstarted: 'Planned, not started.',
     Started: 'Being worked on. Counts as in progress in a rollup.',
     Completed: 'Done. Counts as completed in a rollup.',
     Canceled: 'Dropped. Left out of a rollup altogether.'

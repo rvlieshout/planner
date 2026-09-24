@@ -46,9 +46,8 @@
 
   let selectedId = $state<string | null>(null);
 
-  // Laid out by the board's own rule and then flattened, so Todo still comes before Backlog and a
-  // team's own column order is the order these groups are read in.
-  const groups = $derived(layOut(states, issues).flatMap((lane) => lane.columns));
+  // Laid out by the board's own rule, so a team's column order is the order these groups are read in.
+  const groups = $derived(layOut(states, issues));
 
   // A board of one project need not repeat its name on every issue; a team's board does, because
   // "which project is this?" is the first thing you ask of a card you did not put there yourself.

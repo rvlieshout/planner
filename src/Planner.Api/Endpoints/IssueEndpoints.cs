@@ -692,9 +692,12 @@ public static class IssueEndpoints
     };
 
     /// <summary>Keeps the lifecycle timestamps consistent with the state's semantic type, so reports do
-    /// not have to guess what "done" means for a team that renamed its columns.</summary>
+    /// not have to guess what "done" means for a team that renamed its columns. Moving between two states
+    /// of the same closed type (Paid → Reconciled) keeps the original completion or cancellation time.</summary>
     private static void ApplyStateTransition(Issue issue, WorkflowState state)
     {
+        var previousType = issue.State?.Type;
+
         issue.StateId = state.Id;
         issue.State = state;
 
@@ -708,12 +711,16 @@ public static class IssueEndpoints
 
             case WorkflowStateType.Completed:
                 issue.StartedAt ??= DateTimeOffset.UtcNow;
-                issue.CompletedAt = DateTimeOffset.UtcNow;
+                issue.CompletedAt = previousType == WorkflowStateType.Completed
+                    ? issue.CompletedAt ?? DateTimeOffset.UtcNow
+                    : DateTimeOffset.UtcNow;
                 issue.CanceledAt = null;
                 break;
 
             case WorkflowStateType.Canceled:
-                issue.CanceledAt = DateTimeOffset.UtcNow;
+                issue.CanceledAt = previousType == WorkflowStateType.Canceled
+                    ? issue.CanceledAt ?? DateTimeOffset.UtcNow
+                    : DateTimeOffset.UtcNow;
                 issue.CompletedAt = null;
                 break;
 

@@ -70,7 +70,7 @@ client/
       realtime/          one SignalR connection for the whole application
       components/        primitives, then shell/, issues/, projects/
       styles/            fonts.css, tokens.css, app.css
-      board.ts           how lanes are laid out
+      board.ts           how columns are laid out
       issues/move.ts     what a drop writes, shared by the board and list views
       markdown/          the markdown pipeline, and resolving attachment references
       dnd.svelte.ts      dragging issues
@@ -234,18 +234,12 @@ each project is one nobody sets at all.
 Dragging works the same in both, because both hand the drop to `moveIssue` in `src/lib/issues/move.ts`
 — the same states, the same ranks, the same request.
 
-### Lanes, and the one that holds two columns
+### Columns
 
-Columns are laid out one per lane, with a single exception: **Todo sits on top of Backlog in one
-lane**. What a board is asked to do most often is promote something out of the backlog, and stacking
-the two makes that a drag straight up into the column above rather than a hunt for one off to the
-right.
-
-The two stay two columns while they do it — their own headers, counts and drop targets — because they
-are still two workflow states and a drop has to land in one of them. They split the lane's height
-evenly, so both halves stay on screen and the drag always has somewhere to go. The pairing is by
-`WorkflowStateType` rather than by name, it covers every state of those two types, and the lane takes
-the leftmost of the positions those states hold. `layOut` in `src/lib/board.ts` is the whole rule.
+A board has one column per workflow state, in the order the team ranked its states. Every state is
+treated alike whatever its type, so Backlog and Todo are ordinary columns like the rest, and a team
+that splits its work into more or fewer columns sees exactly the sequence it set up. `layOut` in
+`src/lib/board.ts` is the whole rule.
 
 ### Dragging issues
 
@@ -257,7 +251,7 @@ the only way to answer all four questions at once:
 | --- | --- |
 | A card following the cursor | *What am I carrying?* |
 | A rule between two rows | *Where would it land?* |
-| The lane outlined and the column tinted | *Would this column take it?* |
+| The column outlined and tinted | *Would this column take it?* |
 | The original row faded to 40% | *Which one is in flight?* |
 
 Targets are found by hit-testing the DOM: a column marks itself `data-drop-key` and its rows
@@ -418,7 +412,7 @@ its labels: name, type, colour, and whether new issues start there. Move up and 
 board by writing one state: it takes a rank key between the two it now sits between (`rankAt`), and
 every other column keeps its own. The type is spelled out in the
 editor because it is what the application reads: it decides whether an issue counts as done in a
-rollup, which states the board stacks into one lane, and where My Issues groups it. The default is
+rollup and where My Issues groups it. The default is
 only ever moved, never cleared. Deleting is refused by the server while issues are still in the state,
 or when it is the team's last one, and the refusal is shown as it is written.
 
