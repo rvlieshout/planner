@@ -172,6 +172,52 @@ public class ActivityEventConfiguration : IEntityTypeConfiguration<ActivityEvent
     }
 }
 
+public class IssueSubscriptionConfiguration : IEntityTypeConfiguration<IssueSubscription>
+{
+    public void Configure(EntityTypeBuilder<IssueSubscription> builder)
+    {
+        builder.HasKey(s => new { s.IssueId, s.UserId });
+
+        builder.HasOne(s => s.Issue)
+            .WithMany()
+            .HasForeignKey(s => s.IssueId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(s => s.User)
+            .WithMany()
+            .HasForeignKey(s => s.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // "What am I following" reads by user; the key already serves "who follows this issue".
+        builder.HasIndex(s => s.UserId);
+    }
+}
+
+public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
+{
+    public void Configure(EntityTypeBuilder<Notification> builder)
+    {
+        builder.HasOne(n => n.Recipient)
+            .WithMany()
+            .HasForeignKey(n => n.RecipientId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(n => n.ActivityEvent)
+            .WithMany()
+            .HasForeignKey(n => n.ActivityEventId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(n => n.Issue)
+            .WithMany()
+            .HasForeignKey(n => n.IssueId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // The inbox, newest first, and the unread badge — which only ever counts a handful of rows.
+        builder.HasIndex(n => new { n.RecipientId, n.CreatedAt });
+        builder.HasIndex(n => new { n.RecipientId, n.IssueId }).HasFilter("read_at IS NULL");
+    }
+}
+
 public class AppUserConfiguration : IEntityTypeConfiguration<Planner.Domain.Identity.AppUser>
 {
     public void Configure(EntityTypeBuilder<Planner.Domain.Identity.AppUser> builder)

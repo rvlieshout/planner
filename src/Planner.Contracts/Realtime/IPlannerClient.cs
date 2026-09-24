@@ -22,6 +22,19 @@ public interface IPlannerClient
     Task IssueRelationChanged(EntityChange<IssueRelationDto> change);
     Task UserChanged(EntityChange<UserSummary> change);
 
+    /// <summary>An audit event, as it is written. Sent to the team group, so an open activity feed or
+    /// issue history grows without polling.</summary>
+    Task ActivityRecorded(EntityChange<ActivityEventDto> change);
+
+    /// <summary>An administrator deleted part of a team's or project's history.</summary>
+    Task ActivityPurged(ActivityPurge purge);
+
+    /// <summary>A new inbox entry, sent only to its recipient.</summary>
+    Task NotificationChanged(EntityChange<NotificationDto> change);
+
+    /// <summary>The recipient's unread count, after anything moved it — including a read in another tab.</summary>
+    Task InboxChanged(InboxStatus status);
+
     /// <summary>Sent to the caller's own connection after it joins, so the client knows which groups
     /// the server actually granted rather than assuming its join requests all succeeded.</summary>
     Task Subscribed(IReadOnlyList<string> groups);

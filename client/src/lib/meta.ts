@@ -159,23 +159,3 @@ export const SWATCHES = [
   '#14B8A6',
   '#64748B'
 ];
-
-/** The activity feed's verbs, in the words a person would use for them. */
-export const ACTIVITY_ACTION: Record<string, string> = {
-  created: 'created this',
-  updated: 'updated this',
-  archived: 'archived this',
-  restored: 'restored this',
-  deleted: 'deleted this',
-  state_changed: 'changed status',
-  assignee_changed: 'changed the assignee',
-  priority_changed: 'changed the priority',
-  labels_changed: 'changed the labels',
-  commented: 'commented',
-  relation_added: 'added a relation',
-  relation_removed: 'removed a relation',
-  attachment_added: 'attached a file',
-  member_added: 'added a member',
-  member_removed: 'removed a member',
-  member_role_changed: 'changed a member role'
-};

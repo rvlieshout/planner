@@ -6,15 +6,19 @@ import {
 } from '@microsoft/signalr';
 import { tokens } from '$lib/auth/tokens.svelte';
 import type {
+  ActivityEventDto,
+  ActivityPurge,
   AttachmentDto,
   CommentDto,
   DocumentSummary,
   EntityChange,
   Guid,
+  InboxStatus,
   IssueRelationDto,
   IssueSummary,
   LabelDto,
   MilestoneDto,
+  NotificationDto,
   ProjectDto,
   TeamDto,
   TeamMemberDto,
@@ -51,6 +55,10 @@ export interface RealtimeEvents {
   AttachmentChanged: EntityChange<AttachmentDto>;
   IssueRelationChanged: EntityChange<IssueRelationDto>;
   UserChanged: EntityChange<UserSummary>;
+  ActivityRecorded: EntityChange<ActivityEventDto>;
+  ActivityPurged: ActivityPurge;
+  NotificationChanged: EntityChange<NotificationDto>;
+  InboxChanged: InboxStatus;
 }
 
 export type RealtimeEvent = keyof RealtimeEvents;
@@ -67,7 +75,11 @@ const EVENTS: RealtimeEvent[] = [
   'CommentChanged',
   'AttachmentChanged',
   'IssueRelationChanged',
-  'UserChanged'
+  'UserChanged',
+  'ActivityRecorded',
+  'ActivityPurged',
+  'NotificationChanged',
+  'InboxChanged'
 ];
 
 type Handler<E extends RealtimeEvent> = (change: RealtimeEvents[E]) => void;

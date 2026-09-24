@@ -68,4 +68,5 @@ public static class ActivityActions
     public const string MemberAdded = "member_added";
     public const string MemberRemoved = "member_removed";
     public const string MemberRoleChanged = "member_role_changed";
+    public const string ActivityPurged = "activity_purged";
 }

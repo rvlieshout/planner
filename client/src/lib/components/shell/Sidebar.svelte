@@ -7,6 +7,7 @@
   import TeamSwitcher from './TeamSwitcher.svelte';
   import { Permission, session } from '$lib/auth/session.svelte';
   import { workspace } from '$lib/workspace.svelte';
+  import { inbox } from '$lib/inbox.svelte';
   import { compareRank } from '$lib/rank';
   import { arrangeProject } from '$lib/projects/arrange';
   import { navigate } from '$lib/navigation.svelte';
@@ -186,10 +187,23 @@
         <span class="truncate">My Issues</span>
       </button>
 
+      <button type="button" class="row" class:active={isActive('/inbox')} onclick={() => go('/inbox')}>
+        <Icon name="inbox" size={15} />
+        <span class="truncate">Inbox</span>
+        {#if inbox.unread > 0}
+          <span class="unread" aria-label="{inbox.unread} unread">{inbox.unread > 99 ? '99+' : inbox.unread}</span>
+        {/if}
+      </button>
+
       {#if teamId}
         <button type="button" class="row" class:active={isActive('/board')} onclick={() => go('/board')}>
           <Icon name="layout-grid" size={15} />
           <span class="truncate">{workspace.currentTeam?.name ?? 'Board'}</span>
+        </button>
+
+        <button type="button" class="row" class:active={isActive('/activity')} onclick={() => go('/activity')}>
+          <Icon name="activity" size={15} />
+          <span class="truncate">Activity</span>
         </button>
       {/if}
     </section>
@@ -393,6 +407,20 @@
     margin-left: auto;
     color: var(--fg-tertiary);
     font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .unread {
+    margin-left: auto;
+    min-width: 18px;
+    padding: 0 5px;
+    border-radius: var(--radius-full);
+    background: var(--accent);
+    color: var(--accent-fg);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    line-height: 18px;
+    text-align: center;
     font-variant-numeric: tabular-nums;
   }
 

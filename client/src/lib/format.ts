@@ -185,3 +185,39 @@ export function fileSize(bytes: number | null | undefined): string {
 
   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
 }
+
+/** The calendar day a moment falls on, in the user's time zone, as `YYYY-MM-DD` — a grouping key. */
+export function dayKey(value: string | Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: regional.timeZone
+  }).format(typeof value === 'string' ? new Date(value) : value);
+}
+
+/** A feed's day heading: "Today", "Yesterday", then the date. */
+export function dayLabel(value: string): string {
+  const key = dayKey(value);
+  const now = new Date();
+
+  if (key === dayKey(now)) return 'Today';
+  if (key === dayKey(new Date(now.getTime() - 86_400_000))) return 'Yesterday';
+
+  return formatDate(value);
+}
+
+/** Consecutive items grouped by the day they happened, for a list already in time order. */
+export function byDay<T>(items: T[], at: (item: T) => string): { key: string; label: string; items: T[] }[] {
+  const groups: { key: string; label: string; items: T[] }[] = [];
+
+  for (const item of items) {
+    const key = dayKey(at(item));
+    const last = groups.at(-1);
+
+    if (last?.key === key) last.items.push(item);
+    else groups.push({ key, label: dayLabel(at(item)), items: [item] });
+  }
+
+  return groups;
+}

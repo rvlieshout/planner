@@ -1,6 +1,7 @@
 import { request, requestBlob, requestRaw, type QueryParams } from './http';
 import type {
   ActivityEventDto,
+  ActivityPurge,
   AttachmentDto,
   ChangePasswordRequest,
   CommentDto,
@@ -19,12 +20,14 @@ import type {
   Guid,
   IssueDetail,
   IssueFilter,
+  InboxStatus,
   IssueRelationDto,
   IssueSummary,
   LabelDto,
   MeResponse,
   MilestoneDto,
   MoveIssueRequest,
+  NotificationDto,
   PagedResult,
   ProjectDto,
   TeamDto,
@@ -283,6 +286,16 @@ export const issues = {
   activity: (id: Guid, params: { page?: number; pageSize?: number } = {}, o: Signal = {}) =>
     request<PagedResult<ActivityEventDto>>(`${v1}/issues/${id}/activity`, { ...o, query: params }),
 
+  /** Everyone following the issue. The two writes below answer with the same list. */
+  subscribers: (id: Guid, o: Signal = {}) => request<UserSummary[]>(`${v1}/issues/${id}/subscribers`, o),
+
+  /** Follows the issue — yourself with read access, anyone else with write access. */
+  subscribe: (id: Guid, userId: Guid, o: Signal = {}) =>
+    request<UserSummary[]>(`${v1}/issues/${id}/subscribers/${userId}`, { ...o, method: 'PUT' }),
+
+  unsubscribe: (id: Guid, userId: Guid, o: Signal = {}) =>
+    request<UserSummary[]>(`${v1}/issues/${id}/subscribers/${userId}`, { ...o, method: 'DELETE' }),
+
   comments: (id: Guid, params: { page?: number; pageSize?: number } = {}, o: Signal = {}) =>
     request<PagedResult<CommentDto>>(`${v1}/issues/${id}/comments`, { ...o, query: params }),
 
@@ -337,7 +350,27 @@ export const activity = {
   list: (
     params: { teamId?: Guid; projectId?: Guid; since?: string; page?: number; pageSize?: number } = {},
     o: Signal = {}
-  ) => request<PagedResult<ActivityEventDto>>(`${v1}/activity`, { ...o, query: params })
+  ) => request<PagedResult<ActivityEventDto>>(`${v1}/activity`, { ...o, query: params }),
+
+  /** Administrators only. One of `projectId` or `teamId`; without `olderThanDays`, all of it. */
+  purge: (params: { projectId?: Guid; teamId?: Guid; olderThanDays?: number }, o: Signal = {}) =>
+    request<ActivityPurge>(`${v1}/activity`, { ...o, method: 'DELETE', query: params })
+};
+
+/* ----------------------------------------------------------------- inbox ---- */
+
+export const notifications = {
+  list: (params: { unread?: boolean; page?: number; pageSize?: number } = {}, o: Signal = {}) =>
+    request<PagedResult<NotificationDto>>(`${v1}/notifications`, { ...o, query: params }),
+
+  status: (o: Signal = {}) => request<InboxStatus>(`${v1}/notifications/status`, o),
+
+  setRead: (id: Guid, read: boolean, o: Signal = {}) =>
+    request<NotificationDto>(`${v1}/notifications/${id}`, { ...o, method: 'PATCH', body: { read } }),
+
+  /** Everything, or — with an issue — everything about that issue. */
+  readAll: (issueId?: Guid, o: Signal = {}) =>
+    request<InboxStatus>(`${v1}/notifications/read`, { ...o, method: 'POST', query: { issueId } })
 };
 
 /* ---------------------------------------------------------------- health ---- */

@@ -16,6 +16,7 @@ public static class IssueEndpoints
     public static IEndpointRouteBuilder MapIssueEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapIssueFiles();
+        app.MapIssueSubscriptions();
         var issues = app.MapGroup("/api/v1/issues").WithTags("Issues");
 
         issues.MapGet("/", ListAsync)
@@ -470,7 +471,48 @@ public static class IssueEndpoints
                 teamId: issue.TeamId, projectId: issue.ProjectId, issueId: issue.Id);
         }
 
-        issue.Title = request.Title.Or(issue.Title)!;
+        if (projectId != issue.ProjectId)
+        {
+            var names = await db.Projects.Where(p => p.Id == issue.ProjectId || p.Id == projectId)
+                .ToDictionaryAsync(p => p.Id, p => p.Name, ct);
+
+            activity.Record(EntityTypes.Issue, issue.Id, ActivityActions.ProjectChanged,
+                Relinked(issue.ProjectId, projectId, names),
+                teamId: issue.TeamId, projectId: projectId, issueId: issue.Id);
+        }
+
+        if (milestoneId != issue.MilestoneId)
+        {
+            var names = await db.Milestones.Where(m => m.Id == issue.MilestoneId || m.Id == milestoneId)
+                .ToDictionaryAsync(m => m.Id, m => m.Name, ct);
+
+            activity.Record(EntityTypes.Issue, issue.Id, ActivityActions.MilestoneChanged,
+                Relinked(issue.MilestoneId, milestoneId, names),
+                teamId: issue.TeamId, projectId: projectId, issueId: issue.Id);
+        }
+
+        // Everything else that has no verb of its own is one "updated" event naming the fields, so the
+        // history says the description changed without storing a second copy of it.
+        var fields = new List<string>();
+        var newTitle = request.Title.Or(issue.Title)!.Trim();
+        if (newTitle != issue.Title) fields.Add("title");
+        if (request.Description.Or(issue.Description) != issue.Description) fields.Add("description");
+        if (request.Estimate.Or(issue.Estimate) != issue.Estimate) fields.Add("estimate");
+        if (request.DueDate.Or(issue.DueDate) != issue.DueDate) fields.Add("dueDate");
+        if (parentId != issue.ParentId) fields.Add("parent");
+
+        if (fields.Count > 0)
+        {
+            activity.Record(EntityTypes.Issue, issue.Id, ActivityActions.Updated,
+                new
+                {
+                    fields,
+                    title = fields.Contains("title") ? new { from = issue.Title, to = newTitle } : null
+                },
+                teamId: issue.TeamId, projectId: projectId, issueId: issue.Id);
+        }
+
+        issue.Title = newTitle;
         issue.Description = request.Description.Or(issue.Description);
         issue.Priority = request.Priority.Or(issue.Priority);
         issue.AssigneeId = assigneeId;
@@ -489,15 +531,24 @@ public static class IssueEndpoints
             }
 
             var existing = await db.IssueLabels.Where(l => l.IssueId == issue.Id).ToListAsync(ct);
-            db.IssueLabels.RemoveRange(existing.Where(l => !labelIds.Contains(l.LabelId)));
+            var removed = existing.Where(l => !labelIds.Contains(l.LabelId)).ToList();
+            var added = labelIds.Where(l => existing.All(e => e.LabelId != l)).Distinct().ToList();
 
-            foreach (var labelId in labelIds.Where(l => existing.All(e => e.LabelId != l)))
+            db.IssueLabels.RemoveRange(removed);
+
+            foreach (var labelId in added)
             {
                 db.IssueLabels.Add(new IssueLabel { IssueId = issue.Id, LabelId = labelId });
             }
 
-            activity.Record(EntityTypes.Issue, issue.Id, ActivityActions.LabelsChanged, new { labelIds },
-                teamId: issue.TeamId, projectId: issue.ProjectId, issueId: issue.Id);
+            // A form that sends the labels it already had is not a change, and would otherwise land in
+            // every follower's inbox as one.
+            if (added.Count > 0 || removed.Count > 0)
+            {
+                activity.Record(EntityTypes.Issue, issue.Id, ActivityActions.LabelsChanged,
+                    new { labelIds, added, removed = removed.Select(l => l.LabelId).ToList() },
+                    teamId: issue.TeamId, projectId: issue.ProjectId, issueId: issue.Id);
+            }
         }
 
         await db.SaveChangesAsync(ct);
@@ -609,6 +660,16 @@ public static class IssueEndpoints
         // No anchors: drop it at the end of the target column.
         return await Ranks.AppendAsync(ranks, ct);
     }
+
+    /// <summary>The before and after of a re-pointed link, by name as well as id — the feed reads these
+    /// across teams, where the client holds no list of another team's projects to look an id up in.</summary>
+    private static object Relinked(Guid? from, Guid? to, IReadOnlyDictionary<Guid, string> names) => new
+    {
+        from = from is { } f ? names.GetValueOrDefault(f) : null,
+        to = to is { } t ? names.GetValueOrDefault(t) : null,
+        fromId = from,
+        toId = to
+    };
 
     /// <summary>Keeps the lifecycle timestamps consistent with the state's semantic type, so reports do
     /// not have to guess what "done" means for a team that renamed its columns.</summary>
@@ -1146,7 +1207,7 @@ public static class IssueEndpoints
             .ToListAsync(ct);
 
         return Results.Ok(new PagedResult<ActivityEventDto>(
-            events.Select(Mapping.ToActivity).ToList(), paging.NormalizedPage, paging.NormalizedSize, total));
+            await ActivityFeed.ToDtosAsync(db, events, ct), paging.NormalizedPage, paging.NormalizedSize, total));
     }
 
     private static async Task<IResult> ListActivityAsync(
@@ -1188,7 +1249,7 @@ public static class IssueEndpoints
             .ToListAsync(ct);
 
         return Results.Ok(new PagedResult<ActivityEventDto>(
-            events.Select(Mapping.ToActivity).ToList(), paging.NormalizedPage, paging.NormalizedSize, total));
+            await ActivityFeed.ToDtosAsync(db, events, ct), paging.NormalizedPage, paging.NormalizedSize, total));
     }
 
     /// <summary>Checks that every optional link on an issue points somewhere real and in-scope: a

@@ -23,6 +23,7 @@
   import { alpha, formatExact, relativeTime } from '$lib/format';
   import { navigate } from '$lib/navigation.svelte';
   import { realtime } from '$lib/realtime/hub.svelte';
+  import { inbox } from '$lib/inbox.svelte';
   import { loadIssueFormData, workspace } from '$lib/workspace.svelte';
 
   import Avatar from '$components/Avatar.svelte';
@@ -35,6 +36,8 @@
   import IssueComments from '$components/issues/IssueComments.svelte';
   import IssueAttachments from '$components/issues/IssueAttachments.svelte';
   import IssueRelations from '$components/issues/IssueRelations.svelte';
+  import IssueActivity from '$components/issues/IssueActivity.svelte';
+  import IssueSubscribers from '$components/issues/IssueSubscribers.svelte';
   import { confirm } from '$components/confirm.svelte';
   import { toasts } from '$components/toast.svelte';
 
@@ -205,6 +208,19 @@
   );
 
   $effect(() => realtime.onReconnected(() => void load(true)));
+
+  // Everything in the inbox about this issue is on screen now — including what arrives while it is.
+  const openIssueId = $derived(issue?.id);
+
+  $effect(() => {
+    if (openIssueId) void inbox.readIssue(openIssueId);
+  });
+
+  $effect(() =>
+    realtime.on('NotificationChanged', (change) => {
+      if (openIssueId && change.issueId === openIssueId) void inbox.readIssue(openIssueId);
+    })
+  );
 
   // Images pasted into the description or a comment land on the issue straight away.
   $effect(() =>
@@ -556,6 +572,8 @@
         canEdit={canWrite}
         onchange={(next: IssueRelationDto[]) => (issue = { ...issue!, relations: next })} />
 
+      <IssueActivity issueId={issue.id} />
+
       <IssueComments
         issueId={issue.id}
         {canComment}
@@ -656,6 +674,10 @@
           {/each}
         </div>
       </div>
+
+      <hr />
+
+      <IssueSubscribers issueId={issue.id} teamId={issue.teamId} />
 
       <hr />
 

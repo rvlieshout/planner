@@ -551,6 +551,36 @@ export interface ActivityEventDto {
   action: string;
   data: Record<string, unknown> | null;
   createdAt: Timestamp;
+  /** The issue it happened to, named. Null outside an issue, and once the issue has been deleted. */
+  issue: IssueReference | null;
+}
+
+export interface IssueReference {
+  id: Guid;
+  key: string;
+  title: string;
+}
+
+/** One inbox entry: an event on an issue the caller follows. */
+export interface NotificationDto {
+  id: Guid;
+  issue: IssueReference;
+  teamId: Guid;
+  event: ActivityEventDto;
+  createdAt: Timestamp;
+  readAt: Timestamp | null;
+}
+
+/** What a history purge removed: `before` null means everything in the scope. */
+export interface ActivityPurge {
+  teamId: Guid;
+  projectId: Guid | null;
+  before: Timestamp | null;
+  deleted: number;
+}
+
+export interface InboxStatus {
+  unread: number;
 }
 
 /* ---------------------------------------------------------------- realtime ---- */

@@ -7,6 +7,7 @@ using Planner.Api.Auth;
 using Planner.Api.Authorization;
 using Planner.Api.Common;
 using Planner.Api.Endpoints;
+using Planner.Api.Notifications;
 using Planner.Api.Realtime;
 using Planner.Api.Startup;
 using Planner.Infrastructure;
@@ -26,7 +27,9 @@ var connectionString = builder.Configuration.GetConnectionString("Planner")
                        ?? throw new InvalidOperationException(
                            "No connection string named 'Planner'. Set ConnectionStrings__Planner.");
 
-builder.Services.AddPlannerPersistence(connectionString);
+builder.Services.AddScoped<NotificationInterceptor>();
+builder.Services.AddPlannerPersistence(connectionString,
+    (provider, options) => options.AddInterceptors(provider.GetRequiredService<NotificationInterceptor>()));
 builder.Services.AddPlannerAuth(authOptions);
 
 // Ids are uuids in the database and base58 on the wire. This registers the {id:b58} route constraint;
@@ -170,6 +173,8 @@ app.MapTeamEndpoints();
 app.MapProjectEndpoints();
 app.MapDocumentEndpoints();
 app.MapIssueEndpoints();
+app.MapNotificationEndpoints();
+app.MapActivityEndpoints();
 
 app.MapHub<PlannerHub>("/hubs/planner");
 

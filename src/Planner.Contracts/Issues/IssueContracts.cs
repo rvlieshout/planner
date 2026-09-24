@@ -163,6 +163,9 @@ public sealed record CreateAttachmentRequest(
     string? ContentType = null,
     long? SizeBytes = null);
 
+/// <param name="Issue">The issue the event happened to, named, so a feed across teams can say
+/// "ENG-42 Fix login" without a request per row. Null for events outside any issue, and for events of
+/// an issue that has since been deleted.</param>
 public sealed record ActivityEventDto(
     Guid Id,
     string EntityType,
@@ -173,4 +176,27 @@ public sealed record ActivityEventDto(
     UserSummary Actor,
     string Action,
     System.Text.Json.JsonElement? Data,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    IssueReference? Issue = null);
+
+public sealed record IssueReference(Guid Id, string Key, string Title);
+
+/// <summary>What a history purge removed. Pushed to the team as well, so an open feed drops the same
+/// rows without refetching.</summary>
+/// <param name="Before">Events created before this moment went; null means the whole history.</param>
+public sealed record ActivityPurge(Guid TeamId, Guid? ProjectId, DateTimeOffset? Before, int Deleted);
+
+/// <summary>One entry in the caller's inbox: an event on an issue they follow.</summary>
+public sealed record NotificationDto(
+    Guid Id,
+    IssueReference Issue,
+    Guid TeamId,
+    ActivityEventDto Event,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? ReadAt);
+
+/// <summary>The unread badge. Pushed to every connection of the user whenever it moves.</summary>
+public sealed record InboxStatus(int Unread);
+
+/// <param name="Read">True marks it read, false puts it back in the unread list.</param>
+public sealed record UpdateNotificationRequest(bool Read);

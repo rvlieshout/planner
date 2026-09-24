@@ -16,6 +16,7 @@
   import { session } from '$lib/auth/session.svelte';
   import { settings, SIDEBAR_MAX, SIDEBAR_MIN } from '$lib/settings.svelte';
   import { workspace } from '$lib/workspace.svelte';
+  import { inbox } from '$lib/inbox.svelte';
   import { realtime } from '$lib/realtime/hub.svelte';
   import { issueEditor } from '$lib/issues/editor.svelte';
   import { installNavigationGuard, mayDiscard, navigate } from '$lib/navigation.svelte';
@@ -55,6 +56,7 @@
   $effect(() => {
     if (session.isSignedIn && !workspace.initialized) {
       void workspace.initialize();
+      void inbox.initialize();
     }
   });
 
@@ -96,6 +98,7 @@
 
     session.signOut();
     workspace.reset();
+    inbox.reset();
     await realtime.disconnect();
     await goto(resolve('/login'), { replaceState: true });
   }
@@ -146,8 +149,23 @@
           label: 'My Issues',
           icon: 'circle-user',
           shortcut: 'g i',
-          keywords: ['assigned', 'inbox'],
+          keywords: ['assigned'],
           run: () => void navigate('/my-issues')
+        },
+        {
+          label: 'Inbox',
+          icon: 'inbox',
+          shortcut: 'g n',
+          keywords: ['notifications', 'following', 'subscribed', 'unread'],
+          run: () => void navigate('/inbox')
+        },
+        {
+          label: 'Activity',
+          icon: 'activity',
+          shortcut: 'g a',
+          keywords: ['feed', 'history', 'recent', 'changes', workspace.currentTeam?.name ?? ''],
+          disabled: !teamId,
+          run: () => void navigate('/activity')
         },
         {
           label: 'Team board',

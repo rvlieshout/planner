@@ -247,6 +247,20 @@ public static class Mapping
             ActivityData(a.Data),
             a.CreatedAt);
 
+    /// <summary>An inbox entry. Needs the event with its actor, and the issue with its team, loaded.</summary>
+    public static NotificationDto ToNotification(Notification n)
+    {
+        var issue = new IssueReference(n.Issue.Id, $"{n.Issue.Team.Key}-{n.Issue.Number}", n.Issue.Title);
+
+        return new NotificationDto(
+            n.Id,
+            issue,
+            n.Issue.TeamId,
+            ToActivity(n.ActivityEvent) with { Issue = issue },
+            n.CreatedAt,
+            n.ReadAt);
+    }
+
     /// <summary>Re-encodes the ids buried in an audit payload.
     ///
     /// The jsonb column is written with the plain serializer, so a payload like

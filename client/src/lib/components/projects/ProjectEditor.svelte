@@ -22,6 +22,7 @@
   import EditableMarkdown from '$components/markdown/EditableMarkdown.svelte';
   import ColorPicker from '$components/ColorPicker.svelte';
   import Progress from '$components/Progress.svelte';
+  import ProjectHistoryPurge from '$components/projects/ProjectHistoryPurge.svelte';
   import Select from '$components/Select.svelte';
   import type { SelectOption } from '$components/select';
   import { confirm } from '$components/confirm.svelte';
@@ -631,6 +632,9 @@
         </div>
       {/if}
     </section>
+    {#if id && saved.name && session.isAdmin}
+      <ProjectHistoryPurge projectId={id} projectName={saved.name} />
+    {/if}
     {#if id && saved.name && session.can(loadedTeamId, Permission.Administer)}
       <section class="panel">
         <div class="panel-title"><span>Delete project</span></div>

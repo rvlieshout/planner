@@ -130,11 +130,13 @@ The left sidebar is the whole application's map, and matches the desktop client'
 | Team switcher | Every team the caller can read. Switching rebuilds the rest of the sidebar. |
 | **Users & access**, **Teams** | Administration, for the people entitled to it. Reachable on an installation with no teams at all — creating the first one is the point. |
 | **My Issues** | Everything assigned to you, across *every* team. The application opens here. |
+| **Inbox** | What happened to the issues you follow, across every team, with the unread count beside it. |
 | *Team name* | The team board. |
+| **Activity** | The current team's feed, newest first and grouped by day, optionally narrowed to one project. |
 | **Projects** | One row per project in the current team, in its own colour. The ＋ starts a new one. |
 | Footer | Who you are signed in as, and the way out. |
 
-Routes are `/app/my-issues`, `/app/board`, `/app/projects/[id]`, `/app/projects/[id]/settings`,
+Routes are `/app/my-issues`, `/app/inbox`, `/app/activity`, `/app/board`, `/app/projects/[id]`, `/app/projects/[id]/settings`,
 `/app/issues/[key]`, `/app/teams`, `/app/users`, `/app/settings`. Issues are addressed by **key**
 rather than id, so `ENG-42` is a URL someone can paste into a chat — which is the thing a desktop
 application could never offer.
@@ -366,6 +368,16 @@ discussion of eleven replies is a button that exists only because the list was p
 reason. The page subscribes to the issue's own SignalR group while it is open, and unsubscribes when
 it closes — issue-local traffic is opt-in because it is the high-volume kind.
 
+Above the comments sits the issue's **activity**: how it got where it is, oldest first, comments left
+out because they are right below. A long history shows its latest six entries with the rest a click
+away. In the right column, **Followers** lists who hears about the issue, with Follow / Unfollow for
+yourself and — for members — a way to add or remove a teammate. Opening the issue marks everything
+in your inbox about it read, including entries that arrive while it is open.
+
+Every event is worded by `src/lib/activity.ts`, the one place the feed, the inbox and the history get
+their sentences from. The server stores what changed; users and labels are stored by id and resolved
+from the workspace's per-team caches.
+
 Files go both ways the server supports them: uploading sends the bytes to
 `POST /api/v1/issues/{id}/files`, which keeps them outside the web root and behind the issue's team
 permission; linking records a location — a share, an object store — and stores metadata only. Only the
@@ -381,6 +393,10 @@ every dirty milestone row, and anything typed into the add row and not yet added
 shows one unsaved mark covering all of that, and a button called "Save changes" that leaves the mark
 standing is a button that lies. Rows the server refuses keep their own error and stay dirty, and the
 page reports how many rather than claiming success over work still sitting there.
+
+Administrators also see **Activity history** on a project's settings page: delete what is older than
+30, 90 or 180 days, a year, or a number of days of their choosing — or all of it, which asks for the
+project's name first. Open feeds and issue histories drop the deleted rows as it happens.
 
 **Teams** lists the teams you may *change*, which is a shorter list than the switcher above it.
 Archived teams are listed last rather than left out, because restoring one is only possible from a list
@@ -500,6 +516,5 @@ Every control is a real element: buttons are `<button>`, the modal is `<dialog>`
 - **Filtering, search and saved views.** The API's filter surface is much richer than the UI exposes;
   only the issue picker on the relations panel uses `?search=`.
 - **Documents.** `GET /api/v1/documents` is complete on the server and unused here.
-- **The activity feed.** Read on the issue page only; `/api/v1/activity` across teams has no view.
 - **Archiving and restoring projects,** which needs somewhere to see archived ones first.
 - Offline queueing of writes.

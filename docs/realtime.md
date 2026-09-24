@@ -111,6 +111,10 @@ names and payloads are checked at compile time.
 | `AttachmentChanged` | `AttachmentDto` | issue |
 | `IssueRelationChanged` | `IssueRelationDto` | issue |
 | `UserChanged` | `UserSummary` | org |
+| `ActivityRecorded` | `ActivityEventDto`, with its `issue` reference | team |
+| `ActivityPurged` | `ActivityPurge` — `{ teamId, projectId, before, deleted }`; drop matching rows | team |
+| `NotificationChanged` | `NotificationDto` — a new inbox entry | user |
+| `InboxChanged` | `InboxStatus` — `{ unread }`, after anything moved the count | user |
 | `Subscribed` | `IReadOnlyList<string>` | caller only |
 
 Client-callable: `SubscribeToIssue(Guid) → bool`, `UnsubscribeFromIssue(Guid)`,

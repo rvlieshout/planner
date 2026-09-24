@@ -46,6 +46,10 @@ erDiagram
     users ||--o{ issues : "creates / is assigned"
     users ||--o{ comments : writes
     users ||--o{ activity_events : acts
+    issues ||--o{ issue_subscriptions : "followed by"
+    users ||--o{ issue_subscriptions : follows
+    activity_events ||--o{ notifications : "delivered as"
+    users ||--o{ notifications : receives
 ```
 
 ## Tables
@@ -74,6 +78,8 @@ erDiagram
 | `comments` | `issue_id`, `author_id`, `body`, `parent_comment_id`, `edited_at` | One level of threading. Deleting a parent cascades to its replies. |
 | `attachments` | `issue_id`, `file_name`, `content_type`, `size_bytes`, `storage_uri` | Metadata only — bytes live wherever `storage_uri` points. |
 | `activity_events` | `entity_type`, `entity_id`, `action`, `data` (`jsonb`), denormalised `team_id`/`project_id`/`issue_id` | Append-only audit trail. |
+| `issue_subscriptions` | Composite PK `(issue_id, user_id)`, `created_at` | Who follows an issue. Filing, being assigned and commenting add a row. |
+| `notifications` | `recipient_id`, `activity_event_id`, `issue_id`, `read_at` | One audit event delivered to one follower. Points at the event rather than copying it, so the inbox and the history cannot disagree. |
 
 ## Referential behaviour
 
@@ -90,6 +96,8 @@ Chosen per relationship, because "cascade everywhere" quietly destroys work:
 | project → lead | `SET NULL` | |
 | comment → parent comment | `CASCADE` | A reply without its question is noise. |
 | issue → comments, attachments, relations, labels | `CASCADE` | These have no meaning without their issue. |
+| issue → subscriptions, notifications | `CASCADE` | An inbox entry that cannot be opened is noise. |
+| activity event → notifications | `CASCADE` | |
 
 ## Indexes
 
@@ -109,6 +117,8 @@ Beyond primary keys and the implicit foreign-key indexes:
 | `ix_issue_relations_source_target_type` (unique) | Prevents duplicate relations. |
 | `ix_activity_events_{issue,team,project}_id_created_at` | The three ways the feed is read, newest first. |
 | `ix_comments_issue_id_created_at` | Comment threads in order. |
+| `ix_notifications_recipient_id_created_at` | The inbox, newest first. |
+| `ix_notifications_recipient_id_issue_id` (`WHERE read_at IS NULL`) | The unread badge, and "opening an issue reads it". |
 
 `pg_trgm` is the only extension required; the migration creates it.
 

@@ -21,6 +21,8 @@ public class PlannerDbContext(DbContextOptions<PlannerDbContext> options)
     public DbSet<Comment> Comments => Set<Comment>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<ActivityEvent> ActivityEvents => Set<ActivityEvent>();
+    public DbSet<IssueSubscription> IssueSubscriptions => Set<IssueSubscription>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

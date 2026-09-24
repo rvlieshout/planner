@@ -169,6 +169,9 @@ Markdown project documentation — specs, briefs, decision records. Separate fro
 | `POST /api/v1/issues/{id}/archive` · `/restore` | | Write |
 | `DELETE /api/v1/issues/{id}` | | Administer |
 | `GET /api/v1/issues/{id}/activity` | Audit trail for this issue | Read |
+| `GET /api/v1/issues/{id}/subscribers` | People following the issue | Read |
+| `PUT /api/v1/issues/{id}/subscribers/{userId}` | Follow — yourself with Read, anyone else with Write | Read / Write |
+| `DELETE /api/v1/issues/{id}/subscribers/{userId}` | Unfollow — same rule | Read / Write |
 
 ### Filtering
 
@@ -281,17 +284,62 @@ both teams.
 | --- | --- |
 | `GET /api/v1/activity` | `?teamId=&projectId=&since=&page=` across the teams you can read |
 | `GET /api/v1/issues/{id}/activity` | One issue's history |
+| `DELETE /api/v1/activity` | `?projectId=` or `?teamId=`, optionally `&olderThanDays=` — administrators only |
 
-Each row has an `action`, the `actor`, and a `data` object describing the change:
+Each row has an `action`, the `actor`, a `data` object describing the change, and — for anything that
+happened to an issue — an `issue` reference naming it, so a feed across teams needs no request per row:
 
 ```json
 { "action": "state_changed", "actor": { "displayName": "Dana Developer" },
-  "data": { "from": "Todo", "to": "In Progress" }, "createdAt": "2026-08-27T15:44:45Z" }
+  "data": { "from": "Todo", "to": "In Progress" }, "createdAt": "2026-08-27T15:44:45Z",
+  "issue": { "id": "…", "key": "ENG-42", "title": "Fix login" } }
 ```
 
+`issue` is null for events outside an issue, and for events of an issue that has since been deleted.
+
 Actions: `created`, `updated`, `archived`, `restored`, `deleted`, `state_changed`,
-`assignee_changed`, `priority_changed`, `labels_changed`, `commented`, `relation_added`,
-`relation_removed`, `attachment_added`, `member_added`, `member_removed`, `member_role_changed`.
+`assignee_changed`, `priority_changed`, `labels_changed`, `project_changed`, `milestone_changed`,
+`commented`, `relation_added`, `relation_removed`, `attachment_added`, `member_added`,
+`member_removed`, `member_role_changed`, `activity_purged`.
+
+On an issue, `updated` carries `{ "fields": ["title", "description", …], "title": { "from", "to" } }`
+for the edits that have no verb of their own; `project_changed` and `milestone_changed` carry names
+as well as ids (`from`, `to`, `fromId`, `toId`); `labels_changed` carries `added` and `removed` and is
+only recorded when the set actually changed.
+
+### Deleting history
+
+An organisation administrator can delete a project's or a team's history: all of it, or only what is
+older than `olderThanDays` (1–36500). Exactly one of `projectId` and `teamId` is required. A project
+purge removes the events recorded against that project, including those of its issues; a team purge
+removes every event of the team. Inbox entries that pointed at deleted events go with them.
+
+The purge leaves a row of its own — `activity_purged` on the project or team, with
+`{ "olderThanDays": 90, "deleted": 42 }` — written in the same transaction, so the history always says
+who cleared it and how much. The response is `{ teamId, projectId, before, deleted }`, where `before` is
+the cutoff (null for everything); the same object is pushed to the team as `ActivityPurged`.
+
+## Following and the inbox
+
+Following an issue puts whatever happens to it in your inbox. Filing an issue, being assigned it and
+commenting on it follow it automatically; anyone who can read an issue can follow or unfollow it, and
+someone with Write can add or remove another person, provided that person can read the team.
+
+Every audit event on an issue produces one notification per follower, except for the person who acted.
+They are written in the same transaction as the change, by a save interceptor rather than by each
+endpoint (`Planner.Api/Notifications/NotificationInterceptor.cs`), so a committed change is never
+missing from an inbox and a rolled-back one never appears in one.
+
+| | |
+| --- | --- |
+| `GET /api/v1/notifications` | `?unread=true&page=` — your inbox, newest first |
+| `GET /api/v1/notifications/status` | `{ "unread": 3 }` |
+| `PATCH /api/v1/notifications/{id}` | `{ "read": true }` or `false` |
+| `POST /api/v1/notifications/read` | Everything read, or with `?issueId=` everything about one issue |
+
+Each entry is `{ id, issue: { id, key, title }, teamId, event, createdAt, readAt }`, where `event` is
+the activity row above. The inbox follows access as it is *now*: someone removed from a team stops
+seeing its entries, and they stop counting towards `unread`. Deleting an issue deletes its entries.
 
 ## Health
 

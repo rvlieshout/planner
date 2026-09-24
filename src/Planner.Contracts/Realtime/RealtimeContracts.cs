@@ -60,4 +60,6 @@ public static class EntityTypes
     public const string Attachment = "attachment";
     public const string IssueRelation = "issueRelation";
     public const string User = "user";
+    public const string ActivityEvent = "activityEvent";
+    public const string Notification = "notification";
 }
