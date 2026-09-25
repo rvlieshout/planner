@@ -42,7 +42,10 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<ITeamAccess, TeamAccess>();
 builder.Services.AddScoped<IActivityLog, ActivityLog>();
-builder.Services.AddScoped<IssueCreator>();
+builder.Services.AddScoped<IssueCommands>();
+builder.Services.AddScoped<ProjectCommands>();
+builder.Services.AddScoped<DocumentCommands>();
+builder.Services.AddScoped<AttachmentCommands>();
 builder.Services.AddScoped<IRealtimeNotifier, RealtimeNotifier>();
 builder.Services.AddSingleton<RealtimeConnections>();
 builder.Services.AddScoped<IRealtimeSubscriptions, RealtimeSubscriptions>();
@@ -143,8 +146,9 @@ builder.Services.AddRateLimiter(options =>
     // Assistants can call tools in quick loops. Per user rather than per IP: every MCP client behind
     // one hosted assistant shares that assistant's addresses.
     options.AddPolicy("mcp", context => RateLimitPartition.GetFixedWindowLimiter(
-        context.User.FindFirst(OpenIddict.Abstractions.OpenIddictConstants.Claims.Subject)?.Value
-            ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        context.User.FindFirst(OpenIddict.Abstractions.OpenIddictConstants.Claims.Subject)?.Value is { } subject
+            ? "user:" + subject
+            : "address:" + (context.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
         _ => new FixedWindowRateLimiterOptions
         {
             PermitLimit = 120,
@@ -172,9 +176,13 @@ app.UseBase58Ids();
 
 app.UseMiddleware<SignalRAuthenticationMiddleware>("/hubs");
 app.UseCors();
-app.UseRateLimiter();
 app.UseAuthentication();
 app.UseMcpAudienceBoundary(authOptions);
+
+// After authentication, so a policy that limits per user can see the user. Before it, every caller is
+// anonymous, and "per user" quietly becomes "per address": every user of one hosted assistant would share
+// a single budget. The sign-in limits partition by address either way.
+app.UseRateLimiter();
 app.UseAuthorization();
 
 // The schema and its UI are readable without a token: the fallback policy would otherwise lock the

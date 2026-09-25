@@ -1,14 +1,11 @@
 using System.ComponentModel;
-using System.Globalization;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
-using Planner.Api.Auth;
 using Planner.Api.Endpoints;
+using Planner.Contracts.Common;
 using Planner.Contracts.Enums;
 using Planner.Contracts.Issues;
-using Planner.Domain.Entities;
 
 namespace Planner.Api.Mcp;
 
@@ -17,11 +14,7 @@ namespace Planner.Api.Mcp;
 /// exactly as if they had made the change themselves. Which, as far as Planner is concerned, they did:
 /// the issue is theirs, and the history says so.</summary>
 [McpServerToolType]
-public sealed class IssueWriteTools(
-    McpReader reader,
-    IssueCreator creator,
-    IHttpContextAccessor http,
-    IOptions<PlannerAuthOptions> auth)
+public sealed class IssueWriteTools(McpReader reader, IssueCommands issues)
 {
     /// <summary>How far back an identical issue by the same person counts as the same request made twice.</summary>
     private static readonly TimeSpan DuplicateWindow = TimeSpan.FromMinutes(10);
@@ -64,15 +57,15 @@ public sealed class IssueWriteTools(
             TeamId: found.Id,
             Title: title,
             Description: string.IsNullOrWhiteSpace(description) ? null : description,
-            StateId: state is null ? null : await ResolveStateAsync(found.Id, state, ct),
+            StateId: state is null ? null : await reader.ResolveStateAsync(found.Id, state, ct),
             Priority: priority,
             AssigneeId: assignee is null ? null : await reader.ResolveUserAsync(assignee, ct),
             ProjectId: projectId,
-            MilestoneId: milestone is null ? null : await ResolveMilestoneAsync(projectId!.Value, milestone, ct),
+            MilestoneId: milestone is null ? null : await reader.ResolveMilestoneAsync(projectId!.Value, milestone, ct),
             ParentId: parent is null ? null : (await reader.ResolveIssueAsync(parent, ct)).Id,
             Estimate: estimate,
-            DueDate: dueDate is null ? null : ParseDate(dueDate),
-            LabelIds: labels is { Length: > 0 } ? await ResolveLabelsAsync(found.Id, labels, ct) : null);
+            DueDate: dueDate is null ? null : McpReader.ParseDate(dueDate),
+            LabelIds: labels is { Length: > 0 } ? await reader.ResolveLabelsAsync(found.Id, labels, ct) : null);
 
         // Assistants retry: after a timeout, or when they lose track of what they already did. A second
         // identical issue is noise someone has to clean up, so a repeat within a few minutes is answered
@@ -96,112 +89,245 @@ public sealed class IssueWriteTools(
             }
         }
 
-        var outcome = await creator.CreateAsync(request, ct);
+        var outcome = await issues.CreateAsync(request, ct);
 
-        if (outcome.Issue is null)
+        if (outcome.Value is null)
         {
             throw new McpException(outcome.ErrorMessage ?? "The issue could not be created.");
         }
 
         var view = await db.Issues.AsNoTracking()
-            .Where(i => i.Id == outcome.Issue.Id)
+            .Where(i => i.Id == outcome.Value.Id)
             .Select(IssueView.Projection)
             .SingleAsync(ct);
 
         return await ResultAsync(view, created: true, ct);
     }
 
+    /// <summary>Fields update_issue can clear. Clearing is explicit because an MCP argument that is left out
+    /// and one sent as null look the same once they arrive.</summary>
+    private static readonly string[] Clearable =
+        ["assignee", "project", "milestone", "parent", "estimate", "dueDate", "description", "labels"];
+
+    [McpServerTool(Name = "update_issue", Title = "Edit an issue", ReadOnly = false, Destructive = false,
+        Idempotent = true, OpenWorld = false)]
+    [Description(
+        "Change an issue's fields, as the user. Only what is passed changes. Names work as in create_issue. " +
+        "To empty a field, list it in `clear`. To change the description, prefer appendToDescription (adds a " +
+        "paragraph); replacing it with `description` needs the `version` from get_issue, and is refused if " +
+        "someone changed the issue since. To move an issue across the board, use move_issue.")]
+    public async Task<string> UpdateIssueAsync(
+        [Description("The issue key, e.g. DEV-42.")] string key,
+        [Description("A new title.")] string? title = null,
+        [Description("A new description replacing the old one entirely, in Markdown. Needs `version`.")] string? description = null,
+        [Description("Markdown added to the end of the description as a new paragraph. Needs no version.")] string? appendToDescription = null,
+        [Description("The issue's `version` from get_issue. Required to replace or clear the description.")] string? version = null,
+        [Description("A new workflow state by name or type. Prefer move_issue, which also places it in the column.")] string? state = null,
+        [Description("A new priority.")] IssuePriority? priority = null,
+        [Description("A new assignee: 'me', an email address or a display name.")] string? assignee = null,
+        [Description("Move it to this project, by name or id.")] string? project = null,
+        [Description("A milestone of the issue's project (or of `project`, when given), by name.")] string? milestone = null,
+        [Description("Make it a sub-issue of this issue key, in the same team.")] string? parent = null,
+        [Description("Replace all labels with these, by name.")] string[]? labels = null,
+        [Description("Labels to add, by name.")] string[]? addLabels = null,
+        [Description("Labels to remove, by name.")] string[]? removeLabels = null,
+        [Description("A new estimate, 0 to 1000.")] int? estimate = null,
+        [Description("A new due date, as an ISO date.")] string? dueDate = null,
+        [Description("Fields to empty: assignee, project, milestone, parent, estimate, dueDate, description, labels.")] string[]? clear = null,
+        CancellationToken ct = default)
+    {
+        var issue = await reader.ResolveIssueAsync(key, ct);
+        var teamId = issue.TeamId;
+        var cleared = new HashSet<string>(clear ?? [], StringComparer.OrdinalIgnoreCase);
+
+        if (cleared.FirstOrDefault(c => !Clearable.Contains(c, StringComparer.OrdinalIgnoreCase)) is { } unknown)
+        {
+            throw new McpException($"'{unknown}' cannot be cleared. Clearable fields: {string.Join(", ", Clearable)}.");
+        }
+
+        void Conflict(string field, bool set)
+        {
+            if (set && cleared.Contains(field))
+            {
+                throw new McpException($"`{field}` is both set and listed in `clear`; do one or the other.");
+            }
+        }
+
+        Conflict("assignee", assignee is not null);
+        Conflict("project", project is not null);
+        Conflict("milestone", milestone is not null);
+        Conflict("parent", parent is not null);
+        Conflict("estimate", estimate is not null);
+        Conflict("dueDate", dueDate is not null);
+        Conflict("description", description is not null || appendToDescription is not null);
+        Conflict("labels", labels is not null || addLabels is not null || removeLabels is not null);
+
+        if (description is not null && appendToDescription is not null)
+        {
+            throw new McpException("Pass either `description` (replace) or `appendToDescription` (add), not both.");
+        }
+
+        if (labels is not null && (addLabels is not null || removeLabels is not null))
+        {
+            throw new McpException("Pass either `labels` (replace all) or addLabels/removeLabels, not both.");
+        }
+
+        // Replacing or clearing the text is the one edit that can erase someone else's work.
+        if (description is not null || cleared.Contains("description"))
+        {
+            McpReader.RequireCurrent(version, issue.UpdatedAt, "issue's description");
+        }
+
+        Guid? projectId = project is null ? null : (await reader.ResolveProjectAsync(project, teamId, ct)).Id;
+        var milestoneProject = projectId ?? (cleared.Contains("project") ? null : issue.ProjectId);
+
+        if (milestone is not null && milestoneProject is null)
+        {
+            throw new McpException("The issue is not in a project, so it has no milestones. Pass `project` as well.");
+        }
+
+        Optional<IReadOnlyList<Guid>> labelIds = default;
+        if (labels is not null)
+        {
+            labelIds = Optional<IReadOnlyList<Guid>>.From(await reader.ResolveLabelsAsync(teamId, labels, ct));
+        }
+        else if (addLabels is not null || removeLabels is not null)
+        {
+            var current = await reader.Db.IssueLabels.Where(l => l.IssueId == issue.Id).Select(l => l.LabelId).ToListAsync(ct);
+            var add = addLabels is { Length: > 0 } ? await reader.ResolveLabelsAsync(teamId, addLabels, ct) : [];
+            var remove = removeLabels is { Length: > 0 } ? await reader.ResolveLabelsAsync(teamId, removeLabels, ct) : [];
+            labelIds = Optional<IReadOnlyList<Guid>>.From(current.Union(add).Except(remove).ToList());
+        }
+        else if (cleared.Contains("labels"))
+        {
+            labelIds = Optional<IReadOnlyList<Guid>>.From([]);
+        }
+
+        static Optional<T> Set<T>(bool set, T value) => set ? Optional<T>.From(value) : default;
+
+        var request = new UpdateIssueRequest(
+            Title: Set(title is not null, title!),
+            Description: description is not null ? Optional<string?>.From(description)
+                : appendToDescription is not null ? Optional<string?>.From(McpReader.Append(issue.Description, appendToDescription))
+                : Set<string?>(cleared.Contains("description"), null),
+            StateId: state is null ? default : Optional<Guid>.From(await reader.ResolveStateAsync(teamId, state, ct)),
+            Priority: Set(priority is not null, priority.GetValueOrDefault()),
+            AssigneeId: assignee is not null ? Optional<Guid?>.From(await reader.ResolveUserAsync(assignee, ct)) : Set<Guid?>(cleared.Contains("assignee"), null),
+            ProjectId: projectId is not null ? Optional<Guid?>.From(projectId) : Set<Guid?>(cleared.Contains("project"), null),
+            MilestoneId: milestone is not null ? Optional<Guid?>.From(await reader.ResolveMilestoneAsync(milestoneProject!.Value, milestone, ct))
+                : Set<Guid?>(cleared.Contains("milestone"), null),
+            ParentId: parent is not null ? Optional<Guid?>.From((await reader.ResolveIssueAsync(parent, ct)).Id) : Set<Guid?>(cleared.Contains("parent"), null),
+            Estimate: estimate is not null ? Optional<int?>.From(estimate) : Set<int?>(cleared.Contains("estimate"), null),
+            DueDate: dueDate is not null ? Optional<DateOnly?>.From(McpReader.ParseDate(dueDate)) : Set<DateOnly?>(cleared.Contains("dueDate"), null),
+            Rank: default,
+            LabelIds: labelIds);
+
+        if (!request.Title.IsSet && !request.Description.IsSet && !request.StateId.IsSet && !request.Priority.IsSet &&
+            !request.AssigneeId.IsSet && !request.ProjectId.IsSet && !request.MilestoneId.IsSet && !request.ParentId.IsSet &&
+            !request.Estimate.IsSet && !request.DueDate.IsSet && !request.LabelIds.IsSet)
+        {
+            throw new McpException("Nothing to change: pass at least one field, or list fields in `clear`.");
+        }
+
+        var outcome = await issues.UpdateAsync(issue.Id, request, ct);
+
+        return outcome.Value is null
+            ? throw new McpException(outcome.ErrorMessage ?? "The issue could not be updated.")
+            : await ChangedAsync(issue.Id, ct);
+    }
+
+    [McpServerTool(Name = "move_issue", Title = "Move an issue on the board", ReadOnly = false, Destructive = false,
+        Idempotent = true, OpenWorld = false)]
+    [Description(
+        "Move an issue to another workflow state (board column) and/or place it within its column, as the user " +
+        "would by dragging it. Moving to a completed or canceled state closes it; moving back reopens it. " +
+        "Without a position it goes to the bottom of the column.")]
+    public async Task<string> MoveIssueAsync(
+        [Description("The issue key, e.g. DEV-42.")] string key,
+        [Description("The state to move to, by name ('In Review') or type ('started', 'completed'). Leave out to stay in the same column.")] string? state = null,
+        [Description("'top' or 'bottom' of the column.")] string? position = null,
+        [Description("Place it directly after (below) this issue key, which must be in the target column.")] string? after = null,
+        [Description("Place it directly before (above) this issue key, which must be in the target column.")] string? before = null,
+        CancellationToken ct = default)
+    {
+        var issue = await reader.ResolveIssueAsync(key, ct);
+        var db = reader.Db;
+
+        if (new[] { position, after, before }.Count(p => p is not null) > 1)
+        {
+            throw new McpException("Pass one of position, after or before.");
+        }
+
+        if (state is null && position is null && after is null && before is null)
+        {
+            throw new McpException("Nothing to move: pass a state, a position, or an issue to place it next to.");
+        }
+
+        var stateId = state is null ? issue.StateId : await reader.ResolveStateAsync(issue.TeamId, state, ct);
+        var column = db.Issues.AsNoTracking()
+            .Where(i => i.TeamId == issue.TeamId && i.StateId == stateId && i.Id != issue.Id && i.ArchivedAt == null);
+
+        async Task<Guid> AnchorAsync(string anchorKey)
+        {
+            var anchor = await reader.ResolveIssueAsync(anchorKey, ct);
+            return await column.AnyAsync(i => i.Id == anchor.Id, ct)
+                ? anchor.Id
+                : throw new McpException($"{anchorKey.ToUpperInvariant()} is not in the column the issue is moving to.");
+        }
+
+        Guid? afterId = after is null ? null : await AnchorAsync(after);
+        Guid? beforeId = before is null ? null : await AnchorAsync(before);
+
+        switch (position?.Trim().ToLowerInvariant())
+        {
+            case null or "bottom":
+                break;
+            case "top":
+                // Above whatever is first now; an empty column needs no anchor.
+                beforeId = await column.OrderBy(i => i.Rank).ThenBy(i => i.Number).Select(i => (Guid?)i.Id).FirstOrDefaultAsync(ct);
+                break;
+            default:
+                throw new McpException("position is 'top' or 'bottom'.");
+        }
+
+        var outcome = await issues.MoveAsync(issue.Id,
+            new MoveIssueRequest(StateId: state is null ? null : stateId, Rank: null, AfterIssueId: afterId, BeforeIssueId: beforeId), ct);
+
+        if (outcome.Value is null)
+        {
+            throw new McpException(outcome.ErrorMessage ?? "The issue could not be moved.");
+        }
+
+        // Where it landed, as a person would read the board: third of seven in In Review.
+        var moved = await db.Issues.AsNoTracking().Where(i => i.Id == issue.Id).Select(i => new { i.Rank, i.Number, i.StateId }).SingleAsync(ct);
+        var inColumn = db.Issues.AsNoTracking().Where(i => i.TeamId == issue.TeamId && i.StateId == moved.StateId && i.ArchivedAt == null);
+        var place = await inColumn.CountAsync(i => string.Compare(i.Rank, moved.Rank) < 0 ||
+                                                   (i.Rank == moved.Rank && i.Number < moved.Number), ct) + 1;
+        var of = await inColumn.CountAsync(ct);
+
+        return await ChangedAsync(issue.Id, ct, new { place, of });
+    }
+
+    /// <summary>The issue as it now is, with the version the next replacing edit needs.</summary>
+    private async Task<string> ChangedAsync(Guid id, CancellationToken ct, object? column = null)
+    {
+        var zone = await reader.TimeZoneAsync(ct);
+        var issue = reader.Db.Issues.AsNoTracking().Where(i => i.Id == id);
+        var view = await issue.Select(IssueView.Projection).SingleAsync(ct);
+        var updatedAt = await issue.Select(i => i.UpdatedAt).SingleAsync(ct);
+
+        return McpReader.Serialize(new
+        {
+            issue = view.In(zone),
+            version = McpReader.VersionOf(updatedAt),
+            column,
+            url = reader.WebUrl($"app/issues/{view.Key}")
+        });
+    }
+
     private async Task<string> ResultAsync(IssueView issue, bool created, CancellationToken ct, string? note = null)
     {
         var zone = await reader.TimeZoneAsync(ct);
-        return McpReader.Serialize(new { created, issue = issue.In(zone), url = WebUrl($"app/issues/{issue.Key}"), note });
+        return McpReader.Serialize(new { created, issue = issue.In(zone), url = reader.WebUrl($"app/issues/{issue.Key}"), note });
     }
-
-    /// <summary>A link the user can open. From the configured public address when there is one, so it is
-    /// right behind a proxy, and from the request otherwise.</summary>
-    private string? WebUrl(string path)
-    {
-        var configured = auth.Value.Issuer;
-
-        if (!string.IsNullOrWhiteSpace(configured))
-        {
-            return configured.TrimEnd('/') + "/" + path;
-        }
-
-        var request = http.HttpContext?.Request;
-        return request is null ? null : $"{request.Scheme}://{request.Host}{request.PathBase}/{path}";
-    }
-
-    /// <summary>A state by name ("In Review"), or by type ("started"), which picks the first such column on
-    /// the board. Unknown names are answered with the team's states.</summary>
-    private async Task<Guid> ResolveStateAsync(Guid teamId, string state, CancellationToken ct)
-    {
-        var states = await reader.Db.WorkflowStates.AsNoTracking()
-            .Where(s => s.TeamId == teamId)
-            .OrderBy(s => s.Rank)
-            .ToListAsync(ct);
-        var wanted = state.Trim();
-
-        var match = states.FirstOrDefault(s => string.Equals(s.Name, wanted, StringComparison.OrdinalIgnoreCase))
-                    ?? (Enum.TryParse<WorkflowStateType>(wanted, ignoreCase: true, out var type) && !int.TryParse(wanted, out _)
-                        ? states.FirstOrDefault(s => s.Type == type)
-                        : null);
-
-        return match?.Id ?? throw new McpException(
-            $"No state '{wanted}' in this team. Its states are: " +
-            string.Join(", ", states.Select(s => $"{s.Name} ({s.Type.ToString().ToLowerInvariant()})")));
-    }
-
-    private async Task<Guid> ResolveMilestoneAsync(Guid projectId, string milestone, CancellationToken ct)
-    {
-        var milestones = await reader.Db.Milestones.AsNoTracking()
-            .Where(m => m.ProjectId == projectId)
-            .OrderBy(m => m.Rank)
-            .ToListAsync(ct);
-        var wanted = milestone.Trim();
-
-        var match = milestones.FirstOrDefault(m => string.Equals(m.Name, wanted, StringComparison.OrdinalIgnoreCase));
-
-        return match?.Id ?? throw new McpException(milestones.Count == 0
-            ? "That project has no milestones."
-            : $"No milestone '{wanted}' in that project. Its milestones are: {string.Join(", ", milestones.Select(m => m.Name))}");
-    }
-
-    /// <summary>The team's own labels win over an organisation label of the same name.</summary>
-    private async Task<IReadOnlyList<Guid>> ResolveLabelsAsync(Guid teamId, string[] names, CancellationToken ct)
-    {
-        var usable = await reader.Db.Labels.AsNoTracking()
-            .Where(l => l.TeamId == null || l.TeamId == teamId)
-            .OrderBy(l => l.TeamId == null)
-            .ToListAsync(ct);
-
-        var ids = new List<Guid>();
-        var unknown = new List<string>();
-
-        foreach (var name in names.Select(n => n.Trim()).Where(n => n.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            if (usable.FirstOrDefault(l => string.Equals(l.Name, name, StringComparison.OrdinalIgnoreCase)) is Label label)
-            {
-                ids.Add(label.Id);
-            }
-            else
-            {
-                unknown.Add(name);
-            }
-        }
-
-        if (unknown.Count > 0)
-        {
-            throw new McpException(
-                $"No label named {string.Join(", ", unknown.Select(n => $"'{n}'"))} in this team. Labels you can use: " +
-                (usable.Count == 0 ? "none." : string.Join(", ", usable.Select(l => l.Name).Distinct())));
-        }
-
-        return ids.Distinct().ToList();
-    }
-
-    private static DateOnly ParseDate(string value) =>
-        DateOnly.TryParseExact(value.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
-            ? date
-            : throw new McpException($"'{value}' is not a date. Use an ISO date such as 2026-10-15.");
 }

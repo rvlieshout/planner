@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Planner.Api.Authorization;
 using Planner.Api.Common;
@@ -11,22 +10,10 @@ using Planner.Infrastructure;
 
 namespace Planner.Api.Endpoints;
 
-/// <summary>The outcome of creating an issue: the new issue, or why not.</summary>
-public sealed record IssueCreation(IssueSummary? Issue, IResult? Error)
-{
-    /// <summary>The refusal as one sentence, for callers that are not answering an HTTP request.</summary>
-    public string? ErrorMessage => Error switch
-    {
-        null => null,
-        ProblemHttpResult problem => problem.ProblemDetails.Detail ?? problem.ProblemDetails.Title,
-        ValidationProblem validation => string.Join(" ", validation.ProblemDetails.Errors.SelectMany(e => e.Value)),
-        _ => "The issue could not be created."
-    };
-}
-
-/// <summary>Creates issues. The one place that does, so an issue made through the REST API and one
-/// made by an assistant over MCP are numbered, ranked, validated, audited and broadcast the same way.</summary>
-public sealed class IssueCreator(
+/// <summary>Creates, edits and moves issues. The one place that does, so a change made through the REST
+/// API and one made by an assistant over MCP are permission-checked, validated, audited and broadcast
+/// the same way.</summary>
+public sealed class IssueCommands(
     PlannerDbContext db,
     ITeamAccess access,
     CurrentUser current,
@@ -34,7 +21,13 @@ public sealed class IssueCreator(
     IActivityLog activity,
     IRealtimeNotifier notifier)
 {
-    public async Task<IssueCreation> CreateAsync(CreateIssueRequest request, CancellationToken ct)
+    public Task<WriteResult<IssueSummary>> UpdateAsync(Guid id, UpdateIssueRequest request, CancellationToken ct) =>
+        IssueEndpoints.ApplyUpdateAsync(id, request, db, access, activity, notifier, ct);
+
+    public Task<WriteResult<IssueSummary>> MoveAsync(Guid id, MoveIssueRequest request, CancellationToken ct) =>
+        IssueEndpoints.ApplyMoveAsync(id, request, db, access, activity, notifier, ct);
+
+    public async Task<WriteResult<IssueSummary>> CreateAsync(CreateIssueRequest request, CancellationToken ct)
     {
         if (await ApiResults.RequireTeamAsync(access, request.TeamId, TeamPermission.Write, ct) is { } denied)
         {
@@ -126,8 +119,8 @@ public sealed class IssueCreator(
         await IssueEndpoints.PublishRollupsAsync(db, notifier, issue.TeamId, null,
             new IssueEndpoints.Rollup(issue.ProjectId, issue.MilestoneId, state.Type, Archived: false), ct);
 
-        return new IssueCreation(summary, null);
+        return WriteResult<IssueSummary>.Succeeded(summary);
     }
 
-    private static IssueCreation Fail(IResult error) => new(null, error);
+    private static WriteResult<IssueSummary> Fail(IResult error) => WriteResult<IssueSummary>.Failed(error);
 }

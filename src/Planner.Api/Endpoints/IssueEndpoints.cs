@@ -280,15 +280,23 @@ public static class IssueEndpoints
 
     private static async Task<IResult> CreateAsync(
         CreateIssueRequest request,
-        IssueCreator creator,
+        IssueCommands issues,
         CancellationToken ct)
     {
-        var created = await creator.CreateAsync(request, ct);
+        var created = await issues.CreateAsync(request, ct);
 
-        return created.Error ?? Results.Created($"/api/v1/issues/{created.Issue!.Id.ToBase58()}", created.Issue);
+        return created.ToResult(issue => Results.Created($"/api/v1/issues/{issue.Id.ToBase58()}", issue));
     }
 
     private static async Task<IResult> UpdateAsync(
+        Guid id, UpdateIssueRequest request, IssueCommands issues, CancellationToken ct) =>
+        (await issues.UpdateAsync(id, request, ct)).ToResult();
+
+    private static async Task<IResult> MoveAsync(
+        Guid id, MoveIssueRequest request, IssueCommands issues, CancellationToken ct) =>
+        (await issues.MoveAsync(id, request, ct)).ToResult();
+
+    internal static async Task<WriteResult<IssueSummary>> ApplyUpdateAsync(
         Guid id,
         UpdateIssueRequest request,
         PlannerDbContext db,
@@ -300,17 +308,17 @@ public static class IssueEndpoints
         var issue = await db.Issues.Include(i => i.State).FirstOrDefaultAsync(i => i.Id == id, ct);
         if (issue is null)
         {
-            return ApiResults.NotFound("That issue");
+            return WriteResult<IssueSummary>.Failed(ApiResults.NotFound("That issue"));
         }
 
         if (await ApiResults.RequireTeamAsync(access, issue.TeamId, TeamPermission.Write, ct) is { } denied)
         {
-            return denied;
+            return WriteResult<IssueSummary>.Failed(denied);
         }
 
         if (ApiResults.RejectArchived(issue.ArchivedAt) is { } archived)
         {
-            return archived;
+            return WriteResult<IssueSummary>.Failed(archived);
         }
 
         // Captured before any field is written, so the rollups the old project and milestone
@@ -335,7 +343,7 @@ public static class IssueEndpoints
 
         if (validation.HasErrors)
         {
-            return validation.ToResult();
+            return WriteResult<IssueSummary>.Failed(validation.ToResult());
         }
 
         var projectId = request.ProjectId.Or(issue.ProjectId);
@@ -345,18 +353,18 @@ public static class IssueEndpoints
 
         if (parentId == issue.Id)
         {
-            return ApiResults.BadRequest("An issue cannot be its own parent.");
+            return WriteResult<IssueSummary>.Failed(ApiResults.BadRequest("An issue cannot be its own parent."));
         }
 
         if (parentId != issue.ParentId && parentId is { } movedUnder && await IsArchivedAsync(db, movedUnder, ct))
         {
-            return ApiResults.BadRequest("Sub-issues cannot be added to an archived issue.");
+            return WriteResult<IssueSummary>.Failed(ApiResults.BadRequest("Sub-issues cannot be added to an archived issue."));
         }
 
         if (await ValidateLinksAsync(db, issue.TeamId, projectId, milestoneId, parentId, assigneeId, ct)
             is { } linkError)
         {
-            return linkError;
+            return WriteResult<IssueSummary>.Failed(linkError);
         }
 
         // Moving to a different project silently drops a milestone from the old one.
@@ -370,7 +378,7 @@ public static class IssueEndpoints
             var state = await db.WorkflowStates.FirstOrDefaultAsync(s => s.Id == newStateId && s.TeamId == issue.TeamId, ct);
             if (state is null)
             {
-                return ApiResults.BadRequest("That workflow state does not belong to this team.");
+                return WriteResult<IssueSummary>.Failed(ApiResults.BadRequest("That workflow state does not belong to this team."));
             }
 
             activity.Record(EntityTypes.Issue, issue.Id, ActivityActions.StateChanged,
@@ -450,7 +458,7 @@ public static class IssueEndpoints
         {
             if (await CountUsableLabelsAsync(db, issue.TeamId, labelIds, ct) != labelIds.Count)
             {
-                return ApiResults.BadRequest("One or more labels do not exist or belong to another team.");
+                return WriteResult<IssueSummary>.Failed(ApiResults.BadRequest("One or more labels do not exist or belong to another team."));
             }
 
             var existing = await db.IssueLabels.Where(l => l.IssueId == issue.Id).ToListAsync(ct);
@@ -479,10 +487,10 @@ public static class IssueEndpoints
         var summary = await SummaryAsync(db, issue.Id, ct);
         await notifier.IssueChanged(ChangeKind.Updated, summary);
         await PublishRollupsAsync(db, notifier, issue.TeamId, rollupBefore, RollupOf(issue), ct);
-        return Results.Ok(summary);
+        return WriteResult<IssueSummary>.Succeeded(summary);
     }
 
-    private static async Task<IResult> MoveAsync(
+    internal static async Task<WriteResult<IssueSummary>> ApplyMoveAsync(
         Guid id,
         MoveIssueRequest request,
         PlannerDbContext db,
@@ -494,17 +502,17 @@ public static class IssueEndpoints
         var issue = await db.Issues.Include(i => i.State).FirstOrDefaultAsync(i => i.Id == id, ct);
         if (issue is null)
         {
-            return ApiResults.NotFound("That issue");
+            return WriteResult<IssueSummary>.Failed(ApiResults.NotFound("That issue"));
         }
 
         if (await ApiResults.RequireTeamAsync(access, issue.TeamId, TeamPermission.Write, ct) is { } denied)
         {
-            return denied;
+            return WriteResult<IssueSummary>.Failed(denied);
         }
 
         if (ApiResults.RejectArchived(issue.ArchivedAt) is { } archived)
         {
-            return archived;
+            return WriteResult<IssueSummary>.Failed(archived);
         }
 
         var rollupBefore = RollupOf(issue);
@@ -512,7 +520,7 @@ public static class IssueEndpoints
         var validation = new Validation().RankKey(request.Rank, "rank");
         if (validation.HasErrors)
         {
-            return validation.ToResult();
+            return WriteResult<IssueSummary>.Failed(validation.ToResult());
         }
 
         if (request.StateId is { } stateId && stateId != issue.StateId)
@@ -520,7 +528,7 @@ public static class IssueEndpoints
             var state = await db.WorkflowStates.FirstOrDefaultAsync(s => s.Id == stateId && s.TeamId == issue.TeamId, ct);
             if (state is null)
             {
-                return ApiResults.BadRequest("That workflow state does not belong to this team.");
+                return WriteResult<IssueSummary>.Failed(ApiResults.BadRequest("That workflow state does not belong to this team."));
             }
 
             activity.Record(EntityTypes.Issue, issue.Id, ActivityActions.StateChanged,
@@ -541,7 +549,7 @@ public static class IssueEndpoints
         // it was: the shapes compare equal and this returns without querying anything.
         await PublishRollupsAsync(db, notifier, issue.TeamId, rollupBefore, RollupOf(issue), ct);
 
-        return Results.Ok(summary);
+        return WriteResult<IssueSummary>.Succeeded(summary);
     }
 
     /// <summary>
@@ -983,6 +991,10 @@ public static class IssueEndpoints
     }
 
     private static async Task<IResult> DeleteAttachmentAsync(
+        Guid attachmentId, AttachmentCommands attachments, CancellationToken ct) =>
+        (await attachments.DeleteAsync(attachmentId, ct)).ToResult(_ => Results.NoContent());
+
+    internal static async Task<WriteResult<AttachmentDto>> ApplyDeleteAttachmentAsync(
         Guid attachmentId,
         PlannerDbContext db,
         ITeamAccess access,
@@ -996,7 +1008,7 @@ public static class IssueEndpoints
         var attachment = await db.Attachments.Include(a => a.Issue).FirstOrDefaultAsync(a => a.Id == attachmentId, ct);
         if (attachment is null)
         {
-            return ApiResults.NotFound("That attachment");
+            return WriteResult<AttachmentDto>.Failed(ApiResults.NotFound("That attachment"));
         }
 
         var teamId = attachment.Issue.TeamId;
@@ -1004,17 +1016,17 @@ public static class IssueEndpoints
 
         if (permission == TeamPermission.None)
         {
-            return ApiResults.NotFound("That attachment");
+            return WriteResult<AttachmentDto>.Failed(ApiResults.NotFound("That attachment"));
         }
 
         if (attachment.UploadedById != current.Id && permission < TeamPermission.Write)
         {
-            return ApiResults.Forbidden("Only the uploader or a team member can remove this attachment.");
+            return WriteResult<AttachmentDto>.Failed(ApiResults.Forbidden("Only the uploader or a team member can remove this attachment."));
         }
 
         if (ApiResults.RejectArchived(attachment.Issue.ArchivedAt) is { } archived)
         {
-            return archived;
+            return WriteResult<AttachmentDto>.Failed(archived);
         }
 
         var dto = await db.Attachments.AsNoTracking().Where(a => a.Id == attachmentId)
@@ -1028,17 +1040,17 @@ public static class IssueEndpoints
         {
             loggerFactory.CreateLogger("Planner.Api.Attachments")
                 .LogError(error, "Failed to delete stored attachment {AttachmentId}", attachmentId);
-            return Results.Problem(
+            return WriteResult<AttachmentDto>.Failed(Results.Problem(
                 title: "Attachment removal failed",
                 detail: "The server could not delete the uploaded file. The attachment was kept so removal can be retried.",
-                statusCode: StatusCodes.Status500InternalServerError);
+                statusCode: StatusCodes.Status500InternalServerError));
         }
 
         db.Attachments.Remove(attachment);
         await db.SaveChangesAsync(ct);
 
         await notifier.AttachmentChanged(ChangeKind.Deleted, dto, teamId);
-        return Results.NoContent();
+        return WriteResult<AttachmentDto>.Succeeded(dto);
     }
 
     private static async Task<IResult> CreateRelationAsync(

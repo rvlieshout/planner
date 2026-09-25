@@ -174,6 +174,10 @@ public static class ProjectEndpoints
     }
 
     private static async Task<IResult> UpdateAsync(
+        Guid id, UpdateProjectRequest request, ProjectCommands projects, CancellationToken ct) =>
+        (await projects.UpdateAsync(id, request, ct)).ToResult();
+
+    internal static async Task<WriteResult<ProjectDto>> ApplyUpdateAsync(
         Guid id,
         UpdateProjectRequest request,
         PlannerDbContext db,
@@ -185,12 +189,12 @@ public static class ProjectEndpoints
         var project = await db.Projects.FirstOrDefaultAsync(p => p.Id == id, ct);
         if (project is null)
         {
-            return ApiResults.NotFound("That project");
+            return WriteResult<ProjectDto>.Failed(ApiResults.NotFound("That project"));
         }
 
         if (await ApiResults.RequireTeamAsync(access, project.TeamId, TeamPermission.Write, ct) is { } denied)
         {
-            return denied;
+            return WriteResult<ProjectDto>.Failed(denied);
         }
 
         if (request.Name.TryGet(out var name))
@@ -198,12 +202,12 @@ public static class ProjectEndpoints
             var validation = new Validation().Required(name, "name").MaxLength(name, 200, "name");
             if (validation.HasErrors)
             {
-                return validation.ToResult();
+                return WriteResult<ProjectDto>.Failed(validation.ToResult());
             }
 
             if (await db.Projects.AnyAsync(p => p.TeamId == project.TeamId && p.Name == name && p.Id != id, ct))
             {
-                return ApiResults.Conflict($"This team already has a project named {name}.");
+                return WriteResult<ProjectDto>.Failed(ApiResults.Conflict($"This team already has a project named {name}."));
             }
         }
 
@@ -213,20 +217,20 @@ public static class ProjectEndpoints
             // call, like the order of its board's columns.
             if (await ApiResults.RequireTeamAsync(access, project.TeamId, TeamPermission.Administer, ct) is { } notLead)
             {
-                return notLead;
+                return WriteResult<ProjectDto>.Failed(notLead);
             }
 
             var validation = new Validation().Required(rank, "rank").RankKey(rank, "rank");
             if (validation.HasErrors)
             {
-                return validation.ToResult();
+                return WriteResult<ProjectDto>.Failed(validation.ToResult());
             }
         }
 
         if (request.LeadUserId.TryGet(out var leadId) && leadId is { } lead &&
             !await db.Users.AnyAsync(u => u.Id == lead, ct))
         {
-            return ApiResults.BadRequest("The nominated lead does not exist.");
+            return WriteResult<ProjectDto>.Failed(ApiResults.BadRequest("The nominated lead does not exist."));
         }
 
         var previousStatus = project.Status;
@@ -254,7 +258,7 @@ public static class ProjectEndpoints
 
         var dto = await db.Projects.AsNoTracking().Where(p => p.Id == id).Select(Mapping.ProjectProjection).FirstAsync(ct);
         await notifier.ProjectChanged(ChangeKind.Updated, dto);
-        return Results.Ok(dto);
+        return WriteResult<ProjectDto>.Succeeded(dto);
     }
 
     private static Task<IResult> ArchiveAsync(

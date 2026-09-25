@@ -3,6 +3,7 @@ using Planner.Api.Authorization;
 using Planner.Api.Common;
 using Planner.Api.Realtime;
 using Planner.Contracts.Common;
+using Planner.Contracts.Issues;
 using Planner.Contracts.Realtime;
 using Planner.Domain.Entities;
 using Planner.Infrastructure;
@@ -24,6 +25,15 @@ public static class IssueFileEndpoints
         Path.GetFullPath(Path.Combine(config["Attachments:Path"] ??
             Path.Combine(environment.ContentRootPath, "App_Data", "attachments"), id.ToString("N")));
 
+    /// <summary>The stored bytes of an uploaded file, or null for a link to somewhere else or a file that
+    /// is missing from storage.</summary>
+    internal static FileStream? OpenStored(Attachment attachment, IConfiguration config, IWebHostEnvironment environment)
+    {
+        if (attachment.StorageUri != $"planner-attachment:{attachment.Id}") return null;
+        var path = FilePath(attachment.Id, config, environment);
+        return File.Exists(path) ? File.OpenRead(path) : null;
+    }
+
     public static void DeleteStoredFile(Attachment attachment, IConfiguration config, IWebHostEnvironment environment)
     {
         // External references are not owned by Planner. Never derive a disk path from their URI.
@@ -41,21 +51,28 @@ public static class IssueFileEndpoints
     }
 
     private static async Task<IResult> UploadAsync(
-        Guid id, string fileName, HttpRequest request, PlannerDbContext db, ITeamAccess access,
+        Guid id, string fileName, HttpRequest request, AttachmentCommands attachments, CancellationToken ct) =>
+        (await attachments.StoreAsync(id, fileName, request.Body, request.ContentLength, ct))
+            .ToResult(dto => Results.Created($"/api/v1/attachments/{dto.Id.ToBase58()}", dto));
+
+    /// <summary>Stores a file on an issue. <paramref name="declaredLength"/> is what the sender said it
+    /// would send, checked up front; the bytes actually read are checked as they arrive.</summary>
+    internal static async Task<WriteResult<AttachmentDto>> StoreAsync(
+        Guid id, string fileName, Stream content, long? declaredLength, PlannerDbContext db, ITeamAccess access,
         CurrentUser current, IActivityLog activity, IRealtimeNotifier notifier,
         IConfiguration config, IWebHostEnvironment environment, CancellationToken ct)
     {
         var issue = await db.Issues.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct);
-        if (issue is null) return ApiResults.NotFound("That issue");
+        if (issue is null) return WriteResult<AttachmentDto>.Failed(ApiResults.NotFound("That issue"));
         if (await ApiResults.RequireTeamAsync(access, issue.TeamId, TeamPermission.Comment, ct) is { } denied)
-            return denied;
+            return WriteResult<AttachmentDto>.Failed(denied);
         if (ApiResults.RejectArchived(issue.ArchivedAt) is { } archived)
-            return archived;
+            return WriteResult<AttachmentDto>.Failed(archived);
         var name = Path.GetFileName(fileName.Replace('\\', '/')).Trim();
         if (string.IsNullOrWhiteSpace(name) || name.Length > 300)
-            return ApiResults.BadRequest("Choose a file with a name of 300 characters or fewer.");
-        if (request.ContentLength > MaxFileBytes)
-            return ApiResults.BadRequest("Attachments must be 20 MB or smaller.");
+            return WriteResult<AttachmentDto>.Failed(ApiResults.BadRequest("Choose a file with a name of 300 characters or fewer."));
+        if (declaredLength > MaxFileBytes)
+            return WriteResult<AttachmentDto>.Failed(ApiResults.BadRequest("Attachments must be 20 MB or smaller."));
 
         var attachment = new Attachment
         {
@@ -73,11 +90,11 @@ public static class IssueFileEndpoints
             {
                 var buffer = new byte[81920];
                 int read;
-                while ((read = await request.Body.ReadAsync(buffer, ct)) > 0)
+                while ((read = await content.ReadAsync(buffer, ct)) > 0)
                 {
                     length += read;
                     if (length > MaxFileBytes)
-                        return ApiResults.BadRequest("Attachments must be 20 MB or smaller.");
+                        return WriteResult<AttachmentDto>.Failed(ApiResults.BadRequest("Attachments must be 20 MB or smaller."));
                     await file.WriteAsync(buffer.AsMemory(0, read), ct);
                 }
             }
@@ -96,7 +113,7 @@ public static class IssueFileEndpoints
         var dto = await db.Attachments.AsNoTracking().Where(a => a.Id == attachment.Id)
             .Select(Mapping.AttachmentProjection).FirstAsync(ct);
         await notifier.AttachmentChanged(ChangeKind.Created, dto, issue.TeamId);
-        return Results.Created($"/api/v1/attachments/{attachment.Id.ToBase58()}", dto);
+        return WriteResult<AttachmentDto>.Succeeded(dto);
     }
 
     private static async Task<IResult> DownloadAsync(

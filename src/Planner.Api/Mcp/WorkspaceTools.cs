@@ -110,10 +110,25 @@ public sealed class WorkspaceTools(McpReader reader)
             .Select(IssueView.Projection)
             .ToListAsync(ct);
 
+        var projectDocuments = await reader.Db.Documents.AsNoTracking()
+            .Where(d => d.ProjectId == found.Id && d.ArchivedAt == null)
+            .OrderByDescending(d => d.UpdatedAt)
+            .Select(d => new { d.Id, d.Title, d.UpdatedAt, Length = d.Content.Length })
+            .ToListAsync(ct);
+
         return McpReader.Serialize(new
         {
             project = ToView(dto, zone),
             description = dto.Description,
+            // update_project needs this to replace the description, so a newer edit is never overwritten.
+            version = McpReader.VersionOf(found.UpdatedAt),
+            documents = projectDocuments.Select(d => new
+            {
+                id = d.Id.ToBase58(),
+                d.Title,
+                updatedAt = TimeZoneInfo.ConvertTime(d.UpdatedAt, zone),
+                d.Length
+            }),
             milestones = milestones.Select(m => new
             {
                 m.Name,

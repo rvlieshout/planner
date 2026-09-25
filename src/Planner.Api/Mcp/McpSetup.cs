@@ -10,7 +10,8 @@ using Planner.Infrastructure;
 namespace Planner.Api.Mcp;
 
 /// <summary>The MCP endpoint: Planner for AI assistants, acting as the signed-in user and never as
-/// more. Mostly reading; creating issues is the one write. See docs/mcp.md.</summary>
+/// more. Reads everything the user can; writes issues, project briefs, documents and issue text files
+/// through the same commands as the REST API. See docs/mcp.md.</summary>
 public static class McpSetup
 {
     public const string Path = "/mcp";
@@ -30,9 +31,23 @@ public static class McpSetup
         work in progress, and project progress for that window in one call. Drill into single issues with
         get_issue only where the digest is not enough. Times are in the user's time zone.
 
-        create_issue creates an issue as the user, visible to their whole team at once. Only create issues
-        the user asked for. When the team, or what the issue should say, is not clear from the
-        conversation, ask first rather than guess. Afterwards, give the user the new key and link.
+        Changes are made as the user, with their permissions, and appear at once for their whole team:
+        create_issue, update_issue, move_issue, update_project, create_document, update_document and
+        attach_text. Make the changes the user asked for, or that the task they gave you plainly needs.
+        When the target or the content is unclear, ask first rather than guess. Afterwards, say what
+        changed and give the key or link.
+
+        A project's knowledge lives in two places. Its description (get_project, update_project) is the
+        brief: what the project is, where it stands, and where it is going. Its documents (list_documents,
+        get_document) hold the rest: overview, current state, architecture, decisions, direction. Read
+        these before working on a project, and keep them current when your work changes what they say.
+        Keep one document per subject and update it rather than creating a new one.
+
+        Editing text safely: to add, use appendToDescription or append; nothing is lost. To rewrite, read
+        first, edit what you read, and pass its `version` back. A write from a stale read is refused, so
+        a person's edit made in the meantime is never overwritten; read again and reapply your change.
+        Issue attachments work the same way for text files: read_attachment, then attach_text with
+        replace: true.
         """;
 
     public static IServiceCollection AddPlannerMcp(this IServiceCollection services, PlannerAuthOptions auth)
@@ -53,6 +68,8 @@ public static class McpSetup
             .WithTools<FeedTools>()
             .WithTools<DigestTools>()
             .WithTools<IssueWriteTools>()
+            .WithTools<ProjectDocumentTools>()
+            .WithTools<AttachmentTools>()
             .WithPrompts<PlannerPrompts>();
 
         var resource = auth.ResolveMcpResource();

@@ -128,6 +128,15 @@ public static class DocumentEndpoints
     }
 
     private static async Task<IResult> CreateAsync(
+        CreateDocumentRequest request, DocumentCommands documents, CancellationToken ct) =>
+        (await documents.CreateAsync(request, ct))
+            .ToResult(summary => Results.Created($"/api/v1/documents/{summary.Id.ToBase58()}", summary));
+
+    private static async Task<IResult> UpdateAsync(
+        Guid id, UpdateDocumentRequest request, DocumentCommands documents, CancellationToken ct) =>
+        (await documents.UpdateAsync(id, request, ct)).ToResult();
+
+    internal static async Task<WriteResult<DocumentSummary>> ApplyCreateAsync(
         CreateDocumentRequest request,
         PlannerDbContext db,
         ITeamAccess access,
@@ -138,19 +147,19 @@ public static class DocumentEndpoints
     {
         if (await ApiResults.RequireTeamAsync(access, request.TeamId, TeamPermission.Write, ct) is { } denied)
         {
-            return denied;
+            return WriteResult<DocumentSummary>.Failed(denied);
         }
 
         var validation = new Validation().Required(request.Title, "title").MaxLength(request.Title, 300, "title");
         if (validation.HasErrors)
         {
-            return validation.ToResult();
+            return WriteResult<DocumentSummary>.Failed(validation.ToResult());
         }
 
         if (request.ProjectId is { } projectId &&
             !await db.Projects.AnyAsync(p => p.Id == projectId && p.TeamId == request.TeamId, ct))
         {
-            return ApiResults.BadRequest("That project does not exist in this team.");
+            return WriteResult<DocumentSummary>.Failed(ApiResults.BadRequest("That project does not exist in this team."));
         }
 
         var document = new Document
@@ -172,10 +181,10 @@ public static class DocumentEndpoints
             .Select(Mapping.DocumentSummaryProjection).FirstAsync(ct);
 
         await notifier.DocumentChanged(ChangeKind.Created, summary);
-        return Results.Created($"/api/v1/documents/{document.Id.ToBase58()}", summary);
+        return WriteResult<DocumentSummary>.Succeeded(summary);
     }
 
-    private static async Task<IResult> UpdateAsync(
+    internal static async Task<WriteResult<DocumentSummary>> ApplyUpdateAsync(
         Guid id,
         UpdateDocumentRequest request,
         PlannerDbContext db,
@@ -187,21 +196,30 @@ public static class DocumentEndpoints
         var document = await db.Documents.FirstOrDefaultAsync(d => d.Id == id, ct);
         if (document is null)
         {
-            return ApiResults.NotFound("That document");
+            return WriteResult<DocumentSummary>.Failed(ApiResults.NotFound("That document"));
         }
 
         if (await ApiResults.RequireTeamAsync(access, document.TeamId, TeamPermission.Write, ct) is { } denied)
         {
-            return denied;
+            return WriteResult<DocumentSummary>.Failed(denied);
+        }
+
+        if (request.Title.TryGet(out var title))
+        {
+            var validation = new Validation().Required(title, "title").MaxLength(title, 300, "title");
+            if (validation.HasErrors)
+            {
+                return WriteResult<DocumentSummary>.Failed(validation.ToResult());
+            }
         }
 
         if (request.ProjectId.TryGet(out var projectId) && projectId is { } target &&
             !await db.Projects.AnyAsync(p => p.Id == target && p.TeamId == document.TeamId, ct))
         {
-            return ApiResults.BadRequest("That project does not exist in this team.");
+            return WriteResult<DocumentSummary>.Failed(ApiResults.BadRequest("That project does not exist in this team."));
         }
 
-        document.Title = request.Title.Or(document.Title)!;
+        document.Title = request.Title.Or(document.Title)!.Trim();
         document.Content = request.Content.Or(document.Content)!;
         document.ProjectId = request.ProjectId.Or(document.ProjectId);
         document.UpdatedById = current.Id;
@@ -212,7 +230,7 @@ public static class DocumentEndpoints
             .Select(Mapping.DocumentSummaryProjection).FirstAsync(ct);
 
         await notifier.DocumentChanged(ChangeKind.Updated, summary);
-        return Results.Ok(summary);
+        return WriteResult<DocumentSummary>.Succeeded(summary);
     }
 
     private static Task<IResult> ArchiveAsync(

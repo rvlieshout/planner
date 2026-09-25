@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol.Server;
+using Planner.Contracts.Common;
 using Planner.Contracts.Enums;
 
 namespace Planner.Api.Mcp;
@@ -155,6 +156,12 @@ public sealed class IssueTools(McpReader reader)
             .Select(c => new CommentView(c.Author.DisplayName, c.CreatedAt, c.Body, c.ParentCommentId != null))
             .ToListAsync(ct);
 
+        var files = await db.Attachments.AsNoTracking()
+            .Where(a => a.IssueId == found.Id)
+            .OrderBy(a => a.CreatedAt)
+            .Select(a => new { a.Id, a.FileName, a.SizeBytes, UploadedBy = a.UploadedBy.DisplayName, a.CreatedAt, a.StorageUri })
+            .ToListAsync(ct);
+
         var history = await FeedTools.ActivityAsync(reader,
             db.ActivityEvents.Where(a => a.IssueId == found.Id), 50, ct);
 
@@ -170,7 +177,20 @@ public sealed class IssueTools(McpReader reader)
                 .OrderBy(c => c.At)
                 .Select(c => c with { At = TimeZoneInfo.ConvertTime(c.At, zone) }),
             commentsOmitted = Math.Max(0, commentTotal - commentLimit),
-            history
+            // Read text files with read_attachment; a link points somewhere outside Planner.
+            attachments = files.Select(a => new
+            {
+                id = a.Id.ToBase58(),
+                a.FileName,
+                a.SizeBytes,
+                a.UploadedBy,
+                at = TimeZoneInfo.ConvertTime(a.CreatedAt, zone),
+                link = a.StorageUri.StartsWith("planner-attachment:", StringComparison.Ordinal) ? null : a.StorageUri
+            }),
+            history,
+            // update_issue needs this to replace the description, so a newer edit is never overwritten.
+            version = McpReader.VersionOf(found.UpdatedAt),
+            url = reader.WebUrl($"app/issues/{issue.Key}")
         });
     }
 }
