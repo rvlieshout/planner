@@ -611,6 +611,9 @@
 
   /* Borderless, because the value is the label: a heading reads as a heading without a caption. */
   .title-input {
+    flex-shrink: 0;
+    min-width: 0;
+    min-height: 1lh;
     width: 100%;
     padding: 0;
     border: 0;
@@ -620,6 +623,7 @@
     font-weight: 600;
     letter-spacing: -0.01em;
     line-height: var(--leading-tight);
+    overflow-wrap: anywhere;
     resize: none;
     field-sizing: content;
   }

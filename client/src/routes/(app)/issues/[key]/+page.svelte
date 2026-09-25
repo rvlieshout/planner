@@ -882,6 +882,10 @@
   }
 
   .title {
+    /* Keep the full title height when the scrollable column runs out of space. */
+    flex-shrink: 0;
+    min-width: 0;
+    min-height: 1lh;
     width: 100%;
     padding: 0;
     border: 0;
@@ -891,6 +895,7 @@
     font-weight: 600;
     letter-spacing: -0.015em;
     line-height: var(--leading-tight);
+    overflow-wrap: anywhere;
     resize: none;
     field-sizing: content;
   }
