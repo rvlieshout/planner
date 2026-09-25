@@ -180,7 +180,7 @@ step(status == 200 and reply["result"]["serverInfo"]["name"] == "planner",
 
 _, _, reply = rpc(token, "tools/list", {})
 names = {t["name"] for t in reply["result"]["tools"]}
-step(len(names) == 18 and {"team_digest", "update_issue", "attach_text"} <= names, f"all {len(names)} tools are listed")
+step(len(names) == 21 and {"team_digest", "update_issue", "attach_text", "add_comment"} <= names, f"all {len(names)} tools are listed")
 
 teams = tool(token, "list_teams", {})
 team = teams[0]["key"]
@@ -208,6 +208,14 @@ try:
     attached = tool(token, "attach_text", {"issue": key, "fileName": "smoke.md", "content": "# Smoke\n\nÖK 🚀\n"})
     read = tool(token, "read_attachment", {"issue": key, "attachment": "smoke.md"})
     step(read.get("text") == "# Smoke\n\nÖK 🚀\n", "a text file is written to the attachment volume and read back intact")
+
+    posted = tool(token, "add_comment", {"issue": key, "body": "Smoke comment"})
+    retried = tool(token, "add_comment", {"issue": key, "body": "Smoke comment"})
+    tool(token, "update_comment", {"comment": posted["comment"]["id"], "body": "Smoke comment, edited"})
+    thread = tool(token, "list_comments", {"issue": key})["items"]
+    step(retried["comment"]["id"] == posted["comment"]["id"] and len(thread) == 1
+         and thread[0]["body"] == "Smoke comment, edited" and thread[0].get("mine") and thread[0].get("edited"),
+         "a comment is posted once despite a retry, and edited")
 
     document = tool(token, "create_document", {"team": team, "title": "Production smoke check", "content": "Draft"})
     got = tool(token, "get_document", {"document": document["id"]})

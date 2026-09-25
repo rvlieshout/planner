@@ -149,12 +149,8 @@ public sealed class IssueTools(McpReader reader)
 
         const int commentLimit = 30;
         var commentTotal = await db.Comments.CountAsync(c => c.IssueId == found.Id, ct);
-        var comments = await db.Comments.AsNoTracking()
-            .Where(c => c.IssueId == found.Id)
-            .OrderByDescending(c => c.CreatedAt)
-            .Take(commentLimit)
-            .Select(c => new CommentView(c.Author.DisplayName, c.CreatedAt, c.Body, c.ParentCommentId != null))
-            .ToListAsync(ct);
+        var comments = await CommentTools.ReadAsync(reader,
+            db.Comments.Where(c => c.IssueId == found.Id).OrderByDescending(c => c.CreatedAt).Take(commentLimit), ct);
 
         var files = await db.Attachments.AsNoTracking()
             .Where(a => a.IssueId == found.Id)
@@ -173,9 +169,8 @@ public sealed class IssueTools(McpReader reader)
             details.Parent,
             subIssues = subIssues.Select(i => i.In(zone)),
             relations = outgoing.Concat(incoming),
-            comments = comments
-                .OrderBy(c => c.At)
-                .Select(c => c with { At = TimeZoneInfo.ConvertTime(c.At, zone) }),
+            // With ids, to reply with add_comment or edit the user's own with update_comment.
+            comments,
             commentsOmitted = Math.Max(0, commentTotal - commentLimit),
             // Read text files with read_attachment; a link points somewhere outside Planner.
             attachments = files.Select(a => new

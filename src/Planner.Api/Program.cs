@@ -46,6 +46,7 @@ builder.Services.AddScoped<IssueCommands>();
 builder.Services.AddScoped<ProjectCommands>();
 builder.Services.AddScoped<DocumentCommands>();
 builder.Services.AddScoped<AttachmentCommands>();
+builder.Services.AddScoped<CommentCommands>();
 builder.Services.AddScoped<IRealtimeNotifier, RealtimeNotifier>();
 builder.Services.AddSingleton<RealtimeConnections>();
 builder.Services.AddScoped<IRealtimeSubscriptions, RealtimeSubscriptions>();

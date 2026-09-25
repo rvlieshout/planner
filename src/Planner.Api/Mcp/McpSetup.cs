@@ -10,8 +10,8 @@ using Planner.Infrastructure;
 namespace Planner.Api.Mcp;
 
 /// <summary>The MCP endpoint: Planner for AI assistants, acting as the signed-in user and never as
-/// more. Reads everything the user can; writes issues, project briefs, documents and issue text files
-/// through the same commands as the REST API. See docs/mcp.md.</summary>
+/// more. Reads everything the user can; writes issues, comments, project briefs, documents and issue text
+/// files through the same commands as the REST API. See docs/mcp.md.</summary>
 public static class McpSetup
 {
     public const string Path = "/mcp";
@@ -32,8 +32,8 @@ public static class McpSetup
         get_issue only where the digest is not enough. Times are in the user's time zone.
 
         Changes are made as the user, with their permissions, and appear at once for their whole team:
-        create_issue, update_issue, move_issue, update_project, create_document, update_document and
-        attach_text. Make the changes the user asked for, or that the task they gave you plainly needs.
+        create_issue, update_issue, move_issue, update_project, create_document, update_document,
+        attach_text, add_comment and update_comment. Make the changes the user asked for, or that the task they gave you plainly needs.
         When the target or the content is unclear, ask first rather than guess. Afterwards, say what
         changed and give the key or link.
 
@@ -48,6 +48,10 @@ public static class McpSetup
         a person's edit made in the meantime is never overwritten; read again and reapply your change.
         Issue attachments work the same way for text files: read_attachment, then attach_text with
         replace: true.
+
+        Comments are a conversation between people: post one when the user asks you to, or to report on
+        work they gave you on that issue. update_comment edits only the user's own comments (`mine: true`
+        in get_issue and list_comments); it replaces the whole text.
         """;
 
     public static IServiceCollection AddPlannerMcp(this IServiceCollection services, PlannerAuthOptions auth)
@@ -70,6 +74,7 @@ public static class McpSetup
             .WithTools<IssueWriteTools>()
             .WithTools<ProjectDocumentTools>()
             .WithTools<AttachmentTools>()
+            .WithTools<CommentTools>()
             .WithPrompts<PlannerPrompts>();
 
         var resource = auth.ResolveMcpResource();

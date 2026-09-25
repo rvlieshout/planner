@@ -778,6 +778,11 @@ public static class IssueEndpoints
     }
 
     private static async Task<IResult> CreateCommentAsync(
+        Guid id, CreateCommentRequest request, CommentCommands comments, CancellationToken ct) =>
+        (await comments.CreateAsync(id, request, ct))
+        .ToResult(dto => Results.Created($"/api/v1/comments/{dto.Id.ToBase58()}", dto));
+
+    internal static async Task<WriteResult<CommentDto>> ApplyCreateCommentAsync(
         Guid id,
         CreateCommentRequest request,
         PlannerDbContext db,
@@ -790,30 +795,31 @@ public static class IssueEndpoints
         var issue = await db.Issues.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct);
         if (issue is null)
         {
-            return ApiResults.NotFound("That issue");
+            return WriteResult<CommentDto>.Failed(ApiResults.NotFound("That issue"));
         }
 
         // Commenting is the one write a guest is allowed.
         if (await ApiResults.RequireTeamAsync(access, issue.TeamId, TeamPermission.Comment, ct) is { } denied)
         {
-            return denied;
+            return WriteResult<CommentDto>.Failed(denied);
         }
 
         if (ApiResults.RejectArchived(issue.ArchivedAt) is { } archived)
         {
-            return archived;
+            return WriteResult<CommentDto>.Failed(archived);
         }
 
         var validation = new Validation().Required(request.Body, "body");
         if (validation.HasErrors)
         {
-            return validation.ToResult();
+            return WriteResult<CommentDto>.Failed(validation.ToResult());
         }
 
         if (request.ParentCommentId is { } parentId &&
             !await db.Comments.AnyAsync(c => c.Id == parentId && c.IssueId == id, ct))
         {
-            return ApiResults.BadRequest("The comment you are replying to is not on this issue.");
+            return WriteResult<CommentDto>.Failed(
+                ApiResults.BadRequest("The comment you are replying to is not on this issue."));
         }
 
         var comment = new Comment
@@ -834,10 +840,14 @@ public static class IssueEndpoints
             .Select(Mapping.CommentProjection).FirstAsync(ct);
 
         await notifier.CommentChanged(ChangeKind.Created, dto, issue.TeamId);
-        return Results.Created($"/api/v1/comments/{comment.Id.ToBase58()}", dto);
+        return WriteResult<CommentDto>.Succeeded(dto);
     }
 
     private static async Task<IResult> UpdateCommentAsync(
+        Guid commentId, UpdateCommentRequest request, CommentCommands comments, CancellationToken ct) =>
+        (await comments.UpdateAsync(commentId, request, ct)).ToResult();
+
+    internal static async Task<WriteResult<CommentDto>> ApplyUpdateCommentAsync(
         Guid commentId,
         UpdateCommentRequest request,
         PlannerDbContext db,
@@ -849,29 +859,29 @@ public static class IssueEndpoints
         var comment = await db.Comments.Include(c => c.Issue).FirstOrDefaultAsync(c => c.Id == commentId, ct);
         if (comment is null)
         {
-            return ApiResults.NotFound("That comment");
+            return WriteResult<CommentDto>.Failed(ApiResults.NotFound("That comment"));
         }
 
         if (await ApiResults.RequireTeamAsync(access, comment.Issue.TeamId, TeamPermission.Read, ct) is { } denied)
         {
-            return denied;
+            return WriteResult<CommentDto>.Failed(denied);
         }
 
         if (ApiResults.RejectArchived(comment.Issue.ArchivedAt) is { } archived)
         {
-            return archived;
+            return WriteResult<CommentDto>.Failed(archived);
         }
 
         // Editing someone else's words is not an administrative power.
         if (comment.AuthorId != current.Id)
         {
-            return ApiResults.Forbidden("You can only edit your own comments.");
+            return WriteResult<CommentDto>.Failed(ApiResults.Forbidden("You can only edit your own comments."));
         }
 
         var validation = new Validation().Required(request.Body, "body");
         if (validation.HasErrors)
         {
-            return validation.ToResult();
+            return WriteResult<CommentDto>.Failed(validation.ToResult());
         }
 
         comment.Body = request.Body;
@@ -883,7 +893,7 @@ public static class IssueEndpoints
             .Select(Mapping.CommentProjection).FirstAsync(ct);
 
         await notifier.CommentChanged(ChangeKind.Updated, dto, comment.Issue.TeamId);
-        return Results.Ok(dto);
+        return WriteResult<CommentDto>.Succeeded(dto);
     }
 
     private static async Task<IResult> DeleteCommentAsync(

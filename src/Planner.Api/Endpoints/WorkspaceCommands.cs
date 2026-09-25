@@ -37,6 +37,21 @@ public sealed class DocumentCommands(
         DocumentEndpoints.ApplyUpdateAsync(id, request, db, access, current, notifier, ct);
 }
 
+public sealed class CommentCommands(
+    PlannerDbContext db,
+    ITeamAccess access,
+    CurrentUser current,
+    IActivityLog activity,
+    IRealtimeNotifier notifier)
+{
+    public Task<WriteResult<CommentDto>> CreateAsync(Guid issueId, CreateCommentRequest request, CancellationToken ct) =>
+        IssueEndpoints.ApplyCreateCommentAsync(issueId, request, db, access, current, activity, notifier, ct);
+
+    /// <summary>Only the author may edit a comment, whatever their role in the team.</summary>
+    public Task<WriteResult<CommentDto>> UpdateAsync(Guid commentId, UpdateCommentRequest request, CancellationToken ct) =>
+        IssueEndpoints.ApplyUpdateCommentAsync(commentId, request, db, access, current, notifier, ct);
+}
+
 /// <summary>What reading an attachment as text found.</summary>
 /// <param name="Text">The content, or null when it is not text (or not stored here).</param>
 /// <param name="Truncated">Only the first part was returned.</param>

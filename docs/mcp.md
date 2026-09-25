@@ -2,7 +2,7 @@
 
 Planner exposes a [Model Context Protocol](https://modelcontextprotocol.io) endpoint at `/mcp`, so an
 AI assistant can answer questions like *"what happened in the development team last week?"* from live
-data, and work in Planner as the signed-in user: file, edit and move issues, and keep project briefs,
+data, and work in Planner as the signed-in user: file, edit, move and comment on issues, and keep project briefs,
 documents and issue notes up to date.
 
 It runs inside the API (`src/Planner.Api/Mcp/`), on the same database and the same permission rules
@@ -48,7 +48,8 @@ Tools see only what the user can see in the app, and change only what the user c
 | `list_projects` | Projects with status, health, lead, dates and issue progress. |
 | `get_project` | One project: its brief (description), milestones with progress, issues in progress, its documents, and its `version`. |
 | `search_issues` | Issues by team, project, state type, assignee (`me` works), priority, text, key, or recent change. |
-| `get_issue` | One issue by key (`DEV-42`): description, sub-issues, relations, latest comments, attachments, history, and its `version`. |
+| `get_issue` | One issue by key (`DEV-42`): description, sub-issues, relations, the latest 30 comments (with ids, and `mine` on the user's own), attachments, history, and its `version`. |
+| `list_comments` | An issue's whole comment thread, a page at a time, newest page first. |
 | `get_inbox` | The user's inbox. Reading it marks nothing as read. |
 | `get_activity` | The raw change feed, filterable by team, project, person and period. |
 | `list_documents` | Documents by team, project or text. |
@@ -66,6 +67,8 @@ Tools see only what the user can see in the app, and change only what the user c
 | `create_document` | Write a Markdown document in a team, optionally on a project. A second document with the same title in the same place is refused in favour of `update_document`. |
 | `update_document` | Rename a document, append to it, or rewrite it. |
 | `attach_text` | Attach a text file to an issue, or replace one with the same name. At most 1 MB. |
+| `add_comment` | Comment on an issue in Markdown, or reply to a comment by id. |
+| `update_comment` | Rewrite one of the user's own comments. Other people's comments cannot be edited, whatever the user's role. |
 
 Tools take teams by key, name or a unique part of a name; projects, documents and labels by name;
 workflow states by name or type; people by `me`, email or display name. An unknown name is answered
@@ -111,14 +114,16 @@ On a Windows development machine they come out in UTC: the repo builds with
 ## Boundaries
 
 - **Writes are the app's writes.** Every change goes through the same command as its REST endpoint
-  (`IssueCommands`, `ProjectCommands`, `DocumentCommands`, `AttachmentCommands`), so it needs the same
-  team permission (editing needs `Write`; attaching a file needs `Comment`, as in the app), is
+  (`IssueCommands`, `ProjectCommands`, `DocumentCommands`, `AttachmentCommands`, `CommentCommands`), so
+  it needs the same team permission (editing needs `Write`; commenting and attaching a file need
+  `Comment`, as in the app; editing a comment needs to be its author), is
   validated the same way, is recorded in the activity log as the user, and appears live in open
   browsers. Write tools are annotated as such, so MCP clients ask the user before calling them.
-- **Nothing is deleted or archived.** No tool deletes or archives issues, projects or documents.
-  Replacing an attachment removes the file it replaces, and nothing else.
-- **Retries don't duplicate.** An identical issue title from the same user in the same team within 10
-  minutes returns the existing issue, unless the call passes `allowDuplicate`.
+- **Nothing is deleted or archived.** No tool deletes or archives issues, projects, documents or
+  comments. Replacing an attachment removes the file it replaces, and nothing else.
+- **Retries don't duplicate.** An identical issue title from the same user in the same team, or an
+  identical comment from the same user on the same issue, within 10 minutes returns the existing one,
+  unless the call passes `allowDuplicate`.
 - **The user's permissions, never more.** Every query is scoped through `ITeamAccess`, like the REST
   endpoints. A guest's assistant sees and does what the guest can.
 - **MCP tokens stay on `/mcp`.** A token issued to an assistant carries the MCP resource as its

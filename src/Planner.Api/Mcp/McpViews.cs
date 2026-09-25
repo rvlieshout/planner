@@ -82,7 +82,10 @@ public sealed record IssueView(
     };
 }
 
-public sealed record CommentView(string Author, DateTimeOffset At, string Body, bool IsReply);
+/// <param name="ReplyTo">The id of the comment this answers.</param>
+/// <param name="Mine">Written by the user, so update_comment can edit it.</param>
+public sealed record CommentView(
+    string Id, string Author, DateTimeOffset At, string Body, string? ReplyTo, bool? Mine, bool? Edited);
 
 public sealed record RelationView(string Type, string Key, string Title, string State);
 

@@ -116,13 +116,13 @@ public static class McpEndpointChecks
                 [
                     "list_teams", "list_projects", "get_project", "search_issues", "get_issue", "get_inbox",
                     "get_activity", "team_digest", "list_documents", "get_document", "read_attachment",
-                    "create_issue", "update_issue", "move_issue", "update_project", "create_document",
-                    "update_document", "attach_text"
+                    "list_comments", "create_issue", "update_issue", "move_issue", "update_project",
+                    "create_document", "update_document", "attach_text", "add_comment", "update_comment"
                 ];
                 string[] writes =
                 [
                     "create_issue", "update_issue", "move_issue", "update_project", "create_document",
-                    "update_document", "attach_text"
+                    "update_document", "attach_text", "add_comment", "update_comment"
                 ];
                 check(expected.All(names.Contains), "Every tool is listed: " + string.Join(", ", expected));
                 bool Hint(JsonElement tool, string hint) => tool.GetProperty("annotations").GetProperty(hint).GetBoolean();
@@ -132,7 +132,7 @@ public static class McpEndpointChecks
                     "Every tool that only reads is annotated read-only");
                 check(tools.Where(t => writes.Contains(Name(t))).All(t => !Hint(t, "readOnlyHint") && !Hint(t, "destructiveHint")),
                     "Every write is annotated as a non-destructive write, so clients ask before calling it");
-                check(tools.Where(t => Name(t) is "create_issue" or "create_document" or "attach_text").All(t => !Hint(t, "idempotentHint")),
+                check(tools.Where(t => Name(t) is "create_issue" or "create_document" or "attach_text" or "add_comment").All(t => !Hint(t, "idempotentHint")),
                     "Tools that add something are annotated non-idempotent");
                 check(tools.Single(t => Name(t) == "create_issue").GetProperty("inputSchema").GetProperty("required").EnumerateArray()
                         .Select(r => r.GetString()).Order().SequenceEqual(["team", "title"]),
