@@ -1,2 +1,7 @@
 # Shell scripts are run on Ubuntu, including when the source archive comes from Windows.
 *.sh text eol=lf
+
+# Read by Docker and Caddy on Linux. A CR left at the end of an env line becomes part of the value.
+*.env text eol=lf
+Caddyfile text eol=lf
+*.Caddyfile text eol=lf
