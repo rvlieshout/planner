@@ -1,0 +1,40 @@
+# A local stand-in for the Coolify deployment, layered over the real docker-compose.coolify.yml so the
+# stack under test is the one that ships: the same images, environment, volumes and health checks.
+#
+# What Coolify provides is added here: a PostgreSQL database, and a TLS-terminating proxy in front of
+# `web`, so requests take the production path (TLS proxy -> Caddy -> API) with its forwarded headers.
+#
+#     docker compose -p planner-prod-check -f docker-compose.coolify.yml \
+#       -f tests/deploy/production/compose.override.yml --env-file tests/deploy/production/check.env up -d
+#
+# tests/deploy/production/run.ps1 builds the images, brings this up, and runs the smoke test.
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: planner
+      POSTGRES_USER: planner
+      POSTGRES_PASSWORD: planner-check
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U planner -d planner"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  api:
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Coolify's proxy: terminates TLS for the public name and forwards to `web` over the private network.
+  edge:
+    image: caddy:2-alpine
+    depends_on:
+      web:
+        condition: service_healthy
+    ports:
+      - "8443:443"
+    volumes:
+      # Relative to the first compose file (the repository root), not to this one.
+      - ./tests/deploy/production/edge.Caddyfile:/etc/caddy/Caddyfile:ro

@@ -1,0 +1,11 @@
+# Stands in for Coolify's proxy: TLS for the public name, then plain HTTP to the web container, with
+# X-Forwarded-For and X-Forwarded-Proto set as any TLS-terminating proxy does.
+{
+    local_certs
+    skip_install_trust
+}
+
+localhost {
+    tls internal
+    reverse_proxy web:80
+}

@@ -38,6 +38,10 @@ services:
       Planner__Auth__AllowInsecureHttp: "true"
       # Coolify's proxy, then this stack's web container. Both hops are on a private network.
       Planner__Auth__TrustedProxyHops: "2"
+      # MCP: assistants connect to <PLANNER_PUBLIC_URL>mcp, which is also the audience of their tokens.
+      # Most of them (claude.ai, Claude Code, IDEs) register themselves on first contact; set this to
+      # false to allow only the configured planner-mcp client. See docs/mcp.md.
+      Planner__Auth__AllowDynamicClientRegistration: ${PLANNER_MCP_REGISTRATION:-true}
 
       Planner__Seed__OwnerEmail: ${PLANNER_OWNER_EMAIL:?set PLANNER_OWNER_EMAIL}
       Planner__Seed__OwnerPassword: ${PLANNER_OWNER_PASSWORD:?set PLANNER_OWNER_PASSWORD}

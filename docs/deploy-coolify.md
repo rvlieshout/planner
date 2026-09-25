@@ -198,6 +198,61 @@ the environment does not reset credentials that already exist in a populated dat
 - **This is a single server.** Deploys and restores mean brief downtime; clients reconnect on their
   own.
 
+## The MCP server
+
+The deployment serves the MCP endpoint at `https://planner.lyste.net/mcp` with no extra
+configuration: Caddy passes `/mcp`, `/.well-known/*` and `/connect/*` through to the API like any other
+path, and the MCP resource is derived from `PLANNER_PUBLIC_URL`. How it works is in
+[mcp.md](mcp.md) and [mcp-authorization.md](mcp-authorization.md).
+
+**Connecting an assistant.** In claude.ai, add a custom connector with the URL
+`https://planner.lyste.net/mcp`; Claude Code and IDE assistants take the same URL. The assistant
+registers itself, sends the user to Planner's consent page, and asks before making changes.
+
+| Variable | Default | |
+| --- | --- | --- |
+| `PLANNER_PUBLIC_URL` | `https://planner.lyste.net/` | The issuer; the MCP resource is this plus `mcp`. Changing it changes the address assistants must use, and their tokens stop being accepted. |
+| `PLANNER_MCP_REGISTRATION` | `true` | Assistants may register themselves (RFC 7591). `false` allows only the built-in `planner-mcp` client, whose only redirect is claude.ai's. |
+
+What the MCP server needs from a deployment, all of which the compose file already provides:
+
+- **HTTPS all the way to the API's view of the request.** The 401 that starts sign-in, the
+  registration endpoint and the consent cookie are built from the forwarded scheme and host. If they
+  come out as `http`, assistants cannot sign in; see the passkey section below, it is the same fix.
+- **The `planner-keys` volume.** Besides the token signing keys, it holds the data-protection keys
+  that protect the consent cookie. Losing it signs every assistant out along with everyone else.
+- **The `planner-attachments` volume**, for text files assistants attach to issues.
+
+### Checking a deployment
+
+`tests/deploy/production/smoke_mcp.py` does what a remote assistant does, end to end: gets
+challenged, discovers, registers, signs in through the consent flow, and calls read and write tools.
+It needs Python 3 and nothing else.
+
+Before deploying, run it against the real images and compose file locally. The override adds what
+Coolify provides: a database, and a TLS proxy in front of `web`.
+
+```bash
+docker build -f src/Planner.Api/Dockerfile -t planner-api:check .
+docker build -f deploy/web.Dockerfile -t planner-web:check .
+docker compose -p planner-prod-check -f docker-compose.coolify.yml \
+  -f tests/deploy/production/compose.override.yml \
+  --env-file tests/deploy/production/check.env up -d
+python tests/deploy/production/smoke_mcp.py https://localhost:8443 owner@planner.check planner-check-owner
+docker compose -p planner-prod-check down -v
+```
+
+After deploying, the same script checks the live site, certificate included:
+
+```bash
+python tests/deploy/production/smoke_mcp.py https://planner.lyste.net YOUR_EMAIL YOUR_PASSWORD --verify
+```
+
+It signs in with the password grant, so use an account that has a password and can write to at least
+one team. It creates an issue with a text attachment and a document, and deletes them again; it
+leaves one registered client named "Production smoke check" and the activity-log entries of what it
+did.
+
 ## Passkey setup returns 400 behind Coolify
 
 Check `https://YOUR_HOST/.well-known/openid-configuration`. Its `issuer` and `token_endpoint`
