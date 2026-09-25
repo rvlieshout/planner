@@ -197,7 +197,8 @@
 
   /* --------------------------------------------------------------- options ---- */
 
-  const projectsOfTeam = $derived(workspace.projects.filter((project) => !project.archivedAt));
+  // The issue's own team's, which is not the current team for one opened from My Issues.
+  const projectsOfTeam = $derived(workspace.projectsNow(teamId));
 
   const stateOptions = $derived<SelectOption<Guid>[]>(
     states.map((state) => ({ value: state.id, label: state.name, color: state.color, icon: 'circle-dot' }))

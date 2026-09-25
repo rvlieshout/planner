@@ -530,8 +530,9 @@
 
   const projectOptions = $derived<SelectOption<Guid | ''>[]>([
     { value: NONE, label: 'No project', icon: 'folder', color: 'var(--fg-tertiary)' },
-    ...workspace.projects
-      .filter((project) => !project.archivedAt)
+    // The issue's own team's, which is not the current team for one opened from My Issues.
+    ...workspace
+      .projectsNow(issue?.teamId)
       .map((project) => ({ value: project.id, label: project.name, color: project.color }))
   ]);
 

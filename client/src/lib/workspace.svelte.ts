@@ -46,6 +46,8 @@ class Workspace {
   #states = $state<Record<Guid, WorkflowStateDto[]>>({});
   #members = $state<Record<Guid, TeamMemberDto[]>>({});
   #labels = $state<Record<Guid, LabelDto[]>>({});
+  /** Projects of teams other than the current one, for an issue of another team opened from My Issues. */
+  #projects = $state<Record<Guid, ProjectDto[]>>({});
 
   /** In-flight loads, so eight cards asking for the same team's states make one request. */
   readonly #pending = new Map<string, Promise<unknown>>();
@@ -131,6 +133,32 @@ class Workspace {
 
   labelsFor(teamId: Guid): Promise<LabelDto[]> {
     return this.#cached('labels', teamId, this.#labels, () => teamsApi.labels(teamId));
+  }
+
+  /**
+   * A team's unarchived projects, for an issue form's project picker.
+   *
+   * The current team's are the list the sidebar already holds; any other team's are fetched once and
+   * cached, because an issue opened from My Issues can belong to any team you read.
+   */
+  async projectsFor(teamId: Guid): Promise<ProjectDto[]> {
+    if (teamId === this.currentTeamId && this.projects.length > 0) return this.projectsNow(teamId);
+
+    const loaded = await this.#cached('projects', teamId, this.#projects, () =>
+      all((page, pageSize) => projectsApi.list({ teamId, page, pageSize }))
+    );
+
+    return loaded.filter((project) => !project.archivedAt);
+  }
+
+  /** The cached projects of a team, current or not, for a render that cannot wait for a promise. */
+  projectsNow(teamId: Guid | null | undefined): ProjectDto[] {
+    if (!teamId) return [];
+
+    const projects =
+      teamId === this.currentTeamId && this.projects.length > 0 ? this.projects : this.#projects[teamId];
+
+    return (projects ?? []).filter((project) => !project.archivedAt);
   }
 
   /**
@@ -244,6 +272,22 @@ class Workspace {
      * counts live without this store holding a single issue.
      */
     realtime.on('ProjectChanged', (change) => {
+      // Another team's cached projects are patched the same way, so an open form of that team keeps up.
+      if (change.teamId && change.teamId !== this.currentTeamId) {
+        const cached = this.#projects[change.teamId];
+        if (!cached) return;
+
+        const entity = change.entity;
+        const gone = change.kind === 'Deleted' || change.kind === 'Archived' || !entity || entity.archivedAt;
+
+        this.#projects[change.teamId] = gone
+          ? cached.filter((project) => project.id !== change.id)
+          : cached.some((project) => project.id === entity.id)
+            ? cached.map((project) => (project.id === entity.id ? entity : project))
+            : [...cached, entity];
+        return;
+      }
+
       if (change.teamId !== this.currentTeamId) return;
 
       if (change.kind === 'Deleted' || change.kind === 'Archived') {
@@ -298,6 +342,8 @@ class Workspace {
       // wrong about and the most visible, so it is the one thing refetched unconditionally.
       await this.refreshTeams();
 
+      this.#projects = {};
+
       if (this.currentTeamId) {
         this.invalidate(this.currentTeamId);
         await this.loadProjects();
@@ -313,6 +359,7 @@ class Workspace {
     this.#states = {};
     this.#members = {};
     this.#labels = {};
+    this.#projects = {};
     this.error = null;
     this.initialized = false;
   }
@@ -326,15 +373,16 @@ export async function assignableMembers(teamId: Guid): Promise<TeamMemberDto[]> 
   return [...members].sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
-/** Preloads what an issue form needs, in one round of requests rather than three in sequence. */
+/** Preloads what an issue form needs, in one round of requests rather than four in sequence. */
 export async function loadIssueFormData(teamId: Guid) {
-  const [states, members, labels] = await Promise.all([
+  const [states, members, labels, projects] = await Promise.all([
     workspace.statesFor(teamId),
     workspace.membersFor(teamId),
-    workspace.labelsFor(teamId)
+    workspace.labelsFor(teamId),
+    workspace.projectsFor(teamId)
   ]);
 
-  return { states, members, labels };
+  return { states, members, labels, projects };
 }
 
 /** The issues a board shows, in the exact order the board renders them. */
