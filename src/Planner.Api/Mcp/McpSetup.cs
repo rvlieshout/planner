@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol.AspNetCore.Authentication;
 using ModelContextProtocol.Server;
 using OpenIddict.Abstractions;
 using OpenIddict.Validation.AspNetCore;
 using Planner.Api.Auth;
+using Planner.Infrastructure;
 
 namespace Planner.Api.Mcp;
 
@@ -32,6 +34,7 @@ public static class McpSetup
     public static IServiceCollection AddPlannerMcp(this IServiceCollection services, PlannerAuthOptions auth)
     {
         services.AddScoped<McpReader>();
+        services.AddScoped<IActiveAccounts, ActiveAccounts>();
 
         services.AddMcpServer(options =>
             {
@@ -87,7 +90,20 @@ public static class McpSetup
             .AddPolicy(Policy, policy => policy
                 .AddAuthenticationSchemes(McpAuthenticationDefaults.AuthenticationScheme)
                 .RequireAuthenticatedUser()
-                .RequireAssertion(context => resource is not null && context.User.HasAudience(resource.AbsoluteUri)));
+                .RequireAssertion(context => resource is not null && context.User.HasAudience(resource.AbsoluteUri))
+                // An assistant may keep calling for as long as its access token lives. Deactivating the
+                // account should stop it now, not when that token next needs refreshing.
+                .RequireAssertion(async context =>
+                {
+                    if (context.Resource is not HttpContext http ||
+                        !Guid.TryParse(context.User.GetClaim(OpenIddictConstants.Claims.Subject), out var userId))
+                    {
+                        return false;
+                    }
+
+                    return await http.RequestServices.GetRequiredService<IActiveAccounts>()
+                        .IsActiveAsync(userId, http.RequestAborted);
+                }));
 
         return services;
     }
@@ -130,4 +146,17 @@ public static class McpSetup
             await next(context);
         });
     }
+}
+
+/// <summary>Whether an account may still act. A seam of its own so the endpoint can be exercised
+/// without a database.</summary>
+public interface IActiveAccounts
+{
+    Task<bool> IsActiveAsync(Guid userId, CancellationToken ct);
+}
+
+public sealed class ActiveAccounts(PlannerDbContext db) : IActiveAccounts
+{
+    public Task<bool> IsActiveAsync(Guid userId, CancellationToken ct) =>
+        db.Users.AnyAsync(u => u.Id == userId && u.IsActive, ct);
 }

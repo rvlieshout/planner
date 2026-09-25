@@ -37,6 +37,8 @@ public static class McpEndpointChecks
             builder.Services.AddPlannerPersistence("Host=localhost;Database=unused");
             builder.Services.AddPlannerAuth(auth);
             builder.Services.AddPlannerMcp(auth);
+            var inactive = Guid.NewGuid();
+            builder.Services.AddSingleton<IActiveAccounts>(new FixedAccounts(inactive));
             builder.Services.AddHttpContextAccessor();
             builder.Services.AddRateLimiter(o => o.AddPolicy("mcp", _ => RateLimitPartition.GetNoLimiter("all")));
             await using var app = builder.Build();
@@ -52,9 +54,9 @@ public static class McpEndpointChecks
                 using var client = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
                 var options = app.Services.GetRequiredService<IOptionsMonitor<OpenIddictServerOptions>>().CurrentValue;
 
-                string Token(string? audience)
+                string Token(string? audience, Guid? subject = null)
                 {
-                    var claims = new Dictionary<string, object> { ["sub"] = Guid.NewGuid().ToString() };
+                    var claims = new Dictionary<string, object> { ["sub"] = (subject ?? Guid.NewGuid()).ToString() };
                     if (audience is not null) claims["aud"] = audience;
                     return new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
                     {
@@ -96,6 +98,12 @@ public static class McpEndpointChecks
                         "An MCP token is refused by the REST API: it cannot reach the user's write access");
                 }
 
+                using (var deactivated = await Rpc(client, Token(Resource, inactive), "initialize", Initialize))
+                {
+                    check(deactivated.StatusCode == HttpStatusCode.Forbidden,
+                        "A deactivated account's still-valid MCP token is refused at once");
+                }
+
                 using (var initialized = await Rpc(client, mcp, "initialize", Initialize))
                 {
                     check(initialized.StatusCode == HttpStatusCode.OK, "An MCP token initializes a session at /mcp");
@@ -126,6 +134,11 @@ public static class McpEndpointChecks
         {
             keys.Delete(recursive: true);
         }
+    }
+
+    private sealed class FixedAccounts(Guid inactive) : IActiveAccounts
+    {
+        public Task<bool> IsActiveAsync(Guid userId, CancellationToken ct) => Task.FromResult(userId != inactive);
     }
 
     private static readonly object Initialize = new

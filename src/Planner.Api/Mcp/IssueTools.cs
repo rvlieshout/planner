@@ -62,10 +62,22 @@ public sealed class IssueTools(McpReader reader)
 
         if (!string.IsNullOrWhiteSpace(text))
         {
-            var pattern = $"%{text.Trim()}%";
-            query = query.Where(i =>
-                EF.Functions.ILike(i.Title, pattern) ||
-                (i.Description != null && EF.Functions.ILike(i.Description, pattern)));
+            var search = text.Trim();
+
+            // "DEV-42" means that issue, as it does in the app's search box.
+            var separator = search.LastIndexOf('-');
+            if (separator > 0 && int.TryParse(search[(separator + 1)..], out var number))
+            {
+                var key = search[..separator].ToUpperInvariant();
+                query = query.Where(i => i.Team.Key == key && i.Number == number);
+            }
+            else
+            {
+                var pattern = $"%{search}%";
+                query = query.Where(i =>
+                    EF.Functions.ILike(i.Title, pattern) ||
+                    (i.Description != null && EF.Functions.ILike(i.Description, pattern)));
+            }
         }
 
         if (updatedSince is not null)

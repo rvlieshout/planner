@@ -92,16 +92,37 @@ public sealed class McpReader(PlannerDbContext db, ITeamAccess access, CurrentUs
         var projects = await query.ToListAsync(ct);
         var wanted = project.Trim();
 
+        if (Base58.TryParseId(wanted, out var id) && projects.FirstOrDefault(p => p.Id == id) is { } byId)
+        {
+            return byId;
+        }
+
         // Live projects first: an archived namesake should not shadow the one people are working on.
-        var ordered = projects.OrderBy(p => p.ArchivedAt is not null).ToList();
+        var live = projects.Where(p => p.ArchivedAt is null).ToList();
+        var named = live.Where(p => string.Equals(p.Name, wanted, StringComparison.OrdinalIgnoreCase)).ToList();
 
-        var match =
-            (Base58.TryParseId(wanted, out var id) ? ordered.FirstOrDefault(p => p.Id == id) : null)
-            ?? ordered.FirstOrDefault(p => string.Equals(p.Name, wanted, StringComparison.OrdinalIgnoreCase))
-            ?? Unique(ordered.Where(p => p.ArchivedAt is null && p.Name.Contains(wanted, StringComparison.OrdinalIgnoreCase)));
+        if (named.Count == 0)
+        {
+            named = live.Where(p => p.Name.Contains(wanted, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
 
-        return match ?? throw new McpException(
-            $"No project matches '{wanted}'. Use list_projects to see the projects you can read.");
+        if (named.Count == 0)
+        {
+            named = projects.Where(p => string.Equals(p.Name, wanted, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+
+        // Two teams can each have a project of the same name. Picking one would answer confidently
+        // about the wrong project, so the model is asked to say which.
+        return named.Count switch
+        {
+            1 => named[0],
+            0 => throw new McpException(
+                $"No project matches '{wanted}'. Use list_projects to see the projects you can read."),
+            _ => throw new McpException(
+                $"'{wanted}' matches more than one project: " +
+                string.Join(", ", named.Select(p => $"{p.Name} ({p.Team.Key})")) +
+                ". Pass the team as well, or the project id from list_projects.")
+        };
     }
 
     /// <summary>"me", an email address, or a display name.</summary>

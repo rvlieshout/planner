@@ -46,6 +46,10 @@ Results are compact JSON meant for a model, not the REST DTOs: issues by key, pe
 by name, no colours or ranks, nothing null. Timestamps are in the user's time zone (from their
 profile), so "Monday" in the answer is the user's Monday.
 
+On a Windows development machine they come out in UTC: the repo builds with
+`InvariantGlobalization`, and without ICU Windows cannot resolve IANA zone ids such as
+`Europe/Amsterdam`. The Linux images read `/usr/share/zoneinfo` directly and are not affected.
+
 ## Boundaries
 
 - **Read-only.** No tool writes. Reading the inbox does not mark it read.
@@ -54,6 +58,10 @@ profile), so "Monday" in the answer is the user's Monday.
 - **MCP tokens stay on `/mcp`.** A token issued to an assistant carries the MCP resource as its
   audience. `/mcp` accepts only those tokens, and the rest of the API (REST and realtime) refuses
   them, so approving a read-only assistant never hands it the user's write access.
+- **Deactivation is immediate.** `/mcp` checks the account is still active on every call, so a
+  deactivated user's assistant stops at once instead of when its access token expires.
+- **Ambiguity is refused, not guessed.** Two teams can own projects with the same name; a name that
+  matches more than one visible project is answered with the candidates, never with one of them.
 - **Rate limited** per user: 120 calls a minute.
 - **Stateless.** Every call carries its own bearer token. Nothing about a caller is kept between calls.
 

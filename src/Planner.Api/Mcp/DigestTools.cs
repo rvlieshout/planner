@@ -75,8 +75,13 @@ public sealed class DigestTools(McpReader reader)
                 Name = g.Key,
                 Events = g.Count(),
                 Comments = g.Count(a => a.Action == ActivityActions.Commented),
-                Created = g.Count(a => a.Action == ActivityActions.Created && a.EntityType == EntityTypes.Issue)
             })
+            .ToListAsync(ct);
+
+        // From the issues rather than the audit trail, which may not reach back as far as the data does.
+        var createdBy = await createdQuery
+            .GroupBy(i => i.Creator.DisplayName)
+            .Select(g => new { Name = g.Key, Count = g.Count() })
             .ToListAsync(ct);
 
         var completedBy = await completedQuery
@@ -87,6 +92,7 @@ public sealed class DigestTools(McpReader reader)
         var contributors = byActor
             .Select(a => a.Name)
             .Union(completedBy.Where(c => c.Name != null).Select(c => c.Name!))
+            .Union(createdBy.Select(c => c.Name))
             .Select(name =>
             {
                 var activity = byActor.FirstOrDefault(a => a.Name == name);
@@ -94,7 +100,7 @@ public sealed class DigestTools(McpReader reader)
                 {
                     name,
                     completedIssues = completedBy.FirstOrDefault(c => c.Name == name)?.Count ?? 0,
-                    issuesCreated = activity?.Created ?? 0,
+                    issuesCreated = createdBy.FirstOrDefault(c => c.Name == name)?.Count ?? 0,
                     comments = activity?.Comments ?? 0,
                     changes = activity?.Events ?? 0
                 };
@@ -158,17 +164,20 @@ public sealed class DigestTools(McpReader reader)
                 stateChanges = Count(ActivityActions.StateChanged),
                 changes = eventsByAction.Sum(e => e.Count)
             },
-            completed = completed.Items,
-            created = created.Items,
-            started = started.Items,
-            canceled = canceled.Items,
-            inProgress = inProgress.Items.Select(i => new
-            {
-                issue = i,
-                // Nothing recorded against it during the window: worth a question in the summary.
-                quietThisPeriod = i.UpdatedAt < TimeZoneInfo.ConvertTime(from, zone)
-            }),
-            overdue = overdue.Items,
+            // Each list names issues by key; every issue is described once, in `issues`. An issue created,
+            // started and still open this week would otherwise be spelled out three times.
+            completed = Keys(completed),
+            created = Keys(created),
+            started = Keys(started),
+            canceled = Keys(canceled),
+            inProgress = Keys(inProgress),
+            // In progress, but nothing recorded against it during the window: worth a question.
+            quietInProgress = inProgress.Items.Where(i => i.UpdatedAt < from).Select(i => i.Key),
+            overdue = Keys(overdue),
+            issues = new[] { completed, created, started, canceled, inProgress, overdue }
+                .SelectMany(p => p.Items)
+                .DistinctBy(i => i.Key)
+                .ToDictionary(i => i.Key),
             projects = projects.Select(p => new
             {
                 p.Name,
@@ -191,8 +200,11 @@ public sealed class DigestTools(McpReader reader)
                 CompletedThisPeriod = m.CompletedAt >= from && m.CompletedAt < to
             }),
             contributors,
-            note = "Lists hold at most " + ListLimit + " issues each; totals are exact. Issue times are in the user's time zone."
+            note = "Lists name issues by key and hold at most " + ListLimit + " each; totals are exact. " +
+                   "Issue details are in `issues`. Times are in the user's time zone."
         });
+
+        static IEnumerable<string> Keys(Page<IssueView> page) => page.Items.Select(i => i.Key);
 
         async Task<Page<IssueView>> ListAsync(IQueryable<Domain.Entities.Issue> query, CancellationToken token)
         {

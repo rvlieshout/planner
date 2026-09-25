@@ -44,7 +44,7 @@ public sealed record IssueView(
     string? Assignee,
     string? Project,
     string? Milestone,
-    IReadOnlyList<string> Labels,
+    IReadOnlyList<string>? Labels,
     int? Estimate,
     DateOnly? DueDate,
     DateTimeOffset CreatedAt,
@@ -52,7 +52,7 @@ public sealed record IssueView(
     DateTimeOffset? StartedAt,
     DateTimeOffset? CompletedAt,
     DateTimeOffset? CanceledAt,
-    bool Archived)
+    bool? Archived)
 {
     /// <summary>One query for everything above; the state, people and labels are joined in SQL.</summary>
     public static readonly Expression<Func<Issue, IssueView>> Projection = i => new IssueView(
@@ -73,6 +73,13 @@ public sealed record IssueView(
         i.CompletedAt,
         i.CanceledAt,
         i.ArchivedAt != null);
+
+    /// <summary>Drops what is usually empty, so a model reads a dozen fields rather than twenty.</summary>
+    public IssueView Trimmed() => this with
+    {
+        Labels = Labels is { Count: > 0 } ? Labels : null,
+        Archived = Archived == true ? true : null
+    };
 }
 
 public sealed record CommentView(string Author, DateTimeOffset At, string Body, bool IsReply);
@@ -95,7 +102,7 @@ public sealed record Page<T>(IReadOnlyList<T> Items, long Total, bool More);
 internal static class McpViewTimes
 {
     /// <summary>Moves every timestamp of an issue into the user's zone, so the model never has to.</summary>
-    public static IssueView In(this IssueView issue, TimeZoneInfo zone) => issue with
+    public static IssueView In(this IssueView issue, TimeZoneInfo zone) => issue.Trimmed() with
     {
         CreatedAt = TimeZoneInfo.ConvertTime(issue.CreatedAt, zone),
         UpdatedAt = TimeZoneInfo.ConvertTime(issue.UpdatedAt, zone),
