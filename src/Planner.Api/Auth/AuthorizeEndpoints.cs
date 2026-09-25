@@ -25,7 +25,8 @@ public static class AuthorizeEndpoints
 
     public sealed record ConsentRequest(string ClientId, bool Allow);
 
-    public sealed record AuthorizeClientResponse(string ClientId, string DisplayName);
+    /// <param name="Verified">False for a client that registered itself: its name is its own claim.</param>
+    public sealed record AuthorizeClientResponse(string ClientId, string DisplayName, bool Verified);
 
     public static IEndpointRouteBuilder MapAuthorizeEndpoints(this IEndpointRouteBuilder app)
     {
@@ -116,8 +117,9 @@ public static class AuthorizeEndpoints
         return Results.SignIn(principal, null, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
-    /// <summary>Only what this server knows about the client. Nothing the client put in the request is
-    /// echoed back, or a client could name itself "Planner" on the consent screen.</summary>
+    /// <summary>Only what this server knows about the client, never what the authorization request
+    /// claims. A client that registered itself chose its own name, so it comes back unverified and the
+    /// consent screen says so.</summary>
     private static async Task<IResult> DescribeClientAsync(
         string clientId,
         IOpenIddictApplicationManager applications,
@@ -131,7 +133,8 @@ public static class AuthorizeEndpoints
         }
 
         var name = await applications.GetDisplayNameAsync(client, ct) ?? clientId;
-        return Results.Ok(new AuthorizeClientResponse(clientId, name));
+        var verified = !await McpClients.IsDynamicAsync(applications, client, ct);
+        return Results.Ok(new AuthorizeClientResponse(clientId, name, verified));
     }
 
     /// <summary>The bearer token requirement is what makes this safe from cross-site requests: a

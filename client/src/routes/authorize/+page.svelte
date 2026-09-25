@@ -107,6 +107,15 @@
     {/if}
 
     {#if client}
+      {#if !client.verified}
+        <div class="alert alert-warning" role="note">
+          <Icon name="triangle-alert" size={15} />
+          <span>
+            This app registered itself, so “{client.displayName}” is only what it calls itself. Allow it
+            only if you just started connecting an assistant to Planner{destination ? ` and expect to go back to ${destination}` : ''}.
+          </span>
+        </div>
+      {/if}
       <p>It will be able to act as you:</p>
       <ul>
         <li>read the teams, projects, issues and documents you can see</li>

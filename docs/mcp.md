@@ -25,8 +25,9 @@ The AppHost starts the [MCP Inspector](https://github.com/modelcontextprotocol/i
 `mcp-inspector`, already pointed at `http://localhost:5175/mcp`. Open it from the Aspire dashboard (the
 link carries the proxy token), then:
 
-1. **Open Auth Settings → Quick OAuth Flow.** The Inspector discovers Planner, and your browser lands on
-   Planner's consent page. Sign in there if needed, and **Allow**.
+1. **Open Auth Settings → Quick OAuth Flow.** The Inspector discovers Planner, registers itself, and
+   your browser lands on Planner's consent page (where it shows as unverified, since it named itself).
+   Sign in there if needed, and **Allow**.
 2. **Connect**, then **Tools → List Tools**, and call `team_digest` with `{"team": "DEV"}`.
 
 It connects through the web client's origin rather than to the API directly, because that origin is

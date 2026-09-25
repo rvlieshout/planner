@@ -186,6 +186,7 @@ app.MapScalarApiReference(options => options
 
 app.MapAuthEndpoints();
 app.MapAuthorizeEndpoints();
+app.MapRegistrationEndpoints();
 app.MapPasskeyEndpoints();
 app.MapUserEndpoints();
 app.MapTeamEndpoints();

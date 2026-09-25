@@ -43,43 +43,16 @@ public sealed class OpenIddictClientSeeder(
     /// code, which only the holder of the PKCE verifier can redeem.</summary>
     private async Task EnsureMcpClientAsync(PlannerAuthOptions auth, CancellationToken ct)
     {
-        var descriptor = new OpenIddictApplicationDescriptor
-        {
-            ClientId = auth.McpClientId,
-            DisplayName = "AI assistant (MCP)",
-            ClientType = ClientTypes.Public,
-            ConsentType = ConsentTypes.Explicit,
-            Permissions =
-            {
-                Permissions.Endpoints.Authorization,
-                Permissions.Endpoints.Token,
-                Permissions.GrantTypes.AuthorizationCode,
-                Permissions.GrantTypes.RefreshToken,
-                Permissions.ResponseTypes.Code,
-                Permissions.Scopes.Email,
-                Permissions.Scopes.Profile,
-                Permissions.Prefixes.Scope + PlannerScopes.Mcp
-            },
-            Requirements =
-            {
-                Requirements.Features.ProofKeyForCodeExchange
-            }
-        };
+        var resource = auth.ResolveMcpResource();
 
-        foreach (var uri in auth.McpRedirectUris)
-        {
-            descriptor.RedirectUris.Add(new Uri(uri));
-        }
-
-        if (auth.ResolveMcpResource() is { } resource)
-        {
-            descriptor.AddResourcePermissions(resource.AbsoluteUri);
-        }
-        else
+        if (resource is null)
         {
             logger.LogWarning(
                 "Neither Planner:Auth:McpResource nor Planner:Auth:Issuer is set, so MCP clients cannot sign in");
         }
+
+        var descriptor = McpClients.Describe(auth.McpClientId, "AI assistant (MCP)",
+            auth.McpRedirectUris.Select(uri => new Uri(uri)), resource, dynamic: false);
 
         await UpsertAsync(descriptor, ct);
     }

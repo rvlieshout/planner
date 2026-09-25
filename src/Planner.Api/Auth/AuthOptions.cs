@@ -43,6 +43,11 @@ public sealed class PlannerAuthOptions
     /// Defaults to <c>mcp</c> under <see cref="Issuer"/>; without either, MCP sign-in is refused.</summary>
     public string? McpResource { get; set; }
 
+    /// <summary>Lets MCP clients register themselves (RFC 7591), which is how most of them expect to
+    /// connect. A registered client gets nothing until a signed-in user approves it on the consent page.
+    /// Turn off to allow only <see cref="McpClientId"/>.</summary>
+    public bool AllowDynamicClientRegistration { get; set; } = true;
+
     public Uri? ResolveMcpResource() =>
         !string.IsNullOrWhiteSpace(McpResource) ? new Uri(McpResource)
         : !string.IsNullOrWhiteSpace(Issuer) ? new Uri(Issuer.TrimEnd('/') + "/mcp")

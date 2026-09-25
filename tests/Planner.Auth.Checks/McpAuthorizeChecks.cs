@@ -23,6 +23,24 @@ public static class McpAuthorizeChecks
         check(new PlannerAuthOptions().ResolveMcpResource() is null,
             "Without an issuer or resource there is no MCP audience to issue tokens for");
 
+        foreach (var (uri, ok) in new[]
+                 {
+                     ("http://localhost:6274/oauth/callback", true),
+                     ("http://127.0.0.1:53682/callback", true),
+                     ("https://claude.ai/api/mcp/auth_callback", true),
+                     ("com.example.assistant:/callback", true),
+                     ("http://evil.example/callback", false),
+                     ("javascript:alert(1)", false),
+                     ("data:text/html,hi", false),
+                     ("file:///etc/passwd", false),
+                     ("https://claude.ai/cb#fragment", false),
+                     ("/relative/callback", false)
+                 })
+        {
+            check(RegistrationEndpoints.IsAcceptableRedirect(uri, out _) == ok,
+                $"Registration {(ok ? "accepts" : "refuses")} redirect URI {uri}");
+        }
+
         var keys = Directory.CreateTempSubdirectory("planner-mcp-checks-");
         try
         {
@@ -56,6 +74,9 @@ public static class McpAuthorizeChecks
                 check(Values("code_challenge_methods_supported").SequenceEqual(["S256"]),
                     "PKCE is offered with S256 only");
                 check(Values("scopes_supported").Contains("planner.mcp"), "Discovery lists the MCP scope");
+
+                check(new Uri(root.GetProperty("registration_endpoint").GetString()!).AbsolutePath == "/connect/register",
+                    "Discovery advertises the dynamic client registration endpoint");
 
                 using var oauth = await client.GetAsync("/.well-known/oauth-authorization-server");
                 check(oauth.IsSuccessStatusCode,

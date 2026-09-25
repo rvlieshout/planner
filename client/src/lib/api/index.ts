@@ -77,6 +77,8 @@ export interface AuthorizeClient {
   clientId: string;
   /** What this installation registered the client as — never what the request claimed. */
   displayName: string;
+  /** False when the client registered itself, so its name is only what it calls itself. */
+  verified: boolean;
 }
 
 export const authorize = {

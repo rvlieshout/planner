@@ -92,6 +92,24 @@ public static class AuthenticationSetup
                     .AllowRefreshTokenFlow()
                     .AllowCustomFlow(PasskeyEndpoints.GrantType);
 
+                // Tells MCP clients where to register themselves. OpenIddict has no registration endpoint of
+                // its own; RegistrationEndpoints is it, and this puts it in the discovery document.
+                if (auth.AllowDynamicClientRegistration)
+                {
+                    options.AddEventHandler<OpenIddict.Server.OpenIddictServerEvents.HandleConfigurationRequestContext>(handler =>
+                        handler.UseInlineHandler(context =>
+                            {
+                                if (context.AuthorizationEndpoint is { } authorize)
+                                {
+                                    context.Metadata["registration_endpoint"] = new Uri(authorize, "register").AbsoluteUri;
+                                }
+
+                                return default;
+                            })
+                            // After OpenIddict has worked out its own endpoint addresses, which this reuses.
+                            .SetOrder(OpenIddict.Server.OpenIddictServerHandlers.Discovery.AttachEndpoints.Descriptor.Order + 500));
+                }
+
                 // "plain" sends the verifier's own value as the challenge, which protects nothing once
                 // the authorization request is observed. MCP requires S256; offer nothing weaker.
                 options.Configure(server => server.CodeChallengeMethods.Remove(CodeChallengeMethods.Plain));

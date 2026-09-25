@@ -41,12 +41,32 @@ MCP client ──► POST /connect/token  grant_type=authorization_code + code_v
 - **Claims are rebuilt from the database** at every code redemption and refresh, as for every other
   grant, so a role change or deactivation reaches MCP clients at their next refresh.
 
+## Client registration
+
+Most MCP clients (the MCP Inspector, Claude Code, IDE assistants) do not come with a client id; they
+register one on first contact through `POST /connect/register` (RFC 7591), which discovery advertises
+as `registration_endpoint`.
+
+- **What a client can register is fixed.** Every registration gets exactly what `planner-mcp` has: a
+  public client with the code flow, PKCE, refresh tokens and the MCP scope and resource. A request for
+  anything else (the password grant, a client secret) is refused or answered with `none`.
+- **Redirect URIs follow RFC 8252:** `https` anywhere, plain `http` only to loopback (any port, so
+  desktop clients work), or an app's reverse-DNS scheme such as `com.example.app:`. No fragments,
+  at most five.
+- **Registering grants nothing.** A token still needs a signed-in user to approve that client. Because
+  a self-registered client picks its own name, the consent page marks it as unverified and shows the
+  host the code will go to.
+- Rate limited with the other sign-in endpoints: 20 a minute per address.
+
+Set `Planner:Auth:AllowDynamicClientRegistration` to `false` to allow only `planner-mcp`.
+
 ## Configuration
 
 | Setting | Default | |
 | --- | --- | --- |
 | `Planner:Auth:McpClientId` | `planner-mcp` | Public client, PKCE required. |
 | `Planner:Auth:McpRedirectUris` | `https://claude.ai/api/mcp/auth_callback` | Matched exactly. |
+| `Planner:Auth:AllowDynamicClientRegistration` | `true` | MCP clients may register themselves. |
 | `Planner:Auth:McpResource` | `<Issuer>/mcp` | Without it or an issuer, MCP sign-in is refused and a warning is logged at start. |
 
 ## Development
@@ -76,8 +96,8 @@ The issuer and resource follow, and Vite accepts the tunnel's host name.
 
 ## Known gaps
 
-- **Loopback redirects.** Desktop and IDE clients call back to `http://127.0.0.1:<random port>/…`.
-  Redirect URIs are matched exactly, so these need dynamic client registration or client ID metadata
-  documents rather than an entry in `McpRedirectUris`.
+- **Registrations are never cleaned up.** Every registration is a row in the OpenIddict applications
+  table, including ones abandoned before consent. They are harmless without a user's approval, but
+  they accumulate.
 - **Revoking an assistant.** There is no screen yet listing connected clients. Access ends when the
   account is deactivated, or when the refresh token lapses after `RefreshTokenDays` unused.
