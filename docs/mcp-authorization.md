@@ -60,6 +60,16 @@ as `registration_endpoint`.
 
 Set `Planner:Auth:AllowDynamicClientRegistration` to `false` to allow only `planner-mcp`.
 
+### Scopes
+
+An MCP client is granted `planner.mcp`, plus `openid`, `offline_access`, `email` and `profile` if it
+asks. Many clients (ChatGPT among them) do not know which scopes matter and ask for every scope the
+discovery document lists, including `planner.api` and `roles`, which are for the first-party clients.
+Rather than refusing those sign-ins, `McpScopeFilter` grants an MCP client the requested scopes it is
+permitted and drops the rest, as OAuth allows (RFC 6749, 3.3). The token response's `scope` says what
+was granted. A scope repeated on the code exchange, where it has no meaning, is ignored for MCP clients
+instead of failing the exchange. The first-party clients keep OpenIddict's strict checks.
+
 ## Configuration
 
 | Setting | Default | |

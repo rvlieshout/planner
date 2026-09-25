@@ -131,14 +131,18 @@ status, _, body = call("POST", "/connect/token", {"grant_type": "password", "cli
 step(status == 200, f"the user is signed in to the web client ({status})")
 web = json.loads(body)["access_token"]
 
+# Many clients (ChatGPT among them) ask for every scope the discovery document lists, and repeat it on the
+# code exchange. Planner grants an MCP client what it may have out of that, rather than refusing.
+requested = " ".join(server["scopes_supported"])
 verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b"=").decode()
 challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
 authorize = "/connect/authorize?" + urllib.parse.urlencode({
-    "client_id": client_id, "response_type": "code", "redirect_uri": REDIRECT, "scope": "planner.mcp offline_access",
+    "client_id": client_id, "response_type": "code", "redirect_uri": REDIRECT, "scope": requested,
     "code_challenge": challenge, "code_challenge_method": "S256", "resource": RESOURCE, "state": "smoke"})
-status, head, _ = call("GET", authorize)
+status, head, body = call("GET", authorize)
 step(status == 302 and head.get("location", "").startswith("/app/authorize?return="),
-     "authorize sends the browser to the consent page")
+     f"asking for every advertised scope ({requested}) reaches the consent page"
+     + ("" if status == 302 else f": {body[:160]}"))
 
 _, _, page = call("GET", head["location"])
 step("<html" in page.lower(), "the consent page is served by the web container")
@@ -155,9 +159,12 @@ code = urllib.parse.parse_qs(urllib.parse.urlparse(location).query)["code"][0]
 
 status, _, body = call("POST", "/connect/token", {"grant_type": "authorization_code", "client_id": client_id, "code": code,
                                                   "redirect_uri": REDIRECT, "code_verifier": verifier,
-                                                  "resource": RESOURCE}, form=True)
-step(status == 200, f"the code is exchanged for tokens ({status})")
+                                                  "resource": RESOURCE, "scope": requested}, form=True)
+step(status == 200, f"the code is exchanged for tokens ({status}{'' if status == 200 else ': ' + body[:160]})")
 tokens = json.loads(body)
+granted = set(tokens.get("scope", "").split())
+step("planner.mcp" in granted and "planner.api" not in granted,
+     f"the client is granted what an MCP client may have, and no more ({' '.join(sorted(granted))})")
 token = tokens["access_token"]
 claims = json.loads(base64.urlsafe_b64decode(token.split(".")[1] + "=="))
 step(claims["iss"] == BASE + "/" and RESOURCE in json.dumps(claims["aud"]), "the token names the public issuer and the MCP resource")

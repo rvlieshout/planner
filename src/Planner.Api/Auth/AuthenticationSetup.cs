@@ -110,6 +110,11 @@ public static class AuthenticationSetup
                             .SetOrder(OpenIddict.Server.OpenIddictServerHandlers.Discovery.AttachEndpoints.Descriptor.Order + 500));
                 }
 
+                // MCP clients often ask for every advertised scope; grant what they may have rather
+                // than refusing them. See McpScopeFilter.
+                options.AddEventHandler(McpScopeFilter.AuthorizationDescriptor)
+                    .AddEventHandler(McpScopeFilter.TokenDescriptor);
+
                 // "plain" sends the verifier's own value as the challenge, which protects nothing once
                 // the authorization request is observed. MCP requires S256; offer nothing weaker.
                 options.Configure(server => server.CodeChallengeMethods.Remove(CodeChallengeMethods.Plain));
