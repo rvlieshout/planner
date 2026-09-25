@@ -4,8 +4,8 @@ AI assistants that talk to Planner over MCP sign in with the OAuth 2.1 authoriza
 PKCE. They never see the user's password or passkey: the user signs in on this installation's own web
 client and approves the assistant there, and the assistant receives a code only it can redeem.
 
-This covers how those tokens are issued. The `/mcp` endpoint itself, and the protected-resource
-metadata that points clients here, are separate work.
+This covers how those tokens are issued. The endpoint that accepts them, and its tools, are described
+in [mcp.md](mcp.md).
 
 ## The flow
 
@@ -79,8 +79,5 @@ The issuer and resource follow, and Vite accepts the tunnel's host name.
 - **Loopback redirects.** Desktop and IDE clients call back to `http://127.0.0.1:<random port>/…`.
   Redirect URIs are matched exactly, so these need dynamic client registration or client ID metadata
   documents rather than an entry in `McpRedirectUris`.
-- **Audience enforcement.** Tokens from this flow carry the MCP audience, but the REST API does not yet
-  refuse them. That belongs with the `/mcp` endpoint: it must accept only its own audience, and the API
-  must reject tokens whose only audience is the MCP resource.
 - **Revoking an assistant.** There is no screen yet listing connected clients. Access ends when the
   account is deactivated, or when the refresh token lapses after `RefreshTokenDays` unused.

@@ -7,6 +7,7 @@ using Planner.Api.Auth;
 using Planner.Api.Authorization;
 using Planner.Api.Common;
 using Planner.Api.Endpoints;
+using Planner.Api.Mcp;
 using Planner.Api.Notifications;
 using Planner.Api.Realtime;
 using Planner.Api.Startup;
@@ -31,6 +32,7 @@ builder.Services.AddScoped<NotificationInterceptor>();
 builder.Services.AddPlannerPersistence(connectionString,
     (provider, options) => options.AddInterceptors(provider.GetRequiredService<NotificationInterceptor>()));
 builder.Services.AddPlannerAuth(authOptions);
+builder.Services.AddPlannerMcp(authOptions);
 
 // Ids are uuids in the database and base58 on the wire. This registers the {id:b58} route constraint;
 // the converters below and the middleware further down are the other two halves.
@@ -133,6 +135,18 @@ builder.Services.AddRateLimiter(options =>
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0
         }));
+
+    // Assistants can call tools in quick loops. Per user rather than per IP: every MCP client behind
+    // one hosted assistant shares that assistant's addresses.
+    options.AddPolicy("mcp", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirst(OpenIddict.Abstractions.OpenIddictConstants.Claims.Subject)?.Value
+            ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 120,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
 });
 
 var app = builder.Build();
@@ -156,6 +170,7 @@ app.UseMiddleware<SignalRAuthenticationMiddleware>("/hubs");
 app.UseCors();
 app.UseRateLimiter();
 app.UseAuthentication();
+app.UseMcpAudienceBoundary(authOptions);
 app.UseAuthorization();
 
 // The schema and its UI are readable without a token: the fallback policy would otherwise lock the
@@ -178,6 +193,7 @@ app.MapNotificationEndpoints();
 app.MapActivityEndpoints();
 
 app.MapHub<PlannerHub>("/hubs/planner");
+app.MapPlannerMcp();
 
 app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {

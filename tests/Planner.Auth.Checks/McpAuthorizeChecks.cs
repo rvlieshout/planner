@@ -56,6 +56,10 @@ public static class McpAuthorizeChecks
                 check(Values("code_challenge_methods_supported").SequenceEqual(["S256"]),
                     "PKCE is offered with S256 only");
                 check(Values("scopes_supported").Contains("planner.mcp"), "Discovery lists the MCP scope");
+
+                using var oauth = await client.GetAsync("/.well-known/oauth-authorization-server");
+                check(oauth.IsSuccessStatusCode,
+                    "OAuth authorization server metadata (RFC 8414) is served too, for MCP clients that look there");
             }
             finally
             {
