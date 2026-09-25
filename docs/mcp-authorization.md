@@ -49,6 +49,31 @@ MCP client ──► POST /connect/token  grant_type=authorization_code + code_v
 | `Planner:Auth:McpRedirectUris` | `https://claude.ai/api/mcp/auth_callback` | Matched exactly. |
 | `Planner:Auth:McpResource` | `<Issuer>/mcp` | Without it or an issuer, MCP sign-in is refused and a warning is logged at start. |
 
+## Development
+
+`dotnet run --project src/Planner.AppHost` serves the web client on a fixed `http://localhost:5175`,
+not behind Aspire's proxy, and hands that address to the API as its issuer. So the dev endpoints an
+MCP client needs are:
+
+| | |
+| --- | --- |
+| Issuer | `http://localhost:5175/` |
+| MCP resource | `http://localhost:5175/mcp` |
+| Client id | `planner-mcp` |
+| Redirect URIs | the MCP Inspector's, `http://localhost:6274/oauth/callback` and `…/debug` |
+
+Vite proxies `/mcp` and `/.well-known` to the API, as Caddy does in production, so discovery and the
+endpoint live on the same origin as the sign-in page.
+
+To test a client that cannot reach localhost (claude.ai, for one), put a tunnel in front of port 5175
+and point the `public-url` parameter at it:
+
+```
+dotnet user-secrets --project src/Planner.AppHost set Parameters:public-url https://<tunnel>/
+```
+
+The issuer and resource follow, and Vite accepts the tunnel's host name.
+
 ## Known gaps
 
 - **Loopback redirects.** Desktop and IDE clients call back to `http://127.0.0.1:<random port>/…`.
