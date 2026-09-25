@@ -280,104 +280,12 @@ public static class IssueEndpoints
 
     private static async Task<IResult> CreateAsync(
         CreateIssueRequest request,
-        PlannerDbContext db,
-        ITeamAccess access,
-        CurrentUser current,
-        IIssueNumberGenerator numbers,
-        IActivityLog activity,
-        IRealtimeNotifier notifier,
+        IssueCreator creator,
         CancellationToken ct)
     {
-        if (await ApiResults.RequireTeamAsync(access, request.TeamId, TeamPermission.Write, ct) is { } denied)
-        {
-            return denied;
-        }
+        var created = await creator.CreateAsync(request, ct);
 
-        var validation = new Validation()
-            .Required(request.Title, "title")
-            .MaxLength(request.Title, 500, "title")
-            .Range(request.Estimate, 0, 1000, "estimate");
-
-        if (validation.HasErrors)
-        {
-            return validation.ToResult();
-        }
-
-        var state = request.StateId is { } stateId
-            ? await db.WorkflowStates.FirstOrDefaultAsync(s => s.Id == stateId && s.TeamId == request.TeamId, ct)
-            : await db.WorkflowStates
-                .Where(s => s.TeamId == request.TeamId)
-                .OrderByDescending(s => s.IsDefault)
-                .ThenBy(s => s.Rank)
-                .FirstOrDefaultAsync(ct);
-
-        if (state is null)
-        {
-            return ApiResults.BadRequest("That workflow state does not belong to this team.");
-        }
-
-        if (await ValidateLinksAsync(db, request.TeamId, request.ProjectId, request.MilestoneId, request.ParentId,
-                request.AssigneeId, ct) is { } linkError)
-        {
-            return linkError;
-        }
-
-        if (request.ParentId is { } newParent && await IsArchivedAsync(db, newParent, ct))
-        {
-            return ApiResults.BadRequest("Sub-issues cannot be added to an archived issue.");
-        }
-
-        var labelIds = request.LabelIds ?? [];
-        if (labelIds.Count > 0 && await CountUsableLabelsAsync(db, request.TeamId, labelIds, ct) != labelIds.Count)
-        {
-            return ApiResults.BadRequest("One or more labels do not exist or belong to another team.");
-        }
-
-        var rank = await Ranks.AppendAsync(
-            db.Issues.Where(i => i.TeamId == request.TeamId && i.StateId == state.Id).Select(i => i.Rank), ct);
-
-        var issue = new Issue
-        {
-            TeamId = request.TeamId,
-            Number = await numbers.NextAsync(request.TeamId, ct),
-            Title = request.Title.Trim(),
-            Description = request.Description,
-            StateId = state.Id,
-            Priority = request.Priority,
-            AssigneeId = request.AssigneeId,
-            CreatorId = current.Id,
-            ProjectId = request.ProjectId,
-            MilestoneId = request.MilestoneId,
-            ParentId = request.ParentId,
-            Estimate = request.Estimate,
-            DueDate = request.DueDate,
-            Rank = rank,
-            StartedAt = state.Type == WorkflowStateType.Started ? DateTimeOffset.UtcNow : null,
-            CompletedAt = state.Type == WorkflowStateType.Completed ? DateTimeOffset.UtcNow : null,
-            CanceledAt = state.Type == WorkflowStateType.Canceled ? DateTimeOffset.UtcNow : null
-        };
-
-        db.Issues.Add(issue);
-
-        foreach (var labelId in labelIds)
-        {
-            db.IssueLabels.Add(new IssueLabel { IssueId = issue.Id, LabelId = labelId });
-        }
-
-        activity.Record(EntityTypes.Issue, issue.Id, ActivityActions.Created, new { title = issue.Title },
-            teamId: issue.TeamId, projectId: issue.ProjectId, issueId: issue.Id);
-
-        await db.SaveChangesAsync(ct);
-
-        var summary = await SummaryAsync(db, issue.Id, ct);
-        await notifier.IssueChanged(ChangeKind.Created, summary);
-
-        // Built from `state` rather than `RollupOf`: the issue was constructed, not loaded, so its
-        // State navigation is not populated. A new issue is never archived.
-        await PublishRollupsAsync(db, notifier, issue.TeamId, null,
-            new Rollup(issue.ProjectId, issue.MilestoneId, state.Type, Archived: false), ct);
-
-        return Results.Created($"/api/v1/issues/{issue.Id.ToBase58()}", summary);
+        return created.Error ?? Results.Created($"/api/v1/issues/{created.Issue!.Id.ToBase58()}", created.Issue);
     }
 
     private static async Task<IResult> UpdateAsync(
@@ -1342,12 +1250,12 @@ public static class IssueEndpoints
             await ActivityFeed.ToDtosAsync(db, events, ct), paging.NormalizedPage, paging.NormalizedSize, total));
     }
 
-    private static Task<bool> IsArchivedAsync(PlannerDbContext db, Guid issueId, CancellationToken ct) =>
+    internal static Task<bool> IsArchivedAsync(PlannerDbContext db, Guid issueId, CancellationToken ct) =>
         db.Issues.AnyAsync(i => i.Id == issueId && i.ArchivedAt != null, ct);
 
     /// <summary>Checks that every optional link on an issue points somewhere real and in-scope: a
     /// milestone from another project or a parent from another team would corrupt the hierarchy.</summary>
-    private static async Task<IResult?> ValidateLinksAsync(
+    internal static async Task<IResult?> ValidateLinksAsync(
         PlannerDbContext db,
         Guid teamId,
         Guid? projectId,
@@ -1388,19 +1296,19 @@ public static class IssueEndpoints
         return null;
     }
 
-    private static async Task<int> CountUsableLabelsAsync(
+    internal static async Task<int> CountUsableLabelsAsync(
         PlannerDbContext db,
         Guid teamId,
         IReadOnlyList<Guid> labelIds,
         CancellationToken ct) =>
         await db.Labels.CountAsync(l => labelIds.Contains(l.Id) && (l.TeamId == null || l.TeamId == teamId), ct);
 
-    private static Task<IssueSummary> SummaryAsync(PlannerDbContext db, Guid id, CancellationToken ct) =>
+    internal static Task<IssueSummary> SummaryAsync(PlannerDbContext db, Guid id, CancellationToken ct) =>
         db.Issues.AsNoTracking().Where(i => i.Id == id).Select(Mapping.IssueSummaryProjection).FirstAsync(ct);
 
     /// <summary>The only facts about an issue that a project's or milestone's rollup is counted from.
     /// Two of these comparing equal is exactly the condition for "this write moved no rollup".</summary>
-    private readonly record struct Rollup(
+    internal readonly record struct Rollup(
         Guid? ProjectId,
         Guid? MilestoneId,
         WorkflowStateType StateType,
@@ -1425,7 +1333,7 @@ public static class IssueEndpoints
     /// keeps a board reorder — the most common write there is, and one that cannot change a count —
     /// from costing two queries and a broadcast.</para>
     /// </summary>
-    private static async Task PublishRollupsAsync(
+    internal static async Task PublishRollupsAsync(
         PlannerDbContext db,
         IRealtimeNotifier notifier,
         Guid teamId,

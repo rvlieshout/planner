@@ -9,8 +9,8 @@ using Planner.Infrastructure;
 
 namespace Planner.Api.Mcp;
 
-/// <summary>The MCP endpoint: a read-only view of Planner for AI assistants, acting as the signed-in
-/// user and never as more. See docs/mcp.md.</summary>
+/// <summary>The MCP endpoint: Planner for AI assistants, acting as the signed-in user and never as
+/// more. Mostly reading; creating issues is the one write. See docs/mcp.md.</summary>
 public static class McpSetup
 {
     public const string Path = "/mcp";
@@ -29,6 +29,10 @@ public static class McpSetup
         week"), call team_digest first: it returns what was completed, created, started and canceled, the
         work in progress, and project progress for that window in one call. Drill into single issues with
         get_issue only where the digest is not enough. Times are in the user's time zone.
+
+        create_issue creates an issue as the user, visible to their whole team at once. Only create issues
+        the user asked for. When the team, or what the issue should say, is not clear from the
+        conversation, ask first rather than guess. Afterwards, give the user the new key and link.
         """;
 
     public static IServiceCollection AddPlannerMcp(this IServiceCollection services, PlannerAuthOptions auth)
@@ -48,6 +52,7 @@ public static class McpSetup
             .WithTools<IssueTools>()
             .WithTools<FeedTools>()
             .WithTools<DigestTools>()
+            .WithTools<IssueWriteTools>()
             .WithPrompts<PlannerPrompts>();
 
         var resource = auth.ResolveMcpResource();
@@ -122,7 +127,8 @@ public static class McpSetup
     ///
     /// A token minted for an assistant says so in its audience. The REST API and the realtime hub accept
     /// any valid token, so without this an assistant's token would carry every write the user can make,
-    /// when the user approved a read-only tool. First-party tokens carry no audience and pass untouched.</summary>
+    /// when the user approved the few this endpoint offers. First-party tokens carry no audience and
+    /// pass untouched.</summary>
     public static IApplicationBuilder UseMcpAudienceBoundary(this IApplicationBuilder app, PlannerAuthOptions auth)
     {
         var resource = auth.ResolveMcpResource()?.AbsoluteUri;

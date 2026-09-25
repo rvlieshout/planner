@@ -1,8 +1,8 @@
 # MCP server
 
-Planner exposes a read-only [Model Context Protocol](https://modelcontextprotocol.io) endpoint at
-`/mcp`, so an AI assistant can answer questions like *"what happened in the development team last
-week?"* from live data, as the signed-in user.
+Planner exposes a [Model Context Protocol](https://modelcontextprotocol.io) endpoint at `/mcp`, so an
+AI assistant can answer questions like *"what happened in the development team last week?"* from live
+data, and file issues, as the signed-in user.
 
 It runs inside the API (`src/Planner.Api/Mcp/`), on the same database and the same permission rules
 as the REST endpoints. How an assistant gets a token is in [mcp-authorization.md](mcp-authorization.md).
@@ -36,7 +36,8 @@ the resource its token is issued for. Its ports (6274 for the UI, 6277 for the p
 
 ## Tools
 
-All tools are read-only, and they only see what the user can see in the app.
+Tools see only what the user can see in the app, and can change only what the user could change there.
+All but `create_issue` are read-only.
 
 | Tool | For |
 | --- | --- |
@@ -48,6 +49,7 @@ All tools are read-only, and they only see what the user can see in the app.
 | `get_issue` | One issue by key (`DEV-42`): description, sub-issues, relations, latest comments, history. |
 | `get_inbox` | The user's inbox. Reading it marks nothing as read. |
 | `get_activity` | The raw change feed, filterable by team, project, person and period. |
+| `create_issue` | **Files an issue as the user.** Team and title are required; state, priority, assignee, project, milestone, parent, labels, estimate and due date are optional and given by name. Returns the new key and a link. |
 
 Tools take teams by key, name or a unique part of a name; projects by name; people by `me`, email or
 display name. An unknown team is answered with the list of known ones, so the model can correct itself.
@@ -67,12 +69,19 @@ On a Windows development machine they come out in UTC: the repo builds with
 
 ## Boundaries
 
-- **Read-only.** No tool writes. Reading the inbox does not mark it read.
+- **One write: creating issues.** `create_issue` goes through `IssueCreator`, the same code as
+  `POST /api/v1/issues`, so it needs `Write` on the team (guests and viewers are refused), is validated,
+  numbered and ranked the same way, is recorded in the activity log as the user, and appears live in
+  open browsers. It is annotated as a write, so MCP clients ask the user before calling it.
+- **Retries don't duplicate.** An identical title from the same user in the same team within 10
+  minutes returns the existing issue, unless the call passes `allowDuplicate`.
+- Reading the inbox does not mark it read.
 - **The user's permissions, never more.** Every query is scoped through `ITeamAccess`, like the REST
   endpoints. A guest's assistant sees what the guest sees.
 - **MCP tokens stay on `/mcp`.** A token issued to an assistant carries the MCP resource as its
   audience. `/mcp` accepts only those tokens, and the rest of the API (REST and realtime) refuses
-  them, so approving a read-only assistant never hands it the user's write access.
+  them, so approving an assistant hands it the tools on this endpoint and nothing else the user can
+  do: it can file issues, but not edit, move or delete anything.
 - **Deactivation is immediate.** `/mcp` checks the account is still active on every call, so a
   deactivated user's assistant stops at once instead of when its access token expires.
 - **Ambiguity is refused, not guessed.** Two teams can own projects with the same name; a name that
@@ -81,6 +90,11 @@ On a Windows development machine they come out in UTC: the repo builds with
 - **Stateless.** Every call carries its own bearer token. Nothing about a caller is kept between calls.
 
 ## Adding a tool
+
+Reads go straight to the database through `McpReader`. Writes must go through the same service as the
+REST endpoint that makes that change (as `create_issue` uses `IssueCreator`), never a second copy of
+it, so permissions, validation, the activity log and realtime updates cannot drift apart.
+
 
 Add a method to one of the `[McpServerToolType]` classes in `src/Planner.Api/Mcp/`, or a new class
 registered in `McpSetup.AddPlannerMcp`. Start every query from `McpReader.ReadableTeamIdsAsync`, return

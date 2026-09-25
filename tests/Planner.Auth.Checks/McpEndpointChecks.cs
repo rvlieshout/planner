@@ -115,11 +115,21 @@ public static class McpEndpointChecks
                 string[] expected =
                 [
                     "list_teams", "list_projects", "get_project", "search_issues", "get_issue", "get_inbox",
-                    "get_activity", "team_digest"
+                    "get_activity", "team_digest", "create_issue"
                 ];
                 check(expected.All(names.Contains), "Every tool is listed: " + string.Join(", ", expected));
-                check(tools.All(t => t.GetProperty("annotations").GetProperty("readOnlyHint").GetBoolean()),
-                    "Every tool is annotated read-only");
+                bool Hint(JsonElement tool, string hint) => tool.GetProperty("annotations").GetProperty(hint).GetBoolean();
+                string Name(JsonElement tool) => tool.GetProperty("name").GetString()!;
+
+                check(tools.Where(t => Name(t) != "create_issue").All(t => Hint(t, "readOnlyHint")),
+                    "Every tool but create_issue is annotated read-only");
+
+                var create = tools.Single(t => Name(t) == "create_issue");
+                check(!Hint(create, "readOnlyHint") && !Hint(create, "destructiveHint") && !Hint(create, "idempotentHint"),
+                    "create_issue is annotated as a non-destructive, non-idempotent write, so clients ask before calling it");
+                check(create.GetProperty("inputSchema").GetProperty("required").EnumerateArray()
+                        .Select(r => r.GetString()).Order().SequenceEqual(["team", "title"]),
+                    "create_issue requires only a team and a title");
 
                 var prompts = await Result(await Rpc(client, mcp, "prompts/list", new { }));
                 check(prompts.GetProperty("prompts").EnumerateArray().Any(p => p.GetProperty("name").GetString() == "team_summary"),

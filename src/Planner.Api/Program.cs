@@ -42,6 +42,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<ITeamAccess, TeamAccess>();
 builder.Services.AddScoped<IActivityLog, ActivityLog>();
+builder.Services.AddScoped<IssueCreator>();
 builder.Services.AddScoped<IRealtimeNotifier, RealtimeNotifier>();
 builder.Services.AddSingleton<RealtimeConnections>();
 builder.Services.AddScoped<IRealtimeSubscriptions, RealtimeSubscriptions>();
