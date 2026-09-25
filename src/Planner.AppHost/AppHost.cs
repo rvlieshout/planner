@@ -54,7 +54,7 @@ var api = builder.AddProject<Projects.Planner_Api>("api")
 // Pinned to one port and not proxied: its origin is the issuer above, a passkey's relying party, and
 // the address registered with MCP clients, so it cannot move from run to run. Left to Aspire, Vite
 // gets a random port behind a proxy with another.
-builder.AddViteApp("client", ClientDirectory(builder))
+var client = builder.AddViteApp("client", ClientDirectory(builder))
     .WithEndpoint("http", endpoint =>
     {
         endpoint.Port = ClientPort;
@@ -64,6 +64,14 @@ builder.AddViteApp("client", ClientDirectory(builder))
     .WithEnvironment("PLANNER_SERVER_URL", api.GetEndpoint("http"))
     .WithEnvironment("PLANNER_PUBLIC_URL", publicUrl)
     .WaitFor(api);
+
+// The MCP Inspector, for trying the /mcp tools by hand. It connects through the client's origin, not to
+// the API directly: that origin is the MCP resource its token is issued for, and MCP clients refuse a
+// server whose metadata names a different one. Its default ports are the redirect URIs registered for
+// planner-mcp in appsettings.Development.json; sign in with "Open Auth Settings" > "Quick OAuth Flow".
+builder.AddMcpInspector("mcp-inspector")
+    .WithMcpServer(client, isDefault: true, transportType: McpTransportType.StreamableHttp, path: "/mcp")
+    .WaitFor(client);
 
 builder.Build().Run();
 

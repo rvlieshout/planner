@@ -19,6 +19,20 @@ A client pointed at the URL gets a `401` whose `WWW-Authenticate` header links t
 `/.well-known/oauth-protected-resource/mcp`. That names Planner as the authorization server, and the
 client signs in from there.
 
+### Trying it with the MCP Inspector
+
+The AppHost starts the [MCP Inspector](https://github.com/modelcontextprotocol/inspector) as
+`mcp-inspector`, already pointed at `http://localhost:5175/mcp`. Open it from the Aspire dashboard (the
+link carries the proxy token), then:
+
+1. **Open Auth Settings → Quick OAuth Flow.** The Inspector discovers Planner, and your browser lands on
+   Planner's consent page. Sign in there if needed, and **Allow**.
+2. **Connect**, then **Tools → List Tools**, and call `team_digest` with `{"team": "DEV"}`.
+
+It connects through the web client's origin rather than to the API directly, because that origin is
+the resource its token is issued for. Its ports (6274 for the UI, 6277 for the proxy) match the
+`McpRedirectUris` and `AllowedOrigins` in `appsettings.Development.json`, so leave them as they are.
+
 ## Tools
 
 All tools are read-only, and they only see what the user can see in the app.

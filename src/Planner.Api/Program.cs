@@ -99,7 +99,10 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
     policy.WithOrigins(authOptions.AllowedOrigins)
         .AllowAnyHeader()
         .AllowAnyMethod()
-        .AllowCredentials();
+        .AllowCredentials()
+        // A browser-based MCP client (the MCP Inspector, in development) learns where to sign in from
+        // the 401's WWW-Authenticate header, and keeps its session by Mcp-Session-Id.
+        .WithExposedHeaders("WWW-Authenticate", "Mcp-Session-Id");
 }));
 
 if (authOptions.TrustedProxyHops > 0)
