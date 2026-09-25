@@ -70,6 +70,24 @@ export const me = {
     request<void>(`${v1}/me/password`, { ...o, method: 'POST', body })
 };
 
+/* ------------------------------------------------------------- authorize ---- */
+
+/** A third-party client (an MCP host) asking to act as the signed-in user. */
+export interface AuthorizeClient {
+  clientId: string;
+  /** What this installation registered the client as — never what the request claimed. */
+  displayName: string;
+}
+
+export const authorize = {
+  client: (clientId: string, o: Signal = {}) =>
+    request<AuthorizeClient>('/connect/authorize/client', { ...o, query: { clientId } }),
+
+  /** Leaves a five-minute, single-use decision cookie that /connect/authorize reads next. */
+  decide: (clientId: string, allow: boolean) =>
+    request<void>('/connect/authorize/consent', { method: 'POST', body: { clientId, allow } })
+};
+
 /* ----------------------------------------------------------------- users ---- */
 
 export const users = {

@@ -29,6 +29,25 @@ public sealed class PlannerAuthOptions
     /// desktop client so the two can be told apart in the logs and revoked independently.</summary>
     public string WebClientId { get; set; } = "planner-web";
 
+    /// <summary>Client id MCP clients (Claude, IDE assistants) sign in with. Public, and the only
+    /// client allowed the authorization code flow: the first-party clients keep their direct grants,
+    /// so a consent link can never mint tokens for them.</summary>
+    public string McpClientId { get; set; } = "planner-mcp";
+
+    /// <summary>Where the MCP client may be sent back to with an authorization code. Matched exactly,
+    /// so a loopback callback on a random port needs dynamic registration rather than an entry here.</summary>
+    public string[] McpRedirectUris { get; set; } = ["https://claude.ai/api/mcp/auth_callback"];
+
+    /// <summary>Canonical URL of the MCP endpoint, e.g. https://planner.lyste.net/mcp. MCP clients name
+    /// it as the <c>resource</c> they want a token for, and the token carries it as its audience.
+    /// Defaults to <c>mcp</c> under <see cref="Issuer"/>; without either, MCP sign-in is refused.</summary>
+    public string? McpResource { get; set; }
+
+    public Uri? ResolveMcpResource() =>
+        !string.IsNullOrWhiteSpace(McpResource) ? new Uri(McpResource)
+        : !string.IsNullOrWhiteSpace(Issuer) ? new Uri(Issuer.TrimEnd('/') + "/mcp")
+        : null;
+
     /// <summary>Allows plain HTTP on the token endpoint. Correct behind a TLS-terminating reverse
     /// proxy or for local evaluation; leave false when the API is exposed directly.</summary>
     public bool AllowInsecureHttp { get; set; }
@@ -52,4 +71,7 @@ public sealed class PlannerAuthOptions
 public static class PlannerScopes
 {
     public const string Api = "planner.api";
+
+    /// <summary>Access granted to an MCP client, on the signed-in user's behalf.</summary>
+    public const string Mcp = "planner.mcp";
 }

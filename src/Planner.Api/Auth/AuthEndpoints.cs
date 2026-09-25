@@ -52,9 +52,11 @@ public static class AuthEndpoints
             return await HandlePasswordGrantAsync(request, userManager, signInManager);
         }
 
-        if (request.IsRefreshTokenGrantType())
+        // A code and a refresh token are both grants OpenIddict issued and has already validated
+        // (including the PKCE verifier); what remains is re-checking the account behind them.
+        if (request.IsAuthorizationCodeGrantType() || request.IsRefreshTokenGrantType())
         {
-            return await HandleRefreshGrantAsync(context, userManager);
+            return await HandleIssuedGrantAsync(context, userManager);
         }
 
         return Reject(Errors.UnsupportedGrantType, "The requested sign-in method is not supported.");
@@ -125,7 +127,7 @@ public static class AuthEndpoints
         return Results.SignIn(principal, null, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
-    private static async Task<IResult> HandleRefreshGrantAsync(HttpContext context, UserManager<AppUser> userManager)
+    private static async Task<IResult> HandleIssuedGrantAsync(HttpContext context, UserManager<AppUser> userManager)
     {
         var authentication = await context.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         var subject = authentication.Principal?.GetClaim(Claims.Subject);
@@ -134,24 +136,26 @@ public static class AuthEndpoints
 
         if (user is null || !user.IsActive)
         {
-            return Reject(Errors.InvalidGrant, "The account tied to this refresh token can no longer sign in.");
+            return Reject(Errors.InvalidGrant, "The account tied to this grant can no longer sign in.");
         }
 
         user.LastSeenAt = DateTimeOffset.UtcNow;
         await userManager.UpdateAsync(user);
 
         // Claims are rebuilt from the database rather than copied from the old token, so a role change
-        // or a team removal takes effect at the next refresh instead of at the next sign-in.
-        var scopes = authentication.Principal!.GetScopes();
-        var principal = await BuildPrincipalAsync(user, userManager, scopes);
+        // or a team removal takes effect at the next refresh instead of at the next sign-in. Scopes and
+        // audience are what the user consented to, so those carry over unchanged.
+        var principal = await BuildPrincipalAsync(user, userManager,
+            authentication.Principal!.GetScopes(), authentication.Principal!.GetResources());
 
         return Results.SignIn(principal, null, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
-    private static async Task<ClaimsPrincipal> BuildPrincipalAsync(
+    internal static async Task<ClaimsPrincipal> BuildPrincipalAsync(
         AppUser user,
         UserManager<AppUser> userManager,
-        ImmutableArray<string> requestedScopes)
+        ImmutableArray<string> requestedScopes,
+        ImmutableArray<string> resources = default)
     {
         var identity = new ClaimsIdentity(
             TokenValidationParameters.DefaultAuthenticationType,
@@ -177,8 +181,15 @@ public static class AuthEndpoints
             Scopes.Profile,
             Scopes.Roles,
             Scopes.OfflineAccess,
-            PlannerScopes.Api
+            PlannerScopes.Api,
+            PlannerScopes.Mcp
         ]));
+
+        // Becomes the token's audience. Only the authorization endpoint sets one, after checking it.
+        if (!resources.IsDefaultOrEmpty)
+        {
+            principal.SetResources(resources);
+        }
 
         principal.SetDestinations(AuthenticationSetup.GetDestinations);
         return principal;

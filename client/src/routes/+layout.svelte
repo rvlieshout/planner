@@ -25,6 +25,17 @@
 
   const route = $derived(page.url.pathname);
   const onLogin = $derived(route === resolve('/login') || route === `${resolve('/login')}/`);
+  const onAuthorize = $derived(route === resolve('/authorize'));
+
+  /*
+   * The consent page is the one screen that sends the user somewhere else afterwards, so a sign-in
+   * that interrupts it has to come back to it. Only that page is a valid way back: a `return` naming
+   * anything else is dropped, or /login would be an open redirect.
+   */
+  function returnTarget(): string | null {
+    const target = page.url.searchParams.get('return');
+    return target?.startsWith(`${resolve('/authorize')}?`) ? target : null;
+  }
 
   settings.applyTheme();
 
@@ -46,11 +57,12 @@
 
   $effect(() => {
     if (session.status === 'signed-out' && !onLogin) {
-      void goto(resolve('/login'), { replaceState: true });
+      const back = onAuthorize ? `?return=${encodeURIComponent(page.url.pathname + page.url.search)}` : '';
+      void goto(resolve('/login') + back, { replaceState: true });
     }
 
     if (session.status === 'signed-in' && onLogin) {
-      void goto(resolve('/'), { replaceState: true });
+      void goto(returnTarget() ?? resolve('/'), { replaceState: true });
     }
   });
 

@@ -167,6 +167,7 @@ app.MapScalarApiReference(options => options
     .AllowAnonymous();
 
 app.MapAuthEndpoints();
+app.MapAuthorizeEndpoints();
 app.MapPasskeyEndpoints();
 app.MapUserEndpoints();
 app.MapTeamEndpoints();

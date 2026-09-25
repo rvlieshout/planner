@@ -24,6 +24,10 @@ public static class PlannerPolicies
 
 public static class AuthenticationSetup
 {
+    /// <summary>Carries one consent decision from the web client to /connect/authorize. It says who
+    /// approved (or refused) which client a few minutes ago and is never accepted as an API credential.</summary>
+    public const string AuthorizeCookieScheme = "Planner.Authorize";
+
     public static IServiceCollection AddPlannerAuth(this IServiceCollection services, PlannerAuthOptions auth)
     {
         services.AddIdentityCore<AppUser>(options =>
@@ -74,14 +78,23 @@ public static class AuthenticationSetup
                     options.SetIssuer(auth.Issuer);
                 }
 
-                options.SetTokenEndpointUris("connect/token")
+                options.SetAuthorizationEndpointUris("connect/authorize")
+                    .SetTokenEndpointUris("connect/token")
                     .SetUserInfoEndpointUris("connect/userinfo");
 
                 // Passkeys are the primary browser login; password remains for setup/recovery and API tools.
-                // Both issue renewable sessions and rebuild authorization claims on refresh.
-                options.AllowPasswordFlow()
+                // Both issue renewable sessions and rebuild authorization claims on refresh. The code
+                // flow is for third-party (MCP) clients, which must never see the user's credentials;
+                // client permissions keep it off the first-party clients.
+                options.AllowAuthorizationCodeFlow()
+                    .RequireProofKeyForCodeExchange()
+                    .AllowPasswordFlow()
                     .AllowRefreshTokenFlow()
                     .AllowCustomFlow(PasskeyEndpoints.GrantType);
+
+                // "plain" sends the verifier's own value as the challenge, which protects nothing once
+                // the authorization request is observed. MCP requires S256; offer nothing weaker.
+                options.Configure(server => server.CodeChallengeMethods.Remove(CodeChallengeMethods.Plain));
 
                 options.RegisterScopes(
                     Scopes.OpenId,
@@ -89,7 +102,15 @@ public static class AuthenticationSetup
                     Scopes.Profile,
                     Scopes.Roles,
                     Scopes.OfflineAccess,
-                    PlannerScopes.Api);
+                    PlannerScopes.Api,
+                    PlannerScopes.Mcp);
+
+                // The only audience a client may ask for. Unregistered resources are rejected by
+                // OpenIddict before any handler here runs.
+                if (auth.ResolveMcpResource() is { } mcpResource)
+                {
+                    options.RegisterResources(mcpResource);
+                }
 
                 options.SetAccessTokenLifetime(TimeSpan.FromMinutes(auth.AccessTokenMinutes));
                 options.SetRefreshTokenLifetime(TimeSpan.FromDays(auth.RefreshTokenDays));
@@ -103,6 +124,7 @@ public static class AuthenticationSetup
                 options.DisableAccessTokenEncryption();
 
                 var aspNetCore = options.UseAspNetCore()
+                    .EnableAuthorizationEndpointPassthrough()
                     .EnableTokenEndpointPassthrough()
                     .EnableUserInfoEndpointPassthrough();
 
@@ -118,7 +140,32 @@ public static class AuthenticationSetup
                 options.UseAspNetCore();
             });
 
-        services.AddAuthentication(OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme);
+        services.AddAuthentication(OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)
+            .AddCookie(AuthorizeCookieScheme, options =>
+            {
+                // Scoped to the authorize endpoint, so no other request ever carries it. Strict is enough:
+                // the hop from the consent page to /connect/authorize is a same-origin navigation.
+                options.Cookie.Name = "planner.authorize";
+                options.Cookie.Path = "/connect/authorize";
+                options.Cookie.HttpOnly = true;
+                options.Cookie.SameSite = SameSiteMode.Strict;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                options.Cookie.IsEssential = true;
+                options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
+                options.SlidingExpiration = false;
+
+                // Never redirect to a login page this API does not have; the endpoints decide.
+                options.Events.OnRedirectToLogin = context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    return Task.CompletedTask;
+                };
+                options.Events.OnRedirectToAccessDenied = context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    return Task.CompletedTask;
+                };
+            });
 
         services.AddAuthorizationBuilder()
             .SetFallbackPolicy(new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
