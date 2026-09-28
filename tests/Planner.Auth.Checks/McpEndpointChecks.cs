@@ -117,12 +117,12 @@ public static class McpEndpointChecks
                     "list_teams", "list_projects", "get_project", "search_issues", "get_issue", "get_inbox",
                     "get_activity", "team_digest", "list_documents", "get_document", "read_attachment",
                     "list_comments", "create_issue", "update_issue", "move_issue", "update_project",
-                    "create_document", "update_document", "attach_text", "add_comment", "update_comment"
+                    "create_document", "update_document", "link_document", "attach_text", "add_comment", "update_comment"
                 ];
                 string[] writes =
                 [
                     "create_issue", "update_issue", "move_issue", "update_project", "create_document",
-                    "update_document", "attach_text", "add_comment", "update_comment"
+                    "update_document", "link_document", "attach_text", "add_comment", "update_comment"
                 ];
                 check(expected.All(names.Contains), "Every tool is listed: " + string.Join(", ", expected));
                 bool Hint(JsonElement tool, string hint) => tool.GetProperty("annotations").GetProperty(hint).GetBoolean();
@@ -132,11 +132,17 @@ public static class McpEndpointChecks
                     "Every tool that only reads is annotated read-only");
                 check(tools.Where(t => writes.Contains(Name(t))).All(t => !Hint(t, "readOnlyHint") && !Hint(t, "destructiveHint")),
                     "Every write is annotated as a non-destructive write, so clients ask before calling it");
-                check(tools.Where(t => Name(t) is "create_issue" or "create_document" or "attach_text" or "add_comment").All(t => !Hint(t, "idempotentHint")),
+                check(tools.Where(t => Name(t) is "create_issue" or "create_document" or "link_document" or "attach_text" or "add_comment").All(t => !Hint(t, "idempotentHint")),
                     "Tools that add something are annotated non-idempotent");
                 check(tools.Single(t => Name(t) == "create_issue").GetProperty("inputSchema").GetProperty("required").EnumerateArray()
                         .Select(r => r.GetString()).Order().SequenceEqual(["team", "title"]),
                     "create_issue requires only a team and a title");
+                check(tools.Single(t => Name(t) == "link_document").GetProperty("inputSchema").GetProperty("required").EnumerateArray()
+                        .Select(r => r.GetString()).Order().SequenceEqual(["document", "issue"]),
+                    "link_document requires an issue and a document");
+                var documentFields = tools.Single(t => Name(t) == "update_document").GetProperty("inputSchema").GetProperty("properties");
+                check(new[] { "document", "content", "append", "version", "title" }.All(field => documentFields.TryGetProperty(field, out _)),
+                    "update_document exposes document editing and version fields");
 
                 var prompts = await Result(await Rpc(client, mcp, "prompts/list", new { }));
                 check(prompts.GetProperty("prompts").EnumerateArray().Any(p => p.GetProperty("name").GetString() == "team_summary"),

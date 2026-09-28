@@ -6,6 +6,7 @@ using Planner.Api.Endpoints;
 using Planner.Contracts.Common;
 using Planner.Contracts.Enums;
 using Planner.Contracts.Projects;
+using Planner.Contracts.Issues;
 
 namespace Planner.Api.Mcp;
 
@@ -13,7 +14,7 @@ namespace Planner.Api.Mcp;
 /// what a project is, where it stands, how it is built and where it is going. Writes go through the same
 /// commands as the REST API. Replacing text needs the version it was read at; appending never does.</summary>
 [McpServerToolType]
-public sealed class ProjectDocumentTools(McpReader reader, ProjectCommands projects, DocumentCommands documents)
+public sealed class ProjectDocumentTools(McpReader reader, ProjectCommands projects, DocumentCommands documents, AttachmentCommands attachments)
 {
     private static readonly string[] ProjectClearable = ["summary", "description", "lead", "startDate", "targetDate"];
 
@@ -158,7 +159,8 @@ public sealed class ProjectDocumentTools(McpReader reader, ProjectCommands proje
             d.UpdatedBy,
             updatedAt = TimeZoneInfo.ConvertTime(d.UpdatedAt, zone),
             d.Length,
-            archived = d.Archived ? true : (bool?)null
+            archived = d.Archived ? true : (bool?)null,
+            url = reader.WebUrl($"app/documents/{d.Id.ToBase58()}")
         }));
     }
 
@@ -190,7 +192,7 @@ public sealed class ProjectDocumentTools(McpReader reader, ProjectCommands proje
             updatedAt = TimeZoneInfo.ConvertTime(found.UpdatedAt, zone),
             archived = found.ArchivedAt is not null ? true : (bool?)null,
             version = McpReader.VersionOf(found.UpdatedAt),
-            url = found.ProjectId is { } p ? reader.WebUrl($"app/projects/{p.ToBase58()}") : null
+            url = reader.WebUrl($"app/documents/{found.Id.ToBase58()}")
         });
     }
 
@@ -281,6 +283,36 @@ public sealed class ProjectDocumentTools(McpReader reader, ProjectCommands proje
         return await ChangedAsync(found.Id, created: false, ct);
     }
 
+    [McpServerTool(Name = "link_document", Title = "Link a project document to an issue", ReadOnly = false,
+        Destructive = false, Idempotent = false, OpenWorld = false)]
+    [Description("Link an existing project document to an issue's attachments without copying its content. " +
+        "The document must be active and belong to the issue's project and team. Duplicate links are refused. " +
+        "Use list_documents to find documents, get_document to read them, and update_document to edit the shared original.")]
+    public async Task<string> LinkDocumentAsync(
+        [Description("The issue key, e.g. DEV-42.")] string issue,
+        [Description("The document id, title, or a unique part of its title within the issue's project.")] string document,
+        CancellationToken ct = default)
+    {
+        var target = await reader.ResolveIssueAsync(issue, ct);
+        if (target.ProjectId is null)
+            throw new McpException("Assign this issue to a project before linking a project document.");
+
+        var found = await reader.ResolveDocumentAsync(document, target.TeamId, target.ProjectId, ct);
+        var outcome = await attachments.LinkAsync(target.Id,
+            new CreateAttachmentRequest(found.Title, $"/documents/{found.Id.ToBase58()}"), ct);
+        if (outcome.Value is null)
+            throw new McpException(outcome.ErrorMessage ?? "The document could not be linked.");
+
+        return McpReader.Serialize(new
+        {
+            attachmentId = outcome.Value.Id.ToBase58(),
+            documentId = found.Id.ToBase58(),
+            found.Title,
+            issue = issue.Trim().ToUpperInvariant(),
+            url = reader.WebUrl($"app/documents/{found.Id.ToBase58()}")
+        });
+    }
+
     private async Task<Domain.Entities.Document> ResolveAsync(string document, string? team, string? project, CancellationToken ct)
     {
         var teamId = team is null ? (Guid?)null : (await reader.ResolveTeamAsync(team, ct)).Id;
@@ -303,7 +335,7 @@ public sealed class ProjectDocumentTools(McpReader reader, ProjectCommands proje
             now.Project,
             length = now.Length,
             version = McpReader.VersionOf(now.UpdatedAt),
-            url = now.ProjectId is { } p ? reader.WebUrl($"app/projects/{p.ToBase58()}") : null
+            url = reader.WebUrl($"app/documents/{id.ToBase58()}")
         });
     }
 

@@ -66,6 +66,7 @@ Tools see only what the user can see in the app, and change only what the user c
 | `update_project` | Edit a project's brief, summary, name, status, health, lead and dates. |
 | `create_document` | Write a Markdown document in a team, optionally on a project. A second document with the same title in the same place is refused in favour of `update_document`. |
 | `update_document` | Rename a document, append to it, or rewrite it. |
+| `link_document` | Link an existing active project document to an issue in the same project and team. Uses the same permissions and validation as the UI; duplicate links are refused. |
 | `attach_text` | Attach a text file to an issue, or replace one with the same name. At most 1 MB. |
 | `add_comment` | Comment on an issue in Markdown, or reply to a comment by id. |
 | `update_comment` | Rewrite one of the user's own comments. Other people's comments cannot be edited, whatever the user's role. |
@@ -96,7 +97,13 @@ Descriptions, briefs and documents can be changed two ways:
   issue, project or document changed since, the write is refused and the assistant is told to read
   again and reapply its edit, so a person's edit made in the meantime is never silently overwritten.
 
-Attachments cannot be edited in place: `attach_text` with `replace: true` uploads the new file and then
+Project document links point to the shared original. Use `list_documents(project: ...)` to find one,
+then `link_document(issue: "DEV-42", document: "<document id>")` to link it. `get_issue` includes
+`documentId` on these attachments. Read it with `get_document`, then pass the returned `version`
+with replacement `content` to `update_document` (or use `append` to add text). Document tools return
+direct links to the document reader/editor. Editing the original is visible from every issue linking it.
+
+Uploaded file attachments cannot be edited in place: `attach_text` with `replace: true` uploads the new file and then
 removes the old one. If the old one cannot be removed (a guest may add files but not remove someone
 else's), both stay and the answer says so.
 

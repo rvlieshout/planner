@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { ApiError, attachments as attachmentsApi, issues as issuesApi } from '$lib/api';
-  import type { AttachmentDto, Guid } from '$lib/api/types';
+  import { ApiError, attachments as attachmentsApi, issues as issuesApi, projects } from '$lib/api';
+  import type { AttachmentDto, DocumentSummary, Guid } from '$lib/api/types';
+  import { navigate } from '$lib/navigation.svelte';
   import { fileSize, relativeTime } from '$lib/format';
   import Icon from '$components/Icon.svelte';
   import { confirm } from '$components/confirm.svelte';
@@ -16,6 +17,7 @@
    */
   interface Props {
     issueId: Guid;
+    projectId: Guid | null;
     attachments: AttachmentDto[];
     canAttach: boolean;
     onchange: (attachments: AttachmentDto[]) => void;
@@ -23,7 +25,7 @@
     ondraft?: (hasDraft: boolean) => void;
   }
 
-  let { issueId, attachments, canAttach, onchange, ondraft }: Props = $props();
+  let { issueId, projectId, attachments, canAttach, onchange, ondraft }: Props = $props();
 
   const MAX_BYTES = 20 * 1024 * 1024;
 
@@ -33,9 +35,53 @@
   let busy = $state(false);
   let error = $state<string | null>(null);
   let fileInput = $state<HTMLInputElement | null>(null);
+  let pickingDocument = $state(false);
+  let projectDocuments = $state<DocumentSummary[]>([]);
+  let selectedDocument = $state('');
 
   $effect(() => {
-    ondraft?.(linking && (linkName.trim().length > 0 || linkUri.trim().length > 0));
+    void issueId;
+    void projectId;
+    pickingDocument = false;
+    selectedDocument = '';
+    projectDocuments = [];
+  });
+
+  async function pickDocument() {
+    if (!projectId) return;
+    const requested = projectId;
+    busy = true;
+    error = null;
+    try {
+      const loaded = await projects.documents(requested);
+      if (projectId !== requested) return;
+      projectDocuments = loaded.filter((document) => !attachments.some((a) => a.storageUri === `/documents/${document.id}`));
+      selectedDocument = '';
+      pickingDocument = true;
+    } catch (failure) {
+      error = failure instanceof ApiError ? failure.message : 'Could not load project documents.';
+    } finally { busy = false; }
+  }
+
+  async function linkDocument() {
+    const document = projectDocuments.find((candidate) => candidate.id === selectedDocument);
+    if (!document || busy) return;
+    busy = true;
+    error = null;
+    try {
+      const attachment = await issuesApi.linkAttachment(issueId, {
+        fileName: document.title, storageUri: `/documents/${document.id}`
+      });
+      onchange([...attachments, attachment]);
+      selectedDocument = '';
+      pickingDocument = false;
+    } catch (failure) {
+      error = failure instanceof ApiError ? failure.message : 'Could not link this document.';
+    } finally { busy = false; }
+  }
+
+  $effect(() => {
+    ondraft?.((linking && (linkName.trim().length > 0 || linkUri.trim().length > 0)) || (pickingDocument && !!selectedDocument));
   });
 
   async function upload(event: Event) {
@@ -86,6 +132,10 @@
   }
 
   async function download(attachment: AttachmentDto) {
+    if (/^\/documents\/[1-9A-HJ-NP-Za-km-z]{22}$/.test(attachment.storageUri)) {
+      await navigate(`/documents/${attachment.storageUri.slice('/documents/'.length)}`);
+      return;
+    }
     if (!attachmentsApi.isStored(attachment.storageUri)) {
       window.open(attachment.storageUri, '_blank', 'noopener');
       return;
@@ -134,6 +184,9 @@
     <h3 class="caption">Attachments</h3>
     {#if canAttach}
       <div class="row-tight">
+        {#if projectId}
+          <button type="button" class="btn btn-quiet btn-sm" onclick={() => void pickDocument()} disabled={busy}>Link project document</button>
+        {/if}
         <button
           type="button"
           class="btn btn-quiet btn-icon btn-sm"
@@ -179,6 +232,23 @@
           Add link
         </button>
         <button type="button" class="btn btn-sm" onclick={() => (linking = false)}>Cancel</button>
+      </div>
+    </div>
+  {/if}
+
+  {#if pickingDocument}
+    <div class="link-form">
+      <label for="project-document">Project document</label>
+      <select id="project-document" class="input" bind:value={selectedDocument} disabled={busy}>
+        <option value="">Choose a document…</option>
+        {#each projectDocuments as document (document.id)}
+          <option value={document.id}>{document.title}</option>
+        {/each}
+      </select>
+      {#if !projectDocuments.length}<p class="muted">No unlinked documents in this project.</p>{/if}
+      <div class="row-tight">
+        <button type="button" class="btn btn-primary btn-sm" onclick={() => void linkDocument()} disabled={busy || !selectedDocument}>Add document link</button>
+        <button type="button" class="btn btn-sm" onclick={() => (pickingDocument = false)} disabled={busy}>Cancel</button>
       </div>
     </div>
   {/if}

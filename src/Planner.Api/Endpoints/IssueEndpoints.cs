@@ -940,6 +940,11 @@ public static class IssueEndpoints
     }
 
     private static async Task<IResult> CreateAttachmentAsync(
+        Guid id, CreateAttachmentRequest request, AttachmentCommands attachments, CancellationToken ct) =>
+        (await attachments.LinkAsync(id, request, ct))
+            .ToResult(dto => Results.Created($"/api/v1/attachments/{dto.Id.ToBase58()}", dto));
+
+    internal static async Task<WriteResult<AttachmentDto>> ApplyCreateAttachmentAsync(
         Guid id,
         CreateAttachmentRequest request,
         PlannerDbContext db,
@@ -952,17 +957,17 @@ public static class IssueEndpoints
         var issue = await db.Issues.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct);
         if (issue is null)
         {
-            return ApiResults.NotFound("That issue");
+            return WriteResult<AttachmentDto>.Failed(ApiResults.NotFound("That issue"));
         }
 
         if (await ApiResults.RequireTeamAsync(access, issue.TeamId, TeamPermission.Comment, ct) is { } denied)
         {
-            return denied;
+            return WriteResult<AttachmentDto>.Failed(denied);
         }
 
         if (ApiResults.RejectArchived(issue.ArchivedAt) is { } archived)
         {
-            return archived;
+            return WriteResult<AttachmentDto>.Failed(archived);
         }
 
         var validation = new Validation()
@@ -973,7 +978,25 @@ public static class IssueEndpoints
 
         if (validation.HasErrors)
         {
-            return validation.ToResult();
+            return WriteResult<AttachmentDto>.Failed(validation.ToResult());
+        }
+
+        // Internal document links are portable across hosts and remain behind document permissions.
+        if (request.StorageUri.StartsWith("/documents/", StringComparison.Ordinal))
+        {
+            if (!Base58.TryParse(request.StorageUri.AsSpan("/documents/".Length), out var documentId))
+                return WriteResult<AttachmentDto>.Failed(ApiResults.BadRequest("That document link is invalid."));
+
+            var document = await db.Documents.AsNoTracking().FirstOrDefaultAsync(d =>
+                d.Id == documentId && d.TeamId == issue.TeamId &&
+                d.ProjectId != null && d.ProjectId == issue.ProjectId && d.ArchivedAt == null, ct);
+            if (document is null)
+                return WriteResult<AttachmentDto>.Failed(ApiResults.BadRequest("Choose an active document attached to this issue's project."));
+
+            if (await db.Attachments.AnyAsync(a => a.IssueId == id && a.StorageUri == request.StorageUri, ct))
+                return WriteResult<AttachmentDto>.Failed(ApiResults.BadRequest("That document is already linked to this issue."));
+
+            request = request with { FileName = document.Title, ContentType = "text/markdown", SizeBytes = null };
         }
 
         var attachment = new Attachment
@@ -997,7 +1020,7 @@ public static class IssueEndpoints
             .Select(Mapping.AttachmentProjection).FirstAsync(ct);
 
         await notifier.AttachmentChanged(ChangeKind.Created, dto, issue.TeamId);
-        return Results.Created($"/api/v1/attachments/{attachment.Id.ToBase58()}", dto);
+        return WriteResult<AttachmentDto>.Succeeded(dto);
     }
 
     private static async Task<IResult> DeleteAttachmentAsync(

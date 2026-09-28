@@ -33,7 +33,7 @@ public static class McpSetup
 
         Changes are made as the user, with their permissions, and appear at once for their whole team:
         create_issue, update_issue, move_issue, update_project, create_document, update_document,
-        attach_text, add_comment and update_comment. Make the changes the user asked for, or that the task they gave you plainly needs.
+        link_document, attach_text, add_comment and update_comment. Make the changes the user asked for, or that the task they gave you plainly needs.
         When the target or the content is unclear, ask first rather than guess. Afterwards, say what
         changed and give the key or link.
 
@@ -42,6 +42,12 @@ public static class McpSetup
         get_document) hold the rest: overview, current state, architecture, decisions, direction. Read
         these before working on a project, and keep them current when your work changes what they say.
         Keep one document per subject and update it rather than creating a new one.
+
+        To reference a project document from an issue, use link_document(issue, document). It adds a
+        link to the shared original, not a copy. Both must belong to the same project and team; assign
+        the issue to that project first if needed. get_issue returns documentId for these attachments.
+        Read that id with get_document and edit it with update_document. Do not use attach_text to
+        edit a linked project document: that creates a separate file instead.
 
         Editing text safely: to add, use appendToDescription or append; nothing is lost. To rewrite, read
         first, edit what you read, and pass its `version` back. A write from a stale read is refused, so

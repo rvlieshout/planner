@@ -518,6 +518,14 @@ Every control is a real element: buttons are `<button>`, the modal is `<dialog>`
 
 - **Filtering, search and saved views.** The API's filter surface is much richer than the UI exposes;
   only the issue picker on the relations panel uses `?search=`.
-- **Documents.** `GET /api/v1/documents` is complete on the server and unused here.
+- **Documents.** Project overviews list attached Markdown documents. `/documents/[id]` renders
+  their content and lets team writers edit the title and Markdown, with explicit Save/Cancel
+  and the shared unsaved-work navigation guard. Archived documents remain readable.
+  Issues can select a document from their project through **Link project document** in Attachments.
+  Links use the portable `/documents/{id}` path; the API checks project/team membership,
+  rejects archived documents and duplicate links, and applies the usual attachment permissions.
+  Removing a link leaves the original document intact. Renaming a document preserves its link;
+  the attachment display name is the title at linking time. Deleted documents show the normal
+  not-found response when opened. Project documents are Markdown records, not binary file uploads.
 - **Archiving and restoring projects,** which needs somewhere to see archived ones first.
 - Offline queueing of writes.

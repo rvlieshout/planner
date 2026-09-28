@@ -256,16 +256,16 @@ export const documents = {
   get: (id: Guid, o: Signal = {}) => request<DocumentDto>(`${v1}/documents/${id}`, o),
 
   create: (body: CreateDocumentRequest, o: Signal = {}) =>
-    request<DocumentDto>(`${v1}/documents`, { ...o, method: 'POST', body }),
+    request<DocumentSummary>(`${v1}/documents`, { ...o, method: 'POST', body }),
 
   update: (id: Guid, body: UpdateDocumentRequest, o: Signal = {}) =>
-    request<DocumentDto>(`${v1}/documents/${id}`, { ...o, method: 'PATCH', body }),
+    request<DocumentSummary>(`${v1}/documents/${id}`, { ...o, method: 'PATCH', body }),
 
   archive: (id: Guid, o: Signal = {}) =>
-    request<DocumentDto>(`${v1}/documents/${id}/archive`, { ...o, method: 'POST' }),
+    request<DocumentSummary>(`${v1}/documents/${id}/archive`, { ...o, method: 'POST' }),
 
   restore: (id: Guid, o: Signal = {}) =>
-    request<DocumentDto>(`${v1}/documents/${id}/restore`, { ...o, method: 'POST' }),
+    request<DocumentSummary>(`${v1}/documents/${id}/restore`, { ...o, method: 'POST' }),
 
   remove: (id: Guid, o: Signal = {}) =>
     request<void>(`${v1}/documents/${id}`, { ...o, method: 'DELETE' })

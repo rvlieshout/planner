@@ -172,12 +172,15 @@ public sealed class IssueTools(McpReader reader)
             // With ids, to reply with add_comment or edit the user's own with update_comment.
             comments,
             commentsOmitted = Math.Max(0, commentTotal - commentLimit),
-            // Read text files with read_attachment; a link points somewhere outside Planner.
+            // Project links expose the id for get_document/update_document; other files use read_attachment.
             attachments = files.Select(a => new
             {
                 id = a.Id.ToBase58(),
                 a.FileName,
                 a.SizeBytes,
+                documentId = a.StorageUri.StartsWith("/documents/", StringComparison.Ordinal) &&
+                    Base58.TryParse(a.StorageUri.AsSpan("/documents/".Length), out var documentId)
+                    ? documentId.ToBase58() : null,
                 a.UploadedBy,
                 at = TimeZoneInfo.ConvertTime(a.CreatedAt, zone),
                 link = a.StorageUri.StartsWith("planner-attachment:", StringComparison.Ordinal) ? null : a.StorageUri

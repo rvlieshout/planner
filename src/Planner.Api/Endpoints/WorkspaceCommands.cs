@@ -68,6 +68,9 @@ public sealed class AttachmentCommands(
     IWebHostEnvironment environment,
     ILoggerFactory loggers)
 {
+    public Task<WriteResult<AttachmentDto>> LinkAsync(Guid issueId, CreateAttachmentRequest request, CancellationToken ct) =>
+        IssueEndpoints.ApplyCreateAttachmentAsync(issueId, request, db, access, current, activity, notifier, ct);
+
     public Task<WriteResult<AttachmentDto>> StoreAsync(
         Guid issueId, string fileName, Stream content, long? declaredLength, CancellationToken ct) =>
         IssueFileEndpoints.StoreAsync(issueId, fileName, content, declaredLength, db, access, current, activity,

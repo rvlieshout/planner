@@ -18,6 +18,7 @@
   import ListView from '$components/issues/ListView.svelte';
   import Icon from '$components/Icon.svelte';
   import Progress from '$components/Progress.svelte';
+  import ProjectDocuments from '$components/projects/ProjectDocuments.svelte';
 
   /**
    * A project's board, with the project's own rollup and milestones above it. Board or list is the
@@ -244,6 +245,7 @@
         {#if project.summary}<p class="summary">{project.summary}</p>{/if}
 
         <Progress {progress} />
+        <ProjectDocuments {projectId} />
 
         {#if milestones.length > 0}
           <div class="milestones">

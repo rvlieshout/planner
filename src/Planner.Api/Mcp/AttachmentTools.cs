@@ -22,7 +22,7 @@ public sealed class AttachmentTools(McpReader reader, AttachmentCommands attachm
     private const int MaxWriteBytes = 1024 * 1024;
 
     [McpServerTool(Name = "read_attachment", Title = "Read an attachment", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("The text of a file attached to an issue (Markdown, plain text, JSON, code...). get_issue lists an issue's attachments with their ids. Binary files and links are described, not read.")]
+    [Description("The text of a file attached to an issue (Markdown, plain text, JSON, code...). get_issue lists an issue's attachments with their ids. Binary files and links are described, not read. For project document links, use get_document with the documentId from get_issue, then update_document to edit the original.")]
     public async Task<string> ReadAttachmentAsync(
         [Description("The issue key the file is on, e.g. DEV-42.")] string issue,
         [Description("The attachment's id from get_issue, or its file name.")] string attachment,

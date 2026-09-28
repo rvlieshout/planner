@@ -781,6 +781,7 @@
       <hr />
 
       <IssueAttachments
+        projectId={issue.projectId}
         issueId={issue.id}
         attachments={issue.attachments}
         canAttach={canComment}
