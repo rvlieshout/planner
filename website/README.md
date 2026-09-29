@@ -27,7 +27,9 @@ npm run preview
 ## Changelog
 
 Release notes live in `src/data/changelog.json` and are rendered at build time, newest version first.
-The file starts empty. Use this shape:
+There is one entry per git tag (`git tag -l`); when you tag a release, add its entry from the commits
+since the previous tag (`git log --format=%s vPREV..vNEW`), written for users and leaving out
+build and deploy chores. Keep the page free of any product or company name. Use this shape:
 
 ```json
 [

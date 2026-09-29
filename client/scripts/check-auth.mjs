@@ -83,7 +83,34 @@ try {
 
   globalThis.fetch = async () => ok();
   await tokens.signInWithPasskey('signed-credential');
+  values.set('planner.refreshToken', 'rotated-by-other-tab');
+  globalThis.fetch = async (_url, init) => {
+    assert.equal(init.body.get('refresh_token'), 'rotated-by-other-tab');
+    return ok();
+  };
+  await tokens.refresh();
+  assert.equal(values.get('planner.refreshToken'), 'renewed');
+  console.log('PASS: Refresh redeems the token another tab stored, not its own stale copy');
+
+  let locked = [];
+  navigator.locks = { request: async (name, task) => { locked.push(name); return await task(); } };
+  globalThis.fetch = async () => ok();
+  await tokens.refresh();
+  assert.deepEqual(locked, ['planner.refresh']);
+  delete navigator.locks;
+  console.log('PASS: Refresh holds a lock shared by every tab');
+
+  values.set('planner.refreshToken', 'newer-from-other-tab');
   tokens.clear();
+  assert.equal(tokens.accessToken, null);
+  assert.equal(values.get('planner.refreshToken'), 'newer-from-other-tab');
+  console.log('PASS: A tab dropping its own session leaves a newer one from another tab in place');
+
+  values.set('planner.refreshToken', 'renewed');
+  globalThis.fetch = async () => ok();
+  await tokens.signInWithPasskey('signed-credential');
+  values.set('planner.refreshToken', 'newer-from-other-tab');
+  tokens.signOut();
   assert.equal(tokens.accessToken, null);
   assert.equal(values.has('planner.refreshToken'), false);
   console.log('PASS: Explicit sign-out clears the remembered session');

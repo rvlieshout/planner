@@ -19,6 +19,7 @@ const TOKEN_ENDPOINT = '/connect/token';
 const CLIENT_ID = 'planner-web';
 const SCOPE = 'openid profile roles offline_access planner.api';
 const STORAGE_KEY = 'planner.refreshToken';
+const REFRESH_LOCK = 'planner.refresh';
 
 /** Refresh this long before the access token actually expires, so a request never races the clock. */
 const EXPIRY_MARGIN_MS = 60_000;
@@ -84,36 +85,61 @@ class Tokens {
   }
 
   async #doRefresh(): Promise<string> {
-    const token = this.#refresh;
+    // Every open tab shares one refresh token, and the server rotates it on each use: redeeming the
+    // one another tab has already exchanged is refused, and OpenIddict treats that as token theft and
+    // revokes the whole session. So refreshes are serialized across tabs, and the token is read from
+    // storage inside the lock rather than from this tab's copy, which is stale the moment any other
+    // tab (or this one, back from the back-forward cache) has refreshed since.
+    return await acrossTabs(REFRESH_LOCK, async () => {
+      const token = read(STORAGE_KEY) ?? this.#refresh;
 
-    if (!token) {
-      throw new ApiError(401, 'There is no session to resume.');
-    }
-
-    try {
-      const response = await this.#grant({
-        grant_type: 'refresh_token',
-        refresh_token: token,
-        scope: SCOPE
-      });
-
-      this.#apply(response);
-      return response.access_token;
-    } catch (error) {
-      // A refresh token the server has rejected will not start working on the third attempt, and
-      // retrying only hammers the token endpoint. Drop it and let the caller send the user to sign in.
-      if (error instanceof ApiError && [400, 401, 403].includes(error.status)) {
-        this.clear();
+      if (!token) {
+        this.#refresh = null;
+        throw new ApiError(401, 'There is no session to resume.');
       }
 
-      throw error;
-    }
+      this.#refresh = token;
+
+      try {
+        const response = await this.#grant({
+          grant_type: 'refresh_token',
+          refresh_token: token,
+          scope: SCOPE
+        });
+
+        this.#apply(response);
+        return response.access_token;
+      } catch (error) {
+        // A refresh token the server has rejected will not start working on the third attempt, and
+        // retrying only hammers the token endpoint. Drop it and let the caller send the user to sign in.
+        if (error instanceof ApiError && [400, 401, 403].includes(error.status)) {
+          this.clear();
+        }
+
+        throw error;
+      }
+    });
   }
 
+  /**
+   * Forgets this tab's session. The stored refresh token goes too, but only when it is the one this
+   * tab was using: a newer one belongs to a tab that refreshed since, and is still good.
+   */
   clear(): void {
+    const mine = this.#refresh;
+
     this.#access = null;
     this.#refresh = null;
     this.#expiresAt = 0;
+
+    if (mine !== null && read(STORAGE_KEY) === mine) {
+      remove(STORAGE_KEY);
+    }
+  }
+
+  /** Ends the session for every tab, whichever token is stored. */
+  signOut(): void {
+    this.clear();
     remove(STORAGE_KEY);
   }
 
@@ -178,6 +204,19 @@ async function toOAuthError(response: Response): Promise<ApiError> {
     response.status,
     payload.error_description ?? payload.error ?? 'Sign-in failed.'
   );
+}
+
+/**
+ * Runs `task` holding a lock no other tab of this origin can hold at the same time. Without the Web
+ * Locks API (an old browser, or a page served over plain http from somewhere other than localhost)
+ * it simply runs, which is what every tab did before.
+ */
+async function acrossTabs<T>(name: string, task: () => Promise<T>): Promise<T> {
+  if (typeof navigator === 'undefined' || !navigator.locks) {
+    return await task();
+  }
+
+  return (await navigator.locks.request(name, task)) as T;
 }
 
 function read(key: string): string | null {

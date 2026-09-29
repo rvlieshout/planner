@@ -1,1 +1,59 @@
-[]
+[
+  {
+    "version": "1.0.2",
+    "title": "Passkeys, command palette and board views",
+    "date": "2026-09-23",
+    "changes": [
+      "Sign in with a passkey; a setup wizard follows your first password sign-in.",
+      "Command palette and unified keyboard shortcuts.",
+      "Board list view, and subscriptions that follow what you have access to.",
+      "Descriptions and comments render as Markdown.",
+      "Project and milestone progress is derived from their issues.",
+      "Change priority straight from rows and cards; reorder projects in the sidebar.",
+      "New issues start in the column you created them from.",
+      "Manage team and organisation labels and team states from the teams page.",
+      "Unified assignee picker with regional date and time formats.",
+      "Smaller images with a lightbox viewer.",
+      "The desktop client is retired: everything runs in the browser."
+    ]
+  },
+  {
+    "version": "1.1.0",
+    "title": "Inbox, notifications and activity",
+    "date": "2026-09-24",
+    "changes": [
+      "Inbox with notifications and an activity feed.",
+      "Boards use one column per state.",
+      "Archived issues are read-only."
+    ]
+  },
+  {
+    "version": "1.1.2",
+    "title": "AI assistant access over MCP",
+    "date": "2026-09-25",
+    "changes": [
+      "Connect AI assistants over MCP, authorised with your own account via OAuth.",
+      "Assistants can read and create issues, and edit issues, projects, documents and issue files.",
+      "Assistants can read, post and edit comments.",
+      "The project picker offers the projects of the issue's own team.",
+      "Fixed a title rendering issue."
+    ]
+  },
+  {
+    "version": "1.1.3",
+    "title": "Issues linked to project documents",
+    "date": "2026-09-28",
+    "changes": [
+      "Link issues to project documents."
+    ]
+  },
+  {
+    "version": "1.1.4",
+    "title": "Project overview and archive navigation",
+    "date": "2026-09-29",
+    "changes": [
+      "Toggle a project's overview.",
+      "Navigate to and from the archive."
+    ]
+  }
+]

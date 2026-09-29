@@ -2,9 +2,9 @@
 import notes from '../data/changelog.json';
 import '../styles/global.css';
 
-// Release notes are authored in src/data/changelog.json and rendered at build time. They used to be
-// cross-referenced against the desktop client's Velopack feed at /updates; that feed is gone, so this
-// file is now the only source and a deploy is what publishes a new entry.
+// Release notes are authored in src/data/changelog.json and rendered at build time, one entry per
+// git tag. The page deliberately carries no product or company name: its readers already know where
+// they are and only need the way in.
 type Note = { version: string; title: string; date?: string; changes?: string[] };
 
 const releases = (notes as Note[]).slice().sort((left, right) => {
@@ -13,73 +13,79 @@ const releases = (notes as Note[]).slice().sort((left, right) => {
 });
 
 const formatDate = (value: string) =>
-  new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
-    .format(new Date(value));
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC' }).format(new Date(value));
 ---
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Open Planner in your browser and catch up on the latest releases." />
+    <meta name="description" content="Sign in and release notes." />
     <meta name="robots" content="noindex, nofollow" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Planner · Open</title>
+    <title>Sign in</title>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <div class="shell">
       <header>
-        <a class="brand" href="/" aria-label="Planner home"><img src="/favicon.svg" width="32" height="32" alt="" />Planner<span class="demo">Demo</span></a>
-        <nav aria-label="Main navigation"><a href="/app">Open Planner</a><a href="#changelog">Changelog</a></nav>
+        <img class="mark" src="/favicon.svg" width="24" height="24" alt="" />
+        <nav aria-label="Main navigation">
+          <a href="#changelog">Changelog</a>
+          <a class="nav-open" href="/app">Open <span aria-hidden="true">→</span></a>
+        </nav>
       </header>
       <main id="main">
-        <section id="open" class="download-section" aria-labelledby="download-title">
-          <div class="intro">
-            <p class="eyebrow"><span class="dot"></span> PLANNER</p>
-            <h1>A home for<br />your team's work.</h1>
-            <p class="lede">Projects, issues, and conversations.<br class="desktop-break" /> Together in one workspace, in your browser.</p>
-            <div class="download-actions">
-              <a class="button" href="/app">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18" /></svg>
-                Open Planner
-              </a>
-              <p class="download-meta">Nothing to install <span aria-hidden="true">·</span> Sign in with your workspace account</p>
-            </div>
-          </div>
-          <aside class="setup" aria-labelledby="setup-title">
-            <div class="setup-heading"><span class="eyebrow">QUICK START</span><span class="small-label">Two steps. You're in.</span></div>
-            <h2 id="setup-title">Make yourself at home.</h2>
-            <ol>
-              <li><span class="step-number">01</span><div><h3>Open Planner</h3><p>Nothing to install: it runs in your browser, and it is already pointed at this server.</p></div></li>
-              <li><span class="step-number">02</span><div><h3>Sign in with your account</h3><p>Ask your demo host for your sign-in details.</p></div></li>
-            </ol>
-            <p class="setup-note">Planner updates itself the moment this page is redeployed. There is nothing to download and nothing to keep current.</p>
-          </aside>
+        <section class="start" aria-labelledby="start-title">
+          <h1 id="start-title">Sign in</h1>
+          <ol class="steps">
+            <li>
+              <span class="n">1</span>
+              <div>
+                <h2>Open the app</h2>
+                <p>Go to <a href="/app"><code>/app</code></a>. It runs in the browser; nothing to install.</p>
+              </div>
+            </li>
+            <li>
+              <span class="n">2</span>
+              <div>
+                <h2>Use your credentials</h2>
+                <p>First time: choose <kbd>First-time setup or recovery</kbd> and enter the email and password you received.</p>
+              </div>
+            </li>
+            <li>
+              <span class="n">3</span>
+              <div>
+                <h2>Add a passkey</h2>
+                <p>Follow the prompt after signing in. From then on, use <kbd>Sign in with a passkey</kbd>.</p>
+              </div>
+            </li>
+          </ol>
+          <a class="button" href="/app">Open the app <span aria-hidden="true">→</span></a>
+          <p class="hint">Lost access? Ask your administrator for a password reset. No email is sent.</p>
         </section>
-        <section class="changelog-section" id="changelog" aria-labelledby="changelog-title">
-          <div class="section-heading"><div><p class="eyebrow">RELEASE NOTES</p><h2 id="changelog-title">What's changed</h2></div><span class="channel">Planner</span></div>
-          <div id="release-list">
-            {releases.length === 0 && <p class="empty">Release notes will appear here with the next deploy.</p>}
-            {releases.map((release, index) => (
-              <article class="release">
-                <div class="release-label">
-                  <span class="version">v{release.version}</span>
-                  {index === 0 && <span class="latest-tag">Latest</span>}
-                  {release.date && <time datetime={release.date}>{formatDate(release.date)}</time>}
-                </div>
-                <div class="release-body">
-                  <h3>{release.title}</h3>
-                  {release.changes?.length
-                    ? <ul>{release.changes.map(change => <li>{change}</li>)}</ul>
-                    : <p class="no-notes">Release notes have not been added for this version.</p>}
-                </div>
-              </article>
-            ))}
-          </div>
+
+        <section class="changelog" id="changelog" aria-labelledby="changelog-title">
+          <h2 id="changelog-title">Changelog</h2>
+          {releases.length === 0 && <p class="empty">No releases yet.</p>}
+          {releases.map((release, index) => (
+            <article class="release">
+              <div class="release-meta">
+                <span class="version">v{release.version}</span>
+                {index === 0 && <span class="latest">latest</span>}
+                {release.date && <time datetime={release.date}>{formatDate(release.date)}</time>}
+              </div>
+              <div class="release-body">
+                <h3>{release.title}</h3>
+                {release.changes?.length
+                  ? <ul>{release.changes.map(change => <li>{change}</li>)}</ul>
+                  : <p class="empty">No notes for this version.</p>}
+              </div>
+            </article>
+          ))}
         </section>
       </main>
-      <footer><span class="footer-brand">Planner</span><span>A little more clarity. A little less busywork.</span><a href="#main">Back to top ↑</a></footer>
+      <footer><a href="#main">Top ↑</a></footer>
     </div>
   </body>
 </html>

@@ -175,6 +175,7 @@ class Session {
   }
 
   signOut(): void {
+    tokens.signOut();
     this.expire();
     this.restoreError = null;
   }
