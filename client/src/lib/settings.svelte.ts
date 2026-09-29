@@ -19,6 +19,7 @@ const KEYS = {
   sidebarCollapsed: 'planner.sidebarCollapsed',
   lastTeamId: 'planner.lastTeamId',
   boardView: 'planner.boardView',
+  projectOverview: 'planner.projectOverview',
   lastEmail: 'planner.lastEmail'
 } as const;
 
@@ -40,6 +41,9 @@ class Settings {
    */
   boardView = $state<BoardViewChoice>('board');
 
+  /** Whether a project's overview (rollup and milestones) is shown above its board; one choice for all. */
+  projectOverview = $state(true);
+
   /** Pre-fills the sign-in form. The password is never stored, by anyone, anywhere. */
   lastEmail = $state<string | null>(null);
 
@@ -59,6 +63,7 @@ class Settings {
 
     const boardView = read(KEYS.boardView);
     if (boardView === 'board' || boardView === 'list') this.boardView = boardView;
+    this.projectOverview = read(KEYS.projectOverview) !== 'false';
     this.lastEmail = read(KEYS.lastEmail);
   }
 
@@ -117,6 +122,11 @@ class Settings {
 
   toggleBoardView(): void {
     this.setBoardView(this.boardView === 'board' ? 'list' : 'board');
+  }
+
+  toggleProjectOverview(): void {
+    this.projectOverview = !this.projectOverview;
+    write(KEYS.projectOverview, String(this.projectOverview));
   }
 
   setLastEmail(email: string): void {

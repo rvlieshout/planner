@@ -337,12 +337,15 @@
       cancelLabel: 'Cancel'
     });
 
-    if (!answer) return;
+    if (!answer || !issue) return;
+
+    // Back to the board the issue sat on; an issue outside any project has none to return to.
+    const { key, projectId } = issue;
 
     try {
       announce('Archived', await issuesApi.archive(issue.id));
-      toasts.success(`${issue.key} archived.`);
-      await navigate('/my-issues', { force: true });
+      toasts.success(`${key} archived.`);
+      await navigate(projectId ? `/projects/${projectId}` : '/my-issues', { force: true });
     } catch (failure) {
       toasts.error(failure instanceof ApiError ? failure.message : 'Archiving failed.');
     }

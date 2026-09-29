@@ -32,7 +32,7 @@
   let states = $state<WorkflowStateDto[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
-  let showDetail = $state(true);
+  const showDetail = $derived(settings.projectOverview);
   /** The milestone the board is narrowed to, picked from the overview; null shows every issue. */
   let milestoneId = $state<Guid | null>(null);
 
@@ -144,7 +144,7 @@
           icon: showDetail ? 'chevron-down' : 'chevron-right',
           shortcut: 'o',
           keywords: ['details', 'milestones', 'toggle'],
-          run: () => (showDetail = !showDetail)
+          run: () => settings.toggleProjectOverview()
         },
         {
           label: 'Project settings',
@@ -184,7 +184,7 @@
     {asList ? 'Board' : 'List'}
   </button>
 
-  <button type="button" class="btn btn-sm btn-quiet" onclick={() => (showDetail = !showDetail)}>
+  <button type="button" class="btn btn-sm btn-quiet" onclick={() => settings.toggleProjectOverview()}>
     <Icon name={showDetail ? 'chevron-down' : 'chevron-right'} size={13} />
     Overview
   </button>
