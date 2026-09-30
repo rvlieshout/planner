@@ -674,6 +674,14 @@
         canEdit={canWrite}
         onchange={(next: IssueRelationDto[]) => (issue = { ...issue!, relations: next })} />
 
+      <IssueAttachments
+        projectId={issue.projectId}
+        issueId={issue.id}
+        attachments={issue.attachments}
+        canAttach={canComment}
+        onchange={(next: AttachmentDto[]) => (issue = { ...issue!, attachments: next })}
+        ondraft={(has) => (hasAttachmentDraft = has)} />
+
       <IssueActivity issueId={issue.id} />
 
       <IssueComments
@@ -780,16 +788,6 @@
       <hr />
 
       <IssueSubscribers issueId={issue.id} teamId={issue.teamId} {archived} />
-
-      <hr />
-
-      <IssueAttachments
-        projectId={issue.projectId}
-        issueId={issue.id}
-        attachments={issue.attachments}
-        canAttach={canComment}
-        onchange={(next: AttachmentDto[]) => (issue = { ...issue!, attachments: next })}
-        ondraft={(has) => (hasAttachmentDraft = has)} />
 
       <hr />
 

@@ -4,7 +4,7 @@
 > same rules — is in [web-client.md](web-client.md); the "File storage" section below applies to
 > both, because it describes the API.
 
-Opening a board card or My Issues row opens a workspace detail page. A separate breadcrumb and save toolbar stays above two independently scrolling columns. The main column contains the title, description, sub-issues, related issues, and comments. The right column contains the editable properties, labels, and attachments. Both the page and creation dialog use the same issue editor view model.
+Opening a board card or My Issues row opens a workspace detail page. A separate breadcrumb and save toolbar stays above two independently scrolling columns. The main column contains the title, description, sub-issues, related issues, attachments, activity, and comments. The right column contains the editable properties, labels, and followers; it stays a fixed width, so anything that needs room goes in the main column. Both the page and creation dialog use the same issue editor view model.
 
 Sub-issues use the dense My Issues row layout, with priority, issue key, status, title, labels, and updated time. Click to select; double-click or press Enter to open the selected issue.
 

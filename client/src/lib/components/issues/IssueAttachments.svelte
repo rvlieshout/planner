@@ -181,11 +181,14 @@
 
 <section class="attachments">
   <header class="section-header">
-    <h3 class="caption">Attachments</h3>
+    <h2>Attachments</h2>
     {#if canAttach}
       <div class="row-tight">
         {#if projectId}
-          <button type="button" class="btn btn-quiet btn-sm" onclick={() => void pickDocument()} disabled={busy}>Link project document</button>
+          <button type="button" class="btn btn-quiet btn-sm" onclick={() => void pickDocument()} disabled={busy}>
+            <Icon name="file-text" size={13} />
+            Link project document
+          </button>
         {/if}
         <button
           type="button"
@@ -281,10 +284,20 @@
 </section>
 
 <style>
+  /*
+   * Positioned so the visually hidden file input is placed against this section. Without it the
+   * input's containing block is the window, the scrolling column cannot clip it, and when the section
+   * sits below the fold the input stretches the document — which then scrolls as a whole.
+   */
   .attachments {
+    position: relative;
     display: flex;
     flex-direction: column;
-    gap: var(--s-3);
+    gap: var(--s-4);
+  }
+
+  h2 {
+    font-size: var(--text-md);
   }
 
   .list {
