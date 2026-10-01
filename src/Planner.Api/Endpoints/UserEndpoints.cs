@@ -195,7 +195,8 @@ public static class UserEndpoints
             user.IsActive,
             user.CreatedAt,
             user.LastSeenAt,
-            user.IsInvitationPending));
+            user.IsInvitationPending,
+            user.InvitationExpiresAt));
     }
 
     private static async Task<IResult> CreateAsync(
@@ -271,6 +272,28 @@ public static class UserEndpoints
             return ApiResults.BadRequest("Pending users must accept their invitation before activation.");
         }
 
+        // An address mistyped on the invitation would otherwise hold the account for good. Once someone
+        // has accepted, the address is how they sign in and stays put.
+        var newEmail = request.Email.TryGet(out var email) ? email?.Trim() : user.Email;
+        if (newEmail != user.Email)
+        {
+            if (!user.IsInvitationPending)
+            {
+                return ApiResults.BadRequest("An email address can only be changed while the invitation is pending.");
+            }
+
+            var validation = new Validation().Required(newEmail, "email");
+            if (!validation.HasErrors && await userManager.FindByEmailAsync(newEmail!) is { } taken && taken.Id != user.Id)
+            {
+                validation.Add("email", "Another account already uses this email address.");
+            }
+
+            if (validation.HasErrors)
+            {
+                return validation.ToResult();
+            }
+        }
+
         if (request.Role.TryGet(out var newRole) && newRole != currentRole)
         {
             if (!PlannerRoles.All.ContainsKey(newRole!))
@@ -306,10 +329,14 @@ public static class UserEndpoints
         user.AvatarUrl = request.AvatarUrl.Or(user.AvatarUrl);
         user.TimeZone = request.TimeZone.Or(user.TimeZone)!;
         user.IsActive = request.IsActive.Or(user.IsActive);
+        // Links already shared keep working: they name the account, not its address.
+        user.Email = newEmail;
+        user.UserName = newEmail;
 
         if (user.IsInvitationPending && request.IsActive.TryGet(out var deactivate) && !deactivate)
         {
             user.SecurityStamp = Guid.NewGuid().ToString();
+            user.InvitationExpiresAt = null;
         }
 
         var result = await userManager.UpdateAsync(user);
@@ -378,6 +405,7 @@ public static class UserEndpoints
         if (user.IsInvitationPending)
         {
             user.SecurityStamp = Guid.NewGuid().ToString();
+            user.InvitationExpiresAt = null;
         }
         var result = await userManager.UpdateAsync(user);
         if (!result.Succeeded)

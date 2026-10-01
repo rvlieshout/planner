@@ -105,7 +105,9 @@ public static class AuthEndpoints
 
         if (!user.IsActive)
         {
-            return Reject(Errors.InvalidGrant, "This account has been deactivated.");
+            return Reject(Errors.InvalidGrant, user.IsInvitationPending
+                ? "This account has not been set up yet. Open your invitation link to choose a password, or ask your administrator for a new link."
+                : "This account has been deactivated.");
         }
 
         var result = await signInManager.CheckPasswordSignInAsync(user, request.Password ?? string.Empty, lockoutOnFailure: true);

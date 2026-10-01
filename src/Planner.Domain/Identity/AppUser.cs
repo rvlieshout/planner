@@ -17,6 +17,10 @@ public class AppUser : IdentityUser<Guid>
     [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public bool IsInvitationPending => !EmailConfirmed && PasswordHash is null;
 
+    /// <summary>When the latest invitation link stops working. Null once it is accepted or revoked.
+    /// Informational only: the link itself is validated by its own expiry and the security stamp.</summary>
+    public DateTimeOffset? InvitationExpiresAt { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? LastSeenAt { get; set; }
 

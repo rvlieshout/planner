@@ -15,12 +15,15 @@ public sealed class Invitations(UserManager<AppUser> users, IDataProtectionProvi
     private readonly ITimeLimitedDataProtector protector =
         protection.CreateProtector("Planner.Invitations.v1").ToTimeLimitedDataProtector();
 
+    /// <summary>Protects a link that lasts until the account's already saved
+    /// <see cref="AppUser.InvitationExpiresAt"/>, so what the directory shows is what the link honours.</summary>
     public (string Token, DateTimeOffset ExpiresAt) Issue(AppUser user)
     {
         if (!user.IsInvitationPending || user.IsActive || string.IsNullOrEmpty(user.SecurityStamp))
             throw new InvalidOperationException("Only inactive, pending accounts can receive invitations.");
+        if (user.InvitationExpiresAt is not { } expiresAt)
+            throw new InvalidOperationException("Record the invitation's expiry before issuing its link.");
 
-        var expiresAt = DateTimeOffset.UtcNow.Add(Lifetime);
         var payload = JsonSerializer.SerializeToUtf8Bytes(new Ticket(user.Id, user.SecurityStamp));
         return (WebEncoders.Base64UrlEncode(protector.Protect(payload, expiresAt)), expiresAt);
     }
@@ -60,13 +63,16 @@ public sealed class Invitations(UserManager<AppUser> users, IDataProtectionProvi
         // AddPasswordAsync validates the password and writes its hash, the new security stamp, and
         // these flags in ONE Identity user update. EF's concurrency stamp makes simultaneous
         // acceptance/renewal fail rather than overwrite a password or consume the invitation twice.
+        var expiresAt = user.InvitationExpiresAt;
         user.IsActive = true;
         user.EmailConfirmed = true;
+        user.InvitationExpiresAt = null;
         var result = await users.AddPasswordAsync(user, password);
         if (!result.Succeeded)
         {
             user.IsActive = false;
             user.EmailConfirmed = false;
+            user.InvitationExpiresAt = expiresAt;
         }
         return result;
     }

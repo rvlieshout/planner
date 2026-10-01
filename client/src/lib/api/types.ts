@@ -113,6 +113,8 @@ export interface UserSummary {
   avatarUrl: string | null;
   isActive: boolean;
   isInvitationPending?: boolean;
+  /** When a pending account's latest invitation link lapses; null once revoked or accepted. */
+  invitationExpiresAt?: Timestamp | null;
 }
 
 export interface UserDetail extends UserSummary {
@@ -142,6 +144,8 @@ export interface UpdateUserRequest {
   timeZone?: string;
   isActive?: boolean;
   role?: OrgRole;
+  /** Accepted only while the account's invitation is still pending. */
+  email?: string;
 }
 
 export interface ChangePasswordRequest {

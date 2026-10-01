@@ -14,6 +14,7 @@
   import { chrome } from '$lib/chrome.svelte';
   import { ORG_ROLE, TEAM_ROLE } from '$lib/meta';
   import { mayDiscard } from '$lib/navigation.svelte';
+  import { realtime } from '$lib/realtime/hub.svelte';
   import { formatExact, readableOn, relativeTime } from '$lib/format';
   import { workspace } from '$lib/workspace.svelte';
   import Avatar from '$components/Avatar.svelte';
@@ -49,12 +50,13 @@
   let error = $state<string | null>(null);
   let fieldErrors = $state<Record<string, string>>({});
 
+  let email = $state('');
   let displayName = $state('');
   let timeZone = $state('UTC');
   let role = $state<OrgRole>('member');
   let isActive = $state(true);
 
-  let saved = $state({ displayName: '', timeZone: 'UTC', role: 'member' as OrgRole, isActive: true });
+  let saved = $state({ email: '', displayName: '', timeZone: 'UTC', role: 'member' as OrgRole, isActive: true });
 
   /** Team id to the role this user should have, or null for "not a member". */
   let memberships = $state<Record<Guid, TeamRole | null>>({});
@@ -105,6 +107,26 @@
     void load();
   });
 
+  // An invitation being accepted, or another administrator's change, shows up without a refresh. The
+  // form follows only in the fields nobody is editing, so a half-typed change is not pulled away.
+  $effect(() =>
+    realtime.on('UserChanged', (change) => {
+      const user = change.entity;
+      if (!user) return;
+
+      users = users.map((existing) => (existing.id === user.id ? user : existing));
+      if (selected?.id !== user.id) return;
+
+      selected = { ...selected, ...user };
+      if (!user.isInvitationPending) invitation = null;
+
+      if (email === saved.email) email = user.email;
+      if (displayName === saved.displayName) displayName = user.displayName;
+      if (isActive === saved.isActive) isActive = user.isActive;
+      saved = { ...saved, email: user.email, displayName: user.displayName, isActive: user.isActive };
+    })
+  );
+
   $effect(() => {
     chrome.set({
       title: 'Users & access',
@@ -144,11 +166,12 @@
       const detail = await usersApi.get(user.id);
       selected = detail;
 
+      email = detail.email;
       displayName = detail.displayName;
       timeZone = detail.timeZone;
       role = detail.role;
       isActive = detail.isActive;
-      saved = { displayName, timeZone, role, isActive };
+      saved = { email, displayName, timeZone, role, isActive };
 
       // One request per team: the API exposes membership per team, not per user.
       const found: Record<Guid, TeamRole | null> = {};
@@ -196,7 +219,8 @@
     creating
       ? newEmail.trim().length > 0 || displayName.trim().length > 0
       : Boolean(selected) &&
-          (displayName !== saved.displayName ||
+          (email !== saved.email ||
+            displayName !== saved.displayName ||
             timeZone !== saved.timeZone ||
             role !== saved.role ||
             isActive !== saved.isActive ||
@@ -230,11 +254,9 @@
       return;
     }
 
-    if (creating) {
-      if (!newEmail.trim()) {
-        fieldErrors = { email: 'An email address is required.' };
-        return;
-      }
+    if (creating ? !newEmail.trim() : !email.trim()) {
+      fieldErrors = { email: 'An email address is required.' };
+      return;
     }
 
     saving = true;
@@ -256,17 +278,19 @@
         creating = false;
         // Do not reload/select here: a failed detail fetch must not hide a successfully issued link.
         selected = created;
+        email = created.email;
         displayName = created.displayName;
         timeZone = created.timeZone;
         role = created.role;
         isActive = created.isActive;
-        saved = { displayName, timeZone, role, isActive };
+        saved = { email, displayName, timeZone, role, isActive };
         savedMemberships = {};
         showInvitation(created.id, issued.token, issued.expiresAt);
       } else if (selected) {
         userId = selected.id;
 
         const changes: Record<string, unknown> = {};
+        if (email !== saved.email) changes.email = email.trim();
         if (displayName !== saved.displayName) changes.displayName = displayName.trim();
         if (timeZone !== saved.timeZone) changes.timeZone = timeZone;
         if (role !== saved.role) changes.role = role;
@@ -276,7 +300,8 @@
           const updated = await usersApi.update(userId, changes);
           users = users.map((user) => (user.id === updated.id ? updated : user));
           selected = { ...selected, ...updated };
-          saved = { displayName, timeZone, role, isActive };
+          email = updated.email;
+          saved = { email, displayName, timeZone, role, isActive };
         }
       } else {
         return;
@@ -308,6 +333,27 @@
     invitation = { userId, url: url.href, expiresAt };
   }
 
+  /** Whether a pending account's latest link still works. The server clears the expiry on revocation. */
+  function invitationState(user: UserSummary | null): 'live' | 'expired' | 'revoked' | null {
+    if (!user?.isInvitationPending) return null;
+    if (!user.invitationExpiresAt) return 'revoked';
+
+    return new Date(user.invitationExpiresAt).getTime() > Date.now() ? 'live' : 'expired';
+  }
+
+  const INVITATION = {
+    live: { chip: 'Invited', title: 'Invitation pending' },
+    expired: { chip: 'Invite expired', title: 'Invitation expired' },
+    revoked: { chip: 'Invite revoked', title: 'Invitation revoked' }
+  } as const;
+
+  const pendingState = $derived(invitationState(selected));
+
+  function setInvitationExpiry(userId: Guid, expiresAt: string | null) {
+    users = users.map((user) => (user.id === userId ? { ...user, invitationExpiresAt: expiresAt } : user));
+    if (selected?.id === userId) selected = { ...selected, invitationExpiresAt: expiresAt };
+  }
+
   async function renewInvitation() {
     if (!selected || saving) return;
     saving = true;
@@ -315,6 +361,7 @@
     try {
       const issued = await invitations.renew(selected.id);
       showInvitation(issued.user.id, issued.token, issued.expiresAt);
+      setInvitationExpiry(issued.user.id, issued.expiresAt);
       toasts.success('New invitation created. Previous links no longer work.');
     } catch (failure) {
       error = failure instanceof ApiError ? failure.message : 'Could not reissue the invitation.';
@@ -347,6 +394,7 @@
     try {
       await usersApi.deactivate(userId);
       invitation = null;
+      setInvitationExpiry(userId, null);
       toasts.success('Invitation revoked. Previous links no longer work.');
     } catch (failure) {
       error = failure instanceof ApiError ? failure.message : 'Could not revoke the invitation.';
@@ -500,7 +548,7 @@
             <span class="truncate">{user.displayName}</span>
             <span class="truncate email">{user.email}</span>
           </span>
-          {#if user.isInvitationPending}<span class="chip">Invited</span>{/if}
+          {#if user.isInvitationPending}<span class="chip">{INVITATION[invitationState(user)!].chip}</span>{/if}
           {#if !user.isActive && !user.isInvitationPending}<span class="chip">Off</span>{/if}
         </button>
       {:else}
@@ -556,6 +604,18 @@
                 type="email"
                 disabled={saving} />
               {#if fieldErrors.email}<p class="field-error">{fieldErrors.email}</p>{/if}
+            {:else if selected?.isInvitationPending}
+              <input
+                id="user-email"
+                bind:value={email}
+                class="input"
+                class:invalid={Boolean(fieldErrors.email)}
+                type="email"
+                disabled={saving} />
+              {#if fieldErrors.email}<p class="field-error">{fieldErrors.email}</p>{/if}
+              <p class="muted hint">
+                Can be corrected until the invitation is accepted. Links already shared keep working.
+              </p>
             {:else}
               <input id="user-email" class="input" value={selected?.email ?? ''} readonly />
               <p class="muted hint">An email address identifies the account and cannot be changed.</p>
@@ -609,10 +669,10 @@
           Create an expiring, single-use invitation link to share manually. No email is sent.
           The recipient chooses their own password when accepting.
         </p>
-      {:else if selected?.isInvitationPending}
+      {:else if selected && pendingState}
         <section class="panel">
           <div class="panel-title">
-            <span>Invitation pending</span>
+            <span>{INVITATION[pendingState].title}</span>
             <button
               type="button"
               class="btn btn-sm"
@@ -638,11 +698,22 @@
               </p>
             </div>
             <button type="button" class="btn" onclick={() => void copyInvitation()}>Copy invitation link</button>
+          {:else if pendingState === 'live'}
+            <p class="muted hint">
+              The current link expires {formatExact(selected.invitationExpiresAt!)}. It was only shown
+              when it was created; reissue the invitation to get a new link to copy.
+            </p>
+          {:else if pendingState === 'expired'}
+            <p class="muted hint">
+              The last link expired {formatExact(selected.invitationExpiresAt!)}. Reissue the invitation
+              to generate a new link to copy.
+            </p>
           {:else}
-            <p class="muted hint">Reissue an invitation to generate a new link to copy.</p>
+            <p class="muted hint">No link is active. Reissue the invitation to generate a new link to copy.</p>
           {/if}
           <p class="muted hint">This account becomes active only after the invitation is accepted.</p>
-          <button type="button" class="btn btn-sm" disabled={saving || (selected.role === 'owner' && !session.isOwner)}
+          <button type="button" class="btn btn-sm"
+            disabled={saving || pendingState === 'revoked' || (selected.role === 'owner' && !session.isOwner)}
             onclick={() => void revokeInvitation()}>Revoke invitation links</button>
         </section>
       {/if}

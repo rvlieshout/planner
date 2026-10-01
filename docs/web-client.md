@@ -111,9 +111,10 @@ password reset. Neither flow sends email.
 
 In **Users & access**, **Invite user** creates an inactive, passwordless account and displays a
 single-use link valid for 72 hours. Share it privately with the intended recipient. Pending accounts
-show **Invited** and offer **Reissue invitation**, which invalidates older links, and
-**Revoke invitation links** to cancel access. The link is only
-held in the current page's memory; copy it before leaving the account.
+show **Invited**, **Invite expired** or **Invite revoked**, with the link's expiry, and offer
+**Reissue invitation**, which invalidates older links, and **Revoke invitation links** to cancel
+access. The link is only held in the current page's memory; copy it before leaving the account.
+A pending account's email can still be edited, so a mistyped address does not need a new invitation.
 
 The public `/app/accept-invitation` page reads credentials from the URL fragment, removes them from
 the current history entry, and sends them only in anonymous POST bodies. It checks the invitation

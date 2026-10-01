@@ -137,6 +137,10 @@ public static class InvitationChecks
                 ["client_id"] = auth.WebClientId, ["grant_type"] = "password",
                 ["username"] = email, ["password"] = password, ["scope"] = "planner.api"
             }));
+        async Task<UserDetail> Detail(InvitationResponse invite) =>
+            (await client.GetFromJsonAsync<UserDetail>($"/api/v1/users/{invite.User.Id.ToBase58()}", json))!;
+        Task<HttpResponseMessage> Patch(InvitationResponse invite, object body) =>
+            client.PatchAsJsonAsync($"/api/v1/users/{invite.User.Id.ToBase58()}", body);
         async Task<InvitationResponse> ReadInvite(HttpResponseMessage response)
         {
             check(response.IsSuccessStatusCode, $"Invitation request succeeds ({response.StatusCode})");
@@ -158,6 +162,8 @@ public static class InvitationChecks
             "New invitation returns full detail for an inactive, pending user with the selected role");
         check(invite.ExpiresAt > DateTimeOffset.UtcNow.AddHours(71) && invite.ExpiresAt <= DateTimeOffset.UtcNow.AddHours(72),
             "Invitation expiry is 72 hours");
+        check(invite.User.InvitationExpiresAt == invite.ExpiresAt && (await Detail(invite)).InvitationExpiresAt is not null,
+            "The directory records when the pending link lapses");
         check((await Create()).StatusCode == HttpStatusCode.BadRequest, "Duplicate invitation email is rejected");
         check((await client.PatchAsJsonAsync($"/api/v1/users/{invite.User.Id.ToBase58()}", new { isActive = true })).StatusCode == HttpStatusCode.BadRequest,
             "Admin activation cannot bypass invitation acceptance");
@@ -166,8 +172,10 @@ public static class InvitationChecks
             "Admin password reset cannot bypass invitation acceptance");
 
         Role(null);
-        check((await Login(invite.User.Email, "a long chosen password")).StatusCode == HttpStatusCode.BadRequest,
-            "Pending accounts cannot sign in");
+        var pendingLogin = await Login(invite.User.Email, "a long chosen password");
+        check(pendingLogin.StatusCode == HttpStatusCode.BadRequest &&
+              (await pendingLogin.Content.ReadAsStringAsync()).Contains("invitation link"),
+            "Pending accounts cannot sign in and are pointed to their invitation link");
         var preview = await Inspect(invite);
         check(preview.IsSuccessStatusCode && preview.Headers.CacheControl?.NoStore == true,
             "Anonymous holder can inspect an invitation without consuming it");
@@ -201,12 +209,27 @@ public static class InvitationChecks
 
         Role("admin");
         check((await Renew(invite)).StatusCode == HttpStatusCode.BadRequest, "Existing accepted users cannot be reinvited");
-        var pending = await ReadInvite(await Create("renew@planner.test"));
+        var acceptedDetail = await Detail(invite);
+        check(!acceptedDetail.IsInvitationPending && acceptedDetail.InvitationExpiresAt is null,
+            "Acceptance clears the recorded invitation expiry");
+        check((await Patch(invite, new { email = "moved@planner.test" })).StatusCode == HttpStatusCode.BadRequest,
+            "An accepted account's email cannot be changed");
+        var pending = await ReadInvite(await Create("renwe@planner.test"));
+        check((await Patch(pending, new { email = invite.User.Email })).StatusCode == HttpStatusCode.BadRequest,
+            "A pending account cannot take another account's email");
+        check((await Patch(pending, new { email = "renew@planner.test" })).IsSuccessStatusCode &&
+              (await (await Inspect(pending)).Content.ReadFromJsonAsync<InvitationPreview>())?.Email == "renew@planner.test",
+            "A mistyped invitation email can be corrected without invalidating the link");
         var renewed = await ReadInvite(await Renew(pending));
         check((await Inspect(pending)).StatusCode == HttpStatusCode.BadRequest && (await Inspect(renewed)).IsSuccessStatusCode,
             "Renewal invalidates old links and supplies a usable replacement");
         check((await client.DeleteAsync($"/api/v1/users/{pending.User.Id.ToBase58()}")).IsSuccessStatusCode &&
               (await Inspect(renewed)).StatusCode == HttpStatusCode.BadRequest, "Deactivation cancels a pending invitation");
+        var revokedDetail = await Detail(pending);
+        check(revokedDetail.IsInvitationPending && revokedDetail.InvitationExpiresAt is null,
+            "A revoked invitation stays pending with no recorded expiry");
+        check((await ReadInvite(await Renew(pending))).User.InvitationExpiresAt is not null,
+            "Reissuing a revoked invitation records a new expiry");
         Role("owner");
         var owner = await ReadInvite(await Create("owner-invite@planner.test", "owner"));
         Role("admin");

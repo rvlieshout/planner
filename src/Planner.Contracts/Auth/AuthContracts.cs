@@ -17,7 +17,7 @@ public sealed record MeResponse(
 public sealed record MeTeamMembership(Guid TeamId, string TeamKey, string TeamName, string Role);
 
 public sealed record UserSummary(Guid Id, string Email, string DisplayName, string? AvatarUrl, bool IsActive,
-    bool IsInvitationPending = false);
+    bool IsInvitationPending = false, DateTimeOffset? InvitationExpiresAt = null);
 
 public sealed record UserDetail(
     Guid Id,
@@ -29,7 +29,8 @@ public sealed record UserDetail(
     bool IsActive,
     DateTimeOffset CreatedAt,
     DateTimeOffset? LastSeenAt,
-    bool IsInvitationPending = false);
+    bool IsInvitationPending = false,
+    DateTimeOffset? InvitationExpiresAt = null);
 
 public sealed record CreateUserRequest(
     string Email,
@@ -48,7 +49,8 @@ public sealed record UpdateUserRequest(
     Optional<string?> AvatarUrl,
     Optional<string> TimeZone,
     Optional<bool> IsActive,
-    Optional<string> Role);
+    Optional<string> Role,
+    Optional<string> Email);
 
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 

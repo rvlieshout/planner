@@ -19,7 +19,7 @@ public static class Mapping
 {
     public static readonly Expression<Func<AppUser, UserSummary>> UserSummaryProjection =
         u => new UserSummary(u.Id, u.Email!, u.DisplayName, u.AvatarUrl, u.IsActive,
-            !u.EmailConfirmed && u.PasswordHash == null);
+            !u.EmailConfirmed && u.PasswordHash == null, u.InvitationExpiresAt);
 
     public static readonly Func<AppUser, UserSummary> ToUserSummary = UserSummaryProjection.Compile();
 
@@ -79,7 +79,7 @@ public static class Mapping
                     p.LeadUser.DisplayName,
                     p.LeadUser.AvatarUrl,
                     p.LeadUser.IsActive,
-                    !p.LeadUser.EmailConfirmed && p.LeadUser.PasswordHash == null),
+                    !p.LeadUser.EmailConfirmed && p.LeadUser.PasswordHash == null, p.LeadUser.InvitationExpiresAt),
             p.StartDate,
             p.TargetDate,
             p.Rank,
@@ -127,7 +127,7 @@ public static class Mapping
                 d.CreatedBy.DisplayName,
                 d.CreatedBy.AvatarUrl,
                 d.CreatedBy.IsActive,
-                !d.CreatedBy.EmailConfirmed && d.CreatedBy.PasswordHash == null),
+                !d.CreatedBy.EmailConfirmed && d.CreatedBy.PasswordHash == null, d.CreatedBy.InvitationExpiresAt),
             d.UpdatedBy == null
                 ? null
                 : new UserSummary(
@@ -136,7 +136,7 @@ public static class Mapping
                     d.UpdatedBy.DisplayName,
                     d.UpdatedBy.AvatarUrl,
                     d.UpdatedBy.IsActive,
-                    !d.UpdatedBy.EmailConfirmed && d.UpdatedBy.PasswordHash == null),
+                    !d.UpdatedBy.EmailConfirmed && d.UpdatedBy.PasswordHash == null, d.UpdatedBy.InvitationExpiresAt),
             d.CreatedAt,
             d.UpdatedAt,
             d.ArchivedAt);
@@ -156,7 +156,7 @@ public static class Mapping
                 d.CreatedBy.DisplayName,
                 d.CreatedBy.AvatarUrl,
                 d.CreatedBy.IsActive,
-                !d.CreatedBy.EmailConfirmed && d.CreatedBy.PasswordHash == null),
+                !d.CreatedBy.EmailConfirmed && d.CreatedBy.PasswordHash == null, d.CreatedBy.InvitationExpiresAt),
             d.UpdatedBy == null
                 ? null
                 : new UserSummary(
@@ -165,7 +165,7 @@ public static class Mapping
                     d.UpdatedBy.DisplayName,
                     d.UpdatedBy.AvatarUrl,
                     d.UpdatedBy.IsActive,
-                    !d.UpdatedBy.EmailConfirmed && d.UpdatedBy.PasswordHash == null),
+                    !d.UpdatedBy.EmailConfirmed && d.UpdatedBy.PasswordHash == null, d.UpdatedBy.InvitationExpiresAt),
             d.CreatedAt,
             d.UpdatedAt,
             d.ArchivedAt);
@@ -190,7 +190,7 @@ public static class Mapping
                     i.Assignee.DisplayName,
                     i.Assignee.AvatarUrl,
                     i.Assignee.IsActive,
-                    !i.Assignee.EmailConfirmed && i.Assignee.PasswordHash == null),
+                    !i.Assignee.EmailConfirmed && i.Assignee.PasswordHash == null, i.Assignee.InvitationExpiresAt),
             i.ProjectId,
             i.MilestoneId,
             i.ParentId,
@@ -214,7 +214,7 @@ public static class Mapping
             c.Id,
             c.IssueId,
             new UserSummary(c.Author.Id, c.Author.Email!, c.Author.DisplayName, c.Author.AvatarUrl, c.Author.IsActive,
-                !c.Author.EmailConfirmed && c.Author.PasswordHash == null),
+                !c.Author.EmailConfirmed && c.Author.PasswordHash == null, c.Author.InvitationExpiresAt),
             c.Body,
             c.ParentCommentId,
             c.CreatedAt,
@@ -237,7 +237,7 @@ public static class Mapping
                 a.UploadedBy.DisplayName,
                 a.UploadedBy.AvatarUrl,
                 a.UploadedBy.IsActive,
-                !a.UploadedBy.EmailConfirmed && a.UploadedBy.PasswordHash == null),
+                !a.UploadedBy.EmailConfirmed && a.UploadedBy.PasswordHash == null, a.UploadedBy.InvitationExpiresAt),
             a.CreatedAt);
 
     public static readonly Func<Attachment, AttachmentDto> ToAttachment = AttachmentProjection.Compile();

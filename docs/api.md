@@ -84,13 +84,16 @@ Validation accumulates: every problem with a request comes back at once, not one
 | `GET /api/v1/users` | `?search=&includeInactive=&page=` — for assignee and lead pickers | any user |
 | `GET /api/v1/users/{id}` | One user with their role | any user |
 | `POST /api/v1/users` | Legacy password-based account creation; prefer invitations for first-time access | admin |
-| `PATCH /api/v1/users/{id}` | Profile, `role`, `isActive` | admin |
+| `PATCH /api/v1/users/{id}` | Profile, `role`, `isActive`; `email` only while the invitation is pending | admin |
 | `POST /api/v1/users/{id}/password` | Reset without the current password | admin |
 | `DELETE /api/v1/users/{id}` | Deactivate; authored content is kept | admin |
 
-User summaries and details include `isInvitationPending`. Invited users are inactive and have no
-password until acceptance. Activating or resetting the password of a pending user is rejected.
+User summaries and details include `isInvitationPending` and `invitationExpiresAt`, the moment the
+latest link lapses; it is null once the invitation is revoked or accepted. Invited users are inactive
+and have no password until acceptance. Activating or resetting the password of a pending user is
+rejected, and a password sign-in attempt is answered with a pointer to the invitation link.
 Deactivating one revokes its invitation links; it remains pending and can receive a new invitation.
+A pending user's `email` can be corrected with `PATCH`; links already issued keep working.
 Only an owner may issue, renew, or revoke an owner invitation.
 
 ## Invitations
@@ -106,7 +109,8 @@ Invitation links are shared manually; no email is sent. Tokens expire after 72 h
 persisted Data Protection key ring, a dedicated purpose, and the account's security stamp. Renewal,
 revocation, or acceptance invalidates earlier tokens. Acceptance writes the password and activation
 flags atomically using Identity's optimistic concurrency checks, so simultaneous acceptance succeeds
-at most once. No database migration is needed.
+at most once. The token itself is not stored; only its expiry is, in `users.invitation_expires_at`
+(migration `InvitationExpiry`), so the directory can tell a live invitation from a lapsed or revoked one.
 
 Inspection and acceptance are anonymous, rate-limited POSTs. Invalid, expired, and used tokens return
 the same `400` response. Invalid passwords return validation errors without consuming the invitation.

@@ -69,7 +69,8 @@ public static class InvitationEndpoints
                     DisplayName = request.DisplayName.Trim(),
                     TimeZone = request.TimeZone,
                     IsActive = false,
-                    EmailConfirmed = false
+                    EmailConfirmed = false,
+                    InvitationExpiresAt = DateTimeOffset.UtcNow.Add(Invitations.Lifetime)
                 };
                 // Do not leave an orphaned account if role assignment fails.
                 await using var transaction = await db.Database.BeginTransactionAsync(ct);
@@ -101,6 +102,8 @@ public static class InvitationEndpoints
         if (roles.Contains(PlannerRoles.Owner) && !current.IsOwner)
             return ApiResults.Forbidden("Only the owner can renew an owner invitation.");
 
+        // Saved by the same user update that rotates the stamp.
+        user.InvitationExpiresAt = DateTimeOffset.UtcNow.Add(Invitations.Lifetime);
         var result = await users.UpdateSecurityStampAsync(user);
         return result.Succeeded
             ? Results.Ok(Response(user, roles.FirstOrDefault() ?? PlannerRoles.Guest, invitations))
@@ -137,7 +140,8 @@ public static class InvitationEndpoints
     {
         var (token, expiresAt) = invitations.Issue(user);
         var detail = new UserDetail(user.Id, user.Email!, user.DisplayName, user.AvatarUrl,
-            user.TimeZone, role, user.IsActive, user.CreatedAt, user.LastSeenAt, user.IsInvitationPending);
+            user.TimeZone, role, user.IsActive, user.CreatedAt, user.LastSeenAt, user.IsInvitationPending,
+            user.InvitationExpiresAt);
         return new InvitationResponse(detail, token, expiresAt);
     }
 
