@@ -55,5 +55,19 @@
       "Toggle a project's overview.",
       "Navigate to and from the archive."
     ]
+  },
+  {
+    "version": "1.2.0",
+    "title": "Invitations and a clearer sign-in",
+    "date": "2026-10-01",
+    "changes": [
+      "Invite new users with a private link that lasts 72 hours; they choose their own password when accepting.",
+      "Administrators can reissue or revoke an invitation, see whether it is pending, expired or revoked, and correct a mistyped email address.",
+      "The user list updates by itself when an invitation is accepted.",
+      "The sign-in page separates password and passkey sign-in and explains first-time access and recovery.",
+      "Signing in with an account that has not been set up yet points you to your invitation link.",
+      "Open tabs share one session, so they no longer sign each other out.",
+      "Issue attachments sit in the main column of the issue."
+    ]
   }
 ]
