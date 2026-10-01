@@ -66,7 +66,9 @@ Organisation-level actions bypass teams entirely:
 
 | Action | Required |
 | --- | --- |
-| List users (for assignee pickers) | any authenticated user |
+| List users (for assignee pickers) | any authenticated user — members see active accounts, guests only the people in their teams |
+| See pending invitations, deactivated accounts and when someone was last here | `owner` / `admin` |
+| Set someone's avatar address | `owner` / `admin` |
 | Create a user, reset a password, deactivate a user | `owner` / `admin` |
 | Create a team | `owner` / `admin` |
 | Create or edit organisation-wide labels | `owner` / `admin` |

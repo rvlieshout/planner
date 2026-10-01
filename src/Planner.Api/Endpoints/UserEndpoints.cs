@@ -104,6 +104,14 @@ public static class UserEndpoints
             validation.Required(displayName, "displayName").MaxLength(displayName, 150, "displayName");
         }
 
+        // Every colleague's browser fetches this address whenever the person's name is on screen, so one
+        // chosen freely is a beacon: it tells its owner who is looking, from where and when. Pictures are
+        // therefore pointed at by an administrator; a person can only take their own down.
+        if (request.AvatarUrl.TryGet(out var avatarUrl) && avatarUrl is not null && avatarUrl != user.AvatarUrl)
+        {
+            validation.Add("avatarUrl", "avatarUrl is set by an administrator. You can clear your own by sending null.");
+        }
+
         if (validation.HasErrors)
         {
             return validation.ToResult();
@@ -124,6 +132,34 @@ public static class UserEndpoints
         return Results.Ok(summary);
     }
 
+    /// <summary>An address a browser can load a picture from: http or https, or a path on this origin.</summary>
+    public static bool IsAvatarUrl(string value) =>
+        value.Length <= 2000 &&
+        (IssueEndpoints.IsWebLink(value) ||
+         (value.StartsWith('/') && !value.StartsWith("//", StringComparison.Ordinal) && !value.Contains('\\')));
+
+    /// <summary>The accounts the caller may look up. Administrators see every account. Everyone else
+    /// sees the active ones, which is what a picker offers: an invitation that is still pending, or an
+    /// account that was closed, is administration's business. A guest sees only the people they share a
+    /// team with, and themselves: they were let into those teams, not into the organisation.</summary>
+    private static IQueryable<AppUser> VisibleUsers(PlannerDbContext db, CurrentUser current)
+    {
+        var users = db.Users.AsNoTracking();
+
+        if (current.IsAdmin)
+        {
+            return users;
+        }
+
+        var callerId = current.Id;
+        users = users.Where(u => u.IsActive || u.Id == callerId);
+
+        return current.IsGuest
+            ? users.Where(u => u.Id == callerId || u.TeamMemberships.Any(theirs =>
+                db.TeamMembers.Any(mine => mine.UserId == callerId && mine.TeamId == theirs.TeamId)))
+            : users;
+    }
+
     private static async Task<IResult> ChangeOwnPasswordAsync(
         ChangePasswordRequest request,
         UserManager<AppUser> userManager,
@@ -141,14 +177,16 @@ public static class UserEndpoints
 
     private static async Task<IResult> ListAsync(
         PlannerDbContext db,
+        CurrentUser current,
         [AsParameters] PageQuery paging,
         string? search,
         bool? includeInactive,
         CancellationToken ct)
     {
-        var query = db.Users.AsNoTracking().AsQueryable();
+        var query = VisibleUsers(db, current);
 
-        if (includeInactive != true)
+        // Only an administrator has inactive accounts to include; for anyone else the flag changes nothing.
+        if (includeInactive != true || !current.IsAdmin)
         {
             query = query.Where(u => u.IsActive);
         }
@@ -175,15 +213,19 @@ public static class UserEndpoints
         Guid id,
         PlannerDbContext db,
         UserManager<AppUser> userManager,
+        CurrentUser current,
         CancellationToken ct)
     {
-        var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id, ct);
+        var user = await VisibleUsers(db, current).FirstOrDefaultAsync(u => u.Id == id, ct);
         if (user is null)
         {
             return ApiResults.NotFound("That user");
         }
 
         var roles = await userManager.GetRolesAsync(user);
+
+        // When someone was last here is for the people who manage accounts, and for the person themselves.
+        var seesActivity = current.IsAdmin || user.Id == current.Id;
 
         return Results.Ok(new UserDetail(
             user.Id,
@@ -194,7 +236,7 @@ public static class UserEndpoints
             roles.FirstOrDefault() ?? PlannerRoles.Guest,
             user.IsActive,
             user.CreatedAt,
-            user.LastSeenAt,
+            seesActivity ? user.LastSeenAt : null,
             user.IsInvitationPending,
             user.InvitationExpiresAt));
     }
@@ -292,6 +334,13 @@ public static class UserEndpoints
             {
                 return validation.ToResult();
             }
+        }
+
+        if (request.AvatarUrl.TryGet(out var avatarUrl) && avatarUrl is not null && !IsAvatarUrl(avatarUrl))
+        {
+            return new Validation()
+                .Add("avatarUrl", "avatarUrl must be an http or https address, or a path on this server, of at most 2000 characters.")
+                .ToResult();
         }
 
         if (request.Role.TryGet(out var newRole) && newRole != currentRole)

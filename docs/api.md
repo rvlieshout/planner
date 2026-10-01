@@ -74,19 +74,23 @@ Validation accumulates: every problem with a request comes back at once, not one
 | `POST /connect/token` | Password or refresh-token grant. Form-encoded. |
 | `GET \| POST /connect/userinfo` | Claims about the current subject |
 | `GET /api/v1/me` | Profile, organisation role and team memberships — the first call a client makes |
-| `PATCH /api/v1/me` | Update your own display name, avatar, timezone |
+| `PATCH /api/v1/me` | Update your own display name and timezone. `avatarUrl` can only be cleared here (`null`); an admin sets it |
 | `POST /api/v1/me/password` | Change your own password (needs the current one) |
 
 ## Users
 
 | | | Requires |
 | --- | --- | --- |
-| `GET /api/v1/users` | `?search=&includeInactive=&page=` — for assignee and lead pickers | any user |
-| `GET /api/v1/users/{id}` | One user with their role | any user |
+| `GET /api/v1/users` | `?search=&includeInactive=&page=` — for assignee and lead pickers. See below for who is listed | any user |
+| `GET /api/v1/users/{id}` | One user with their role. `lastSeenAt` is null unless you are an admin or it is you | any user |
 | `POST /api/v1/users` | Legacy password-based account creation; prefer invitations for first-time access | admin |
-| `PATCH /api/v1/users/{id}` | Profile, `role`, `isActive`; `email` only while the invitation is pending | admin |
+| `PATCH /api/v1/users/{id}` | Profile, `role`, `isActive`, `avatarUrl` (http, https or a path on this server); `email` only while the invitation is pending | admin |
 | `POST /api/v1/users/{id}/password` | Reset without the current password. Written to the server log | admin; owner for an owner's |
 | `DELETE /api/v1/users/{id}` | Deactivate; authored content is kept | admin |
+
+Who the directory shows depends on who asks. Admins see every account, and `includeInactive` is theirs
+alone. Members see active accounts only: a pending invitation or a deactivated account is a 404 to
+them. Guests see themselves and the people they share a team with, and nobody else.
 
 User summaries and details include `isInvitationPending` and `invitationExpiresAt`, the moment the
 latest link lapses; it is null once the invitation is revoked or accepted. Invited users are inactive
@@ -305,6 +309,9 @@ refused with a 400: clients open the link as it is, so it has to be one a browse
 themselves; the API writes them under `Attachments__Path`, outside the web root, and sets
 `storageUri` to `planner-attachment:{id}`, which is how a client tells the two apart. Downloading
 through `GET /attachments/{id}/content` re-checks the issue's team permission.
+
+Relations can cross teams. An issue's `relations` list only the ones whose other issue is in a team
+you can read; the rest are left out entirely, as that issue is a 404 when asked for directly.
 
 Deleting an attachment also deletes its server-owned file. If file deletion fails, the API returns
 an error and keeps the attachment record for retry. Missing files can still have their records removed.

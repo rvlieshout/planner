@@ -207,7 +207,7 @@ public static class IssueEndpoints
             return denied;
         }
 
-        return Results.Ok(await BuildDetailAsync(db, issue, ct));
+        return Results.Ok(await BuildDetailAsync(db, access, issue, ct));
     }
 
     private static async Task<IResult> GetByKeyAsync(
@@ -235,13 +235,14 @@ public static class IssueEndpoints
             return denied;
         }
 
-        return Results.Ok(await BuildDetailAsync(db, issue, ct));
+        return Results.Ok(await BuildDetailAsync(db, access, issue, ct));
     }
 
     /// <summary>Sub-issues and the comment count are projected in SQL rather than pulled through the
     /// include graph, which keeps a busy issue's payload proportional to what the detail pane shows.</summary>
     private static async Task<Contracts.Issues.IssueDetail> BuildDetailAsync(
         PlannerDbContext db,
+        ITeamAccess access,
         Issue issue,
         CancellationToken ct)
     {
@@ -254,7 +255,7 @@ public static class IssueEndpoints
 
         var commentCount = await db.Comments.CountAsync(c => c.IssueId == issue.Id, ct);
 
-        return Mapping.ToIssueDetail(issue, children, commentCount);
+        return Mapping.ToIssueDetail(issue, children, commentCount, await access.ReadableTeamIdsAsync(ct));
     }
 
     private static Task<Issue?> LoadDetailAsync(
@@ -1180,7 +1181,7 @@ public static class IssueEndpoints
             target.Title,
             target.State.Type);
 
-        await notifier.IssueRelationChanged(ChangeKind.Created, dto, id, issue.TeamId);
+        await notifier.IssueRelationChanged(ChangeKind.Created, dto, id, issue.TeamId, target.TeamId);
         return Results.Created($"/api/v1/issues/{id.ToBase58()}/relations/{relation.Id.ToBase58()}", dto);
     }
 
@@ -1232,7 +1233,8 @@ public static class IssueEndpoints
 
         await db.SaveChangesAsync(ct);
 
-        await notifier.IssueRelationChanged(ChangeKind.Deleted, dto, id, relation.SourceIssue.TeamId);
+        await notifier.IssueRelationChanged(ChangeKind.Deleted, dto, id, relation.SourceIssue.TeamId,
+            relation.TargetIssue.TeamId);
         return Results.NoContent();
     }
 

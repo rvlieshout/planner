@@ -22,11 +22,16 @@ public interface IRealtimeNotifier
     Task IssueChanged(ChangeKind kind, IssueSummary issue);
     Task CommentChanged(ChangeKind kind, CommentDto comment, Guid teamId);
     Task AttachmentChanged(ChangeKind kind, AttachmentDto attachment, Guid teamId);
-    Task IssueRelationChanged(ChangeKind kind, IssueRelationDto relation, Guid issueId, Guid teamId);
+    /// <param name="relatedTeamId">The team of the issue the payload names, which a recipient must be
+    /// able to read as well as the issue they have open.</param>
+    Task IssueRelationChanged(ChangeKind kind, IssueRelationDto relation, Guid issueId, Guid teamId, Guid relatedTeamId);
     Task UserChanged(ChangeKind kind, UserSummary user);
 }
 
-public sealed class RealtimeNotifier(IHubContext<PlannerHub, IPlannerClient> hub, CurrentUser currentUser)
+public sealed class RealtimeNotifier(
+    IHubContext<PlannerHub, IPlannerClient> hub,
+    RealtimeConnections connections,
+    CurrentUser currentUser)
     : IRealtimeNotifier
 {
     private Guid ActorId => currentUser.IsAuthenticated ? currentUser.Id : Guid.Empty;
@@ -71,12 +76,15 @@ public sealed class RealtimeNotifier(IHubContext<PlannerHub, IPlannerClient> hub
         Issue(attachment.IssueId).AttachmentChanged(
             Envelope(kind, EntityTypes.Attachment, attachment.Id, teamId, null, attachment.IssueId, attachment));
 
-    public Task IssueRelationChanged(ChangeKind kind, IssueRelationDto relation, Guid issueId, Guid teamId) =>
-        Issue(issueId).IssueRelationChanged(
+    // A relation names another issue, which may sit in a team that someone with this issue open cannot
+    // read. So it goes to the connections in the issue's group that can read both, not to the group.
+    public Task IssueRelationChanged(ChangeKind kind, IssueRelationDto relation, Guid issueId, Guid teamId, Guid relatedTeamId) =>
+        hub.Clients.Clients(connections.Watching(issueId, relatedTeamId)).IssueRelationChanged(
             Envelope(kind, EntityTypes.IssueRelation, relation.Id, teamId, null, issueId, relation));
 
+    // An invitation nobody has accepted yet is an address only administration has reason to know.
     public Task UserChanged(ChangeKind kind, UserSummary user) =>
-        hub.Clients.Group(RealtimeGroups.Organization)
+        hub.Clients.Group(user.IsInvitationPending ? RealtimeGroups.Administrators : RealtimeGroups.Organization)
             .UserChanged(Envelope(kind, EntityTypes.User, user.Id, null, null, null, user));
 
     private IPlannerClient Team(Guid teamId) => hub.Clients.Group(RealtimeGroups.Team(teamId));

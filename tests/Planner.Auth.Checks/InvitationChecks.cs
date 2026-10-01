@@ -121,6 +121,11 @@ public static class InvitationChecks
             client.DefaultRequestHeaders.Remove("X-Check-Role");
             if (role is not null) client.DefaultRequestHeaders.Add("X-Check-Role", role);
         }
+        void As(Guid? userId)
+        {
+            client.DefaultRequestHeaders.Remove("X-Check-Sub");
+            if (userId is { } id) client.DefaultRequestHeaders.Add("X-Check-Sub", id.ToString());
+        }
         Task<HttpResponseMessage> Create(string email = "invited@planner.test", string role = "member") =>
             client.PostAsJsonAsync("/api/v1/invitations", new { email, displayName = "Invited User", role });
         Task<HttpResponseMessage> Inspect(InvitationResponse invite, string? token = null, Guid? userId = null) =>
@@ -306,6 +311,64 @@ public static class InvitationChecks
         Role("owner");
         check((await Reset("a password by owner")).StatusCode == HttpStatusCode.NoContent,
             "Owners can reset an owner's password");
+
+        // The directory. `invite` and `concurrent` are accepted accounts that have signed in and share a
+        // team; `renewalRace` is still pending, the legacy account is deactivated, and the second owner
+        // is active but in no team.
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PlannerDbContext>();
+            var team = new Planner.Domain.Entities.Team { Key = "CHK", Name = "Checks" };
+            db.Teams.Add(team);
+            db.TeamMembers.Add(new Planner.Domain.Entities.TeamMember { TeamId = team.Id, UserId = invite.User.Id });
+            db.TeamMembers.Add(new Planner.Domain.Entities.TeamMember { TeamId = team.Id, UserId = concurrent.User.Id });
+            await db.SaveChangesAsync();
+        }
+
+        async Task<List<UserSummary>> Listed() =>
+            [.. (await client.GetFromJsonAsync<PagedResult<UserSummary>>("/api/v1/users?includeInactive=true&pageSize=200", json))!.Items];
+        Task<HttpResponseMessage> Get(Guid id) => client.GetAsync($"/api/v1/users/{id.ToBase58()}");
+        async Task<UserDetail> Read(Guid id) => (await (await Get(id)).Content.ReadFromJsonAsync<UserDetail>(json))!;
+        var teammate = concurrent.User.Id;
+        var outsider = Base58.TryParseId(ownerId, out var parsed) ? parsed : Guid.Empty;
+
+        As(invite.User.Id);
+        Role("admin");
+        var everyone = await Listed();
+        check(everyone.Any(u => u.IsInvitationPending) && everyone.Any(u => !u.IsActive && !u.IsInvitationPending) &&
+              (await Read(teammate)).LastSeenAt is not null,
+            "Administrators see pending and deactivated accounts, and when someone was last here");
+
+        Role("member");
+        var forMember = await Listed();
+        check(forMember.All(u => u.IsActive && !u.IsInvitationPending) && forMember.Any(u => u.Id == outsider),
+            "Members see the active directory only, whatever includeInactive says");
+        check((await Get(renewalRace.User.Id)).StatusCode == HttpStatusCode.NotFound,
+            "A pending invitation is not found by a member");
+        check((await Read(teammate)).LastSeenAt is null && (await Read(invite.User.Id)).LastSeenAt is not null,
+            "Members are not told when someone else was last here, only themselves");
+
+        Role("guest");
+        var forGuest = await Listed();
+        check(forGuest.Select(u => u.Id).Order().SequenceEqual(new[] { invite.User.Id, teammate }.Order()),
+            "Guests see only themselves and the people they share a team with");
+        check((await Get(outsider)).StatusCode == HttpStatusCode.NotFound && (await Get(teammate)).IsSuccessStatusCode,
+            "A guest cannot look up someone outside their teams");
+
+        Role("member");
+        check((await client.PatchAsJsonAsync("/api/v1/me", new { avatarUrl = "https://tracker.example/pixel.png" })).StatusCode == HttpStatusCode.BadRequest,
+            "Nobody points their own avatar at an address of their choosing");
+        check((await client.PatchAsJsonAsync("/api/v1/me", new { displayName = "Renamed User" })).IsSuccessStatusCode,
+            "The rest of a profile is still the person's own to edit");
+        Role("admin");
+        check((await Patch(invite, new { avatarUrl = "javascript:alert(1)" })).StatusCode == HttpStatusCode.BadRequest,
+            "An administrator cannot store an avatar address a browser would not load as a picture");
+        check((await Patch(invite, new { avatarUrl = "https://intranet.example/people/invited.png" })).IsSuccessStatusCode,
+            "An administrator sets a person's avatar");
+        Role("member");
+        var cleared = await client.PatchAsJsonAsync("/api/v1/me", new { avatarUrl = (string?)null });
+        check(cleared.IsSuccessStatusCode && (await cleared.Content.ReadFromJsonAsync<UserSummary>(json))!.AvatarUrl is null,
+            "A person can take their own avatar down");
     }
 
     private sealed class CheckAuthentication(
@@ -316,8 +379,9 @@ public static class InvitationChecks
         {
             var role = Request.Headers["X-Check-Role"].ToString();
             if (string.IsNullOrEmpty(role)) return Task.FromResult(AuthenticateResult.NoResult());
-            var identity = new ClaimsIdentity(
-                [new Claim("sub", "00000000-0000-0000-0000-000000000001"), new Claim("role", role)], Scheme.Name);
+            var subject = Request.Headers["X-Check-Sub"].ToString();
+            if (string.IsNullOrEmpty(subject)) subject = "00000000-0000-0000-0000-000000000001";
+            var identity = new ClaimsIdentity([new Claim("sub", subject), new Claim("role", role)], Scheme.Name);
             return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name)));
         }
     }
