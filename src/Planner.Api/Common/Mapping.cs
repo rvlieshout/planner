@@ -18,7 +18,8 @@ namespace Planner.Api.Common;
 public static class Mapping
 {
     public static readonly Expression<Func<AppUser, UserSummary>> UserSummaryProjection =
-        u => new UserSummary(u.Id, u.Email!, u.DisplayName, u.AvatarUrl, u.IsActive);
+        u => new UserSummary(u.Id, u.Email!, u.DisplayName, u.AvatarUrl, u.IsActive,
+            !u.EmailConfirmed && u.PasswordHash == null);
 
     public static readonly Func<AppUser, UserSummary> ToUserSummary = UserSummaryProjection.Compile();
 
@@ -77,7 +78,8 @@ public static class Mapping
                     p.LeadUser.Email!,
                     p.LeadUser.DisplayName,
                     p.LeadUser.AvatarUrl,
-                    p.LeadUser.IsActive),
+                    p.LeadUser.IsActive,
+                    !p.LeadUser.EmailConfirmed && p.LeadUser.PasswordHash == null),
             p.StartDate,
             p.TargetDate,
             p.Rank,
@@ -124,7 +126,8 @@ public static class Mapping
                 d.CreatedBy.Email!,
                 d.CreatedBy.DisplayName,
                 d.CreatedBy.AvatarUrl,
-                d.CreatedBy.IsActive),
+                d.CreatedBy.IsActive,
+                !d.CreatedBy.EmailConfirmed && d.CreatedBy.PasswordHash == null),
             d.UpdatedBy == null
                 ? null
                 : new UserSummary(
@@ -132,7 +135,8 @@ public static class Mapping
                     d.UpdatedBy.Email!,
                     d.UpdatedBy.DisplayName,
                     d.UpdatedBy.AvatarUrl,
-                    d.UpdatedBy.IsActive),
+                    d.UpdatedBy.IsActive,
+                    !d.UpdatedBy.EmailConfirmed && d.UpdatedBy.PasswordHash == null),
             d.CreatedAt,
             d.UpdatedAt,
             d.ArchivedAt);
@@ -151,7 +155,8 @@ public static class Mapping
                 d.CreatedBy.Email!,
                 d.CreatedBy.DisplayName,
                 d.CreatedBy.AvatarUrl,
-                d.CreatedBy.IsActive),
+                d.CreatedBy.IsActive,
+                !d.CreatedBy.EmailConfirmed && d.CreatedBy.PasswordHash == null),
             d.UpdatedBy == null
                 ? null
                 : new UserSummary(
@@ -159,7 +164,8 @@ public static class Mapping
                     d.UpdatedBy.Email!,
                     d.UpdatedBy.DisplayName,
                     d.UpdatedBy.AvatarUrl,
-                    d.UpdatedBy.IsActive),
+                    d.UpdatedBy.IsActive,
+                    !d.UpdatedBy.EmailConfirmed && d.UpdatedBy.PasswordHash == null),
             d.CreatedAt,
             d.UpdatedAt,
             d.ArchivedAt);
@@ -183,7 +189,8 @@ public static class Mapping
                     i.Assignee.Email!,
                     i.Assignee.DisplayName,
                     i.Assignee.AvatarUrl,
-                    i.Assignee.IsActive),
+                    i.Assignee.IsActive,
+                    !i.Assignee.EmailConfirmed && i.Assignee.PasswordHash == null),
             i.ProjectId,
             i.MilestoneId,
             i.ParentId,
@@ -206,7 +213,8 @@ public static class Mapping
         c => new CommentDto(
             c.Id,
             c.IssueId,
-            new UserSummary(c.Author.Id, c.Author.Email!, c.Author.DisplayName, c.Author.AvatarUrl, c.Author.IsActive),
+            new UserSummary(c.Author.Id, c.Author.Email!, c.Author.DisplayName, c.Author.AvatarUrl, c.Author.IsActive,
+                !c.Author.EmailConfirmed && c.Author.PasswordHash == null),
             c.Body,
             c.ParentCommentId,
             c.CreatedAt,
@@ -228,7 +236,8 @@ public static class Mapping
                 a.UploadedBy.Email!,
                 a.UploadedBy.DisplayName,
                 a.UploadedBy.AvatarUrl,
-                a.UploadedBy.IsActive),
+                a.UploadedBy.IsActive,
+                !a.UploadedBy.EmailConfirmed && a.UploadedBy.PasswordHash == null),
             a.CreatedAt);
 
     public static readonly Func<Attachment, AttachmentDto> ToAttachment = AttachmentProjection.Compile();

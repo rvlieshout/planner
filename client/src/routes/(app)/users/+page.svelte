@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { ApiError, teams as teamsApi, users as usersApi } from '$lib/api';
+  import { resolve } from '$app/paths';
+  import { ApiError, invitations, teams as teamsApi, users as usersApi } from '$lib/api';
   import type {
     Guid,
     OrgRole,
@@ -23,6 +24,7 @@
   import Select from '$components/Select.svelte';
   import type { SelectOption } from '$components/select';
   import { toasts } from '$components/toast.svelte';
+  import { confirm } from '$components/confirm.svelte';
 
   /**
    * The directory, and who is in which team.
@@ -60,8 +62,8 @@
 
   let creating = $state(false);
   let newEmail = $state('');
-  let newPassword = $state('');
-  let newPasswordConfirm = $state('');
+  // Invitation credentials stay in memory only, never in persisted browser state.
+  let invitation = $state<{ userId: Guid; url: string; expiresAt: string } | null>(null);
 
   let resetting = $state(false);
   let resetPassword = $state('');
@@ -106,13 +108,13 @@
   $effect(() => {
     chrome.set({
       title: 'Users & access',
-      subtitle: selected?.displayName ?? (creating ? 'New user' : 'Directory'),
+      subtitle: selected?.displayName ?? (creating ? 'Invite user' : 'Directory'),
       status: loading ? 'Loading…' : `${users.length} account${users.length === 1 ? '' : 's'}`,
       actions: toolbar,
       commands: [
-        { label: 'New user', icon: 'user-plus', disabled: saving, run: () => void startCreate() },
+        { label: 'Invite user', icon: 'user-plus', disabled: saving, run: () => void startCreate() },
         {
-          label: creating ? 'Create user' : 'Save user & team access',
+          label: creating ? 'Create invitation' : 'Save user & team access',
           icon: 'check',
           shortcut: 'mod+s',
           disabled: !(selected || creating) || saving,
@@ -129,10 +131,12 @@
   });
 
   async function select(user: UserSummary) {
+    if (saving) return;
     if (selected?.id === user.id) return;
     if (!(await mayDiscard())) return;
 
     creating = false;
+    invitation = null;
     error = null;
     fieldErrors = {};
 
@@ -164,16 +168,16 @@
   }
 
   async function startCreate() {
+    if (saving) return;
     if (!(await mayDiscard())) return;
 
     creating = true;
     selected = null;
+    invitation = null;
     error = null;
     fieldErrors = {};
 
     newEmail = '';
-    newPassword = '';
-    newPasswordConfirm = '';
     displayName = '';
     timeZone = defaultTimeZone();
     role = 'member';
@@ -231,16 +235,6 @@
         fieldErrors = { email: 'An email address is required.' };
         return;
       }
-
-      if (newPassword.length < 12) {
-        fieldErrors = { password: 'The password must be at least 12 characters.' };
-        return;
-      }
-
-      if (newPassword !== newPasswordConfirm) {
-        fieldErrors = { passwordConfirm: 'The two passwords do not match.' };
-        return;
-      }
     }
 
     saving = true;
@@ -249,18 +243,26 @@
       let userId: Guid;
 
       if (creating) {
-        const created = await usersApi.create({
+        const issued = await invitations.create({
           email: newEmail.trim(),
-          password: newPassword,
           displayName: displayName.trim(),
           role,
           timeZone
         });
 
+        const created = issued.user;
         userId = created.id;
         users = [...users, created];
         creating = false;
-        await select(created);
+        // Do not reload/select here: a failed detail fetch must not hide a successfully issued link.
+        selected = created;
+        displayName = created.displayName;
+        timeZone = created.timeZone;
+        role = created.role;
+        isActive = created.isActive;
+        saved = { displayName, timeZone, role, isActive };
+        savedMemberships = {};
+        showInvitation(created.id, issued.token, issued.expiresAt);
       } else if (selected) {
         userId = selected.id;
 
@@ -273,6 +275,7 @@
         if (Object.keys(changes).length > 0) {
           const updated = await usersApi.update(userId, changes);
           users = users.map((user) => (user.id === updated.id ? updated : user));
+          selected = { ...selected, ...updated };
           saved = { displayName, timeZone, role, isActive };
         }
       } else {
@@ -294,6 +297,59 @@
       } else {
         error = 'Saving failed.';
       }
+    } finally {
+      saving = false;
+    }
+  }
+
+  function showInvitation(userId: Guid, token: string, expiresAt: string) {
+    const url = new URL(resolve('/accept-invitation'), window.location.origin);
+    url.hash = new URLSearchParams({ userId, token }).toString();
+    invitation = { userId, url: url.href, expiresAt };
+  }
+
+  async function renewInvitation() {
+    if (!selected || saving) return;
+    saving = true;
+    error = null;
+    try {
+      const issued = await invitations.renew(selected.id);
+      showInvitation(issued.user.id, issued.token, issued.expiresAt);
+      toasts.success('New invitation created. Previous links no longer work.');
+    } catch (failure) {
+      error = failure instanceof ApiError ? failure.message : 'Could not reissue the invitation.';
+    } finally {
+      saving = false;
+    }
+  }
+
+  async function copyInvitation() {
+    if (!invitation) return;
+    try {
+      await navigator.clipboard.writeText(invitation.url);
+      toasts.success('Invitation link copied.');
+    } catch {
+      toasts.error('Could not copy automatically. Select the invitation link and copy it manually.');
+    }
+  }
+
+  async function revokeInvitation() {
+    if (!selected?.isInvitationPending || saving) return;
+    const userId = selected.id;
+    if (!await confirm.ask({
+      title: 'Revoke invitation?',
+      message: 'All invitation links for this account will stop working. The account stays inactive. You can reissue an invitation later.',
+      confirmLabel: 'Revoke invitation', cancelLabel: 'Cancel', danger: true
+    })) return;
+    if (saving || selected?.id !== userId) return;
+    saving = true;
+    error = null;
+    try {
+      await usersApi.deactivate(userId);
+      invitation = null;
+      toasts.success('Invitation revoked. Previous links no longer work.');
+    } catch (failure) {
+      error = failure instanceof ApiError ? failure.message : 'Could not revoke the invitation.';
     } finally {
       saving = false;
     }
@@ -403,12 +459,12 @@
 
   <button type="button" class="btn btn-sm" onclick={() => void startCreate()} disabled={saving}>
     <Icon name="user-plus" size={13} />
-    New user
+    Invite user
   </button>
 
   {#if selected || creating}
     <button type="button" class="btn btn-sm btn-primary" onclick={() => void save()} disabled={saving}>
-      {creating ? 'Create user' : 'Save user & team access'}
+      {creating ? 'Create invitation' : 'Save user & team access'}
     </button>
   {/if}
 {/snippet}
@@ -437,13 +493,15 @@
           class="user"
           class:active={selected?.id === user.id}
           class:inactive={!user.isActive}
+          disabled={saving}
           onclick={() => void select(user)}>
           <Avatar name={user.displayName} seed={user.email} size={20} />
           <span class="who">
             <span class="truncate">{user.displayName}</span>
             <span class="truncate email">{user.email}</span>
           </span>
-          {#if !user.isActive}<span class="chip">Off</span>{/if}
+          {#if user.isInvitationPending}<span class="chip">Invited</span>{/if}
+          {#if !user.isActive && !user.isInvitationPending}<span class="chip">Off</span>{/if}
         </button>
       {:else}
         <p class="muted pad">{loading ? 'Loading…' : 'No accounts match.'}</p>
@@ -465,17 +523,23 @@
 
       <section class="panel">
         <div class="panel-title">
-          <span>{creating ? 'New account' : 'Account'}</span>
+          <span>{creating ? 'Invite a new user' : 'Account'}</span>
 
           {#if selected}
             <div class="row-tight">
               <span class="muted small" title={formatExact(selected.createdAt)}>
                 Created {relativeTime(selected.createdAt)}
               </span>
-              <button type="button" class="btn btn-sm" onclick={() => (resetting = true)}>
-                <Icon name="key-round" size={13} />
-                Reset password
-              </button>
+              {#if !selected.isInvitationPending}
+                <button
+                  type="button"
+                  class="btn btn-sm"
+                  onclick={() => (resetting = true)}
+                  disabled={saving}>
+                  <Icon name="key-round" size={13} />
+                  Reset password
+                </button>
+              {/if}
             </div>
           {/if}
         </div>
@@ -509,35 +573,6 @@
             {#if fieldErrors.displayName}<p class="field-error">{fieldErrors.displayName}</p>{/if}
           </div>
 
-          {#if creating}
-            <div class="field">
-              <label for="user-password">Password</label>
-              <input
-                id="user-password"
-                bind:value={newPassword}
-                class="input"
-                class:invalid={Boolean(fieldErrors.password)}
-                type="password"
-                autocomplete="new-password"
-                disabled={saving} />
-              <p class="muted hint">At least 12 characters. Length beats character classes.</p>
-              {#if fieldErrors.password}<p class="field-error">{fieldErrors.password}</p>{/if}
-            </div>
-
-            <div class="field">
-              <label for="user-password-confirm">Confirm password</label>
-              <input
-                id="user-password-confirm"
-                bind:value={newPasswordConfirm}
-                class="input"
-                class:invalid={Boolean(fieldErrors.passwordConfirm)}
-                type="password"
-                autocomplete="new-password"
-                disabled={saving} />
-              {#if fieldErrors.passwordConfirm}<p class="field-error">{fieldErrors.passwordConfirm}</p>{/if}
-            </div>
-          {/if}
-
           <div class="field">
             <span class="field-label">Organisation role</span>
             <Select
@@ -556,7 +591,7 @@
           </div>
         </div>
 
-        {#if !creating}
+        {#if !creating && !selected?.isInvitationPending}
           <label class="checkbox">
             <input type="checkbox" bind:checked={isActive} disabled={saving || !canDeactivate} />
             <span>
@@ -568,6 +603,49 @@
           </label>
         {/if}
       </section>
+
+      {#if creating}
+        <p class="muted">
+          Create an expiring, single-use invitation link to share manually. No email is sent.
+          The recipient chooses their own password when accepting.
+        </p>
+      {:else if selected?.isInvitationPending}
+        <section class="panel">
+          <div class="panel-title">
+            <span>Invitation pending</span>
+            <button
+              type="button"
+              class="btn btn-sm"
+              disabled={saving || (selected.role === 'owner' && !session.isOwner)}
+              onclick={() => void renewInvitation()}>Reissue invitation</button>
+          </div>
+          <p class="muted">
+            No email is sent. Share the link privately with the intended recipient.
+            Reissuing invalidates all previous invitation links.
+          </p>
+          {#if invitation?.userId === selected.id}
+            <div class="field">
+              <label for="invitation-link">Invitation link</label>
+              <input
+                id="invitation-link"
+                class="input"
+                value={invitation.url}
+                readonly
+                onclick={(event) => event.currentTarget.select()} />
+              <p class="muted hint">
+                Expires {formatExact(invitation.expiresAt)}. This link is only shown now;
+                copy it before leaving this account.
+              </p>
+            </div>
+            <button type="button" class="btn" onclick={() => void copyInvitation()}>Copy invitation link</button>
+          {:else}
+            <p class="muted hint">Reissue an invitation to generate a new link to copy.</p>
+          {/if}
+          <p class="muted hint">This account becomes active only after the invitation is accepted.</p>
+          <button type="button" class="btn btn-sm" disabled={saving || (selected.role === 'owner' && !session.isOwner)}
+            onclick={() => void revokeInvitation()}>Revoke invitation links</button>
+        </section>
+      {/if}
 
       <section class="panel">
         <div class="panel-title">

@@ -92,6 +92,29 @@ export const authorize = {
 
 /* ----------------------------------------------------------------- users ---- */
 
+export interface InvitationIssued {
+  user: UserDetail;
+  token: string;
+  expiresAt: string;
+}
+
+export interface InvitationDetails {
+  email: string;
+  displayName: string;
+  expiresAt: string;
+}
+
+export const invitations = {
+  create: (body: Omit<CreateUserRequest, 'password'>) =>
+    request<InvitationIssued>(`${v1}/invitations`, { method: 'POST', body }),
+  renew: (id: Guid) =>
+    request<InvitationIssued>(`${v1}/invitations/${encodeURIComponent(id)}/renew`, { method: 'POST' }),
+  inspect: (body: { userId: Guid; token: string }) =>
+    request<InvitationDetails>(`${v1}/invitations/inspect`, { method: 'POST', anonymous: true, body }),
+  accept: (body: { userId: Guid; token: string; password: string }) =>
+    request<void>(`${v1}/invitations/accept`, { method: 'POST', anonymous: true, body })
+};
+
 export const users = {
   list: (
     params: { search?: string; includeInactive?: boolean; page?: number; pageSize?: number } = {},

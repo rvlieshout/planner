@@ -112,6 +112,7 @@ export interface UserSummary {
   displayName: string;
   avatarUrl: string | null;
   isActive: boolean;
+  isInvitationPending?: boolean;
 }
 
 export interface UserDetail extends UserSummary {

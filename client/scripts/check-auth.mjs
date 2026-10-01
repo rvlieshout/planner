@@ -18,6 +18,33 @@ try {
   const { tokens } = await server.ssrLoadModule('/src/lib/auth/tokens.svelte.ts');
   const { request, setUnauthorizedHandler } = await server.ssrLoadModule('/src/lib/api/http.ts');
   const { passkeySetupAvailable, passkeysAvailable } = await server.ssrLoadModule('/src/lib/auth/passkeys.ts');
+  const { invitations } = await server.ssrLoadModule('/src/lib/api/index.ts');
+  const invitation = { userId: 'invited-user', token: 'secret-invitation-token' };
+  const invitationDetails = { email: 'invited@example.test', displayName: 'Invited user', expiresAt: '2030-01-01T00:00:00Z' };
+  globalThis.fetch = async (url, init) => {
+    assert.equal(url, '/api/v1/invitations/inspect');
+    assert.equal(init.method, 'POST');
+    assert.equal(init.headers.authorization, undefined, 'Invitation inspection must not use the current account');
+    assert.deepEqual(JSON.parse(init.body), invitation);
+    return Response.json(invitationDetails);
+  };
+  assert.deepEqual(await invitations.inspect(invitation), invitationDetails);
+  globalThis.fetch = async (url, init) => {
+    assert.equal(url, '/api/v1/invitations/accept');
+    assert.equal(init.method, 'POST');
+    assert.equal(init.headers.authorization, undefined, 'Invitation acceptance must not use the current account');
+    assert.deepEqual(JSON.parse(init.body), { ...invitation, password: 'a long unique passphrase' });
+    return new Response(null, { status: 204 });
+  };
+  await invitations.accept({ ...invitation, password: 'a long unique passphrase' });
+  let invitationSignedOut = false;
+  setUnauthorizedHandler(() => { invitationSignedOut = true; });
+  globalThis.fetch = async () => Response.json({ detail: 'Invalid invitation.' }, { status: 401 });
+  await assert.rejects(invitations.inspect(invitation));
+  assert.equal(invitationSignedOut, false, 'An invalid invitation must not expire an existing session');
+  assert.equal(values.get('planner.refreshToken'), 'previous-browser-session');
+  setUnauthorizedHandler(null);
+  console.log('PASS: Invitation credentials use anonymous POST bodies and preserve existing sessions on failure');
   Object.defineProperty(globalThis, 'window', { configurable: true, value: { isSecureContext: true } });
   Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { credentials: { create() {} } } });
   Object.defineProperty(globalThis, 'PublicKeyCredential', { configurable: true, value: {

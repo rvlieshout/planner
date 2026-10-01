@@ -40,6 +40,7 @@ builder.Services.AddBase58Ids();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentUser>();
+builder.Services.AddScoped<Invitations>();
 builder.Services.AddScoped<ITeamAccess, TeamAccess>();
 builder.Services.AddScoped<IActivityLog, ActivityLog>();
 builder.Services.AddScoped<IssueCommands>();
@@ -199,6 +200,7 @@ app.MapAuthorizeEndpoints();
 app.MapRegistrationEndpoints();
 app.MapPasskeyEndpoints();
 app.MapUserEndpoints();
+app.MapInvitationEndpoints();
 app.MapTeamEndpoints();
 app.MapProjectEndpoints();
 app.MapDocumentEndpoints();
