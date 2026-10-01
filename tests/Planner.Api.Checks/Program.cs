@@ -59,6 +59,21 @@ finally
     Directory.Delete(root, recursive: true);
 }
 
+foreach (var link in new[] { "https://example.com/trace.har", "http://files.internal:8080/a%20b.pdf", "HTTPS://EXAMPLE.COM" })
+{
+    Check(IssueEndpoints.IsWebLink(link), $"Attachment link accepted: {link}");
+}
+
+foreach (var link in new[]
+{
+    "javascript:alert(1)", "data:text/html,<script>alert(1)</script>", "file:///etc/passwd", @"\\host\share\file",
+    "/etc/passwd", @"C:\Windows\System32\calc.exe", "ms-msdt:/id", "//example.com/x", "example.com/x", "https://",
+    $"planner-attachment:{Guid.NewGuid()}", "", " "
+})
+{
+    Check(!IssueEndpoints.IsWebLink(link), $"Attachment link refused: '{link}'");
+}
+
 await Planner.Api.Checks.Base58Checks.RunAsync(Check);
 Planner.Api.Checks.RankChecks.Run(Check);
 

@@ -85,13 +85,14 @@ Validation accumulates: every problem with a request comes back at once, not one
 | `GET /api/v1/users/{id}` | One user with their role | any user |
 | `POST /api/v1/users` | Legacy password-based account creation; prefer invitations for first-time access | admin |
 | `PATCH /api/v1/users/{id}` | Profile, `role`, `isActive`; `email` only while the invitation is pending | admin |
-| `POST /api/v1/users/{id}/password` | Reset without the current password | admin |
+| `POST /api/v1/users/{id}/password` | Reset without the current password. Written to the server log | admin; owner for an owner's |
 | `DELETE /api/v1/users/{id}` | Deactivate; authored content is kept | admin |
 
 User summaries and details include `isInvitationPending` and `invitationExpiresAt`, the moment the
 latest link lapses; it is null once the invitation is revoked or accepted. Invited users are inactive
 and have no password until acceptance. Activating or resetting the password of a pending user is
-rejected, and a password sign-in attempt is answered with a pointer to the invitation link.
+rejected, and a password sign-in attempt is answered as one for an unknown address is, so the token
+endpoint does not reveal who has been invited.
 Deactivating one revokes its invitation links; it remains pending and can receive a new invitation.
 A pending user's `email` can be corrected with `PATCH`; links already issued keep working.
 Only an owner may issue, renew, or revoke an owner invitation.
@@ -290,7 +291,7 @@ back out clears them. Rename your columns freely.
 | `GET \| POST /api/v1/issues/{id}/comments` | `{ body, parentCommentId? }` — one level of threading | Read / **Comment** |
 | `PATCH /api/v1/comments/{id}` | Author only | author |
 | `DELETE /api/v1/comments/{id}` | Author, or a team lead moderating | author / Administer |
-| `POST /api/v1/issues/{id}/attachments` | `{ fileName, storageUri, contentType?, sizeBytes? }` — metadata for a file held elsewhere | **Comment** |
+| `POST /api/v1/issues/{id}/attachments` | `{ fileName, storageUri, contentType?, sizeBytes? }` — a link to a file held elsewhere | **Comment** |
 | `POST /api/v1/issues/{id}/files?fileName=` | The raw bytes as the request body, up to 20 MiB | **Comment** |
 | `GET /api/v1/attachments/{id}/content` | Downloads bytes this server holds | Read |
 | `DELETE /api/v1/attachments/{id}` | Uploader, or any team member | uploader / Write |
@@ -298,7 +299,9 @@ back out clears them. Rename your columns freely.
 | `DELETE /api/v1/issues/{id}/relations/{relationId}` | | Write |
 
 An attachment goes on either way. `POST …/attachments` stores **metadata only** — put the bytes on your
-own share or object store and the resulting location in `storageUri`. `POST …/files` sends the bytes
+own share or object store and its `http` or `https` address in `storageUri`. Any other scheme is
+refused with a 400: clients open the link as it is, so it has to be one a browser opens as a web page.
+(`/documents/{id}` links a document of the issue's project instead.) `POST …/files` sends the bytes
 themselves; the API writes them under `Attachments__Path`, outside the web root, and sets
 `storageUri` to `planner-attachment:{id}`, which is how a client tells the two apart. Downloading
 through `GET /attachments/{id}/content` re-checks the issue's team permission.

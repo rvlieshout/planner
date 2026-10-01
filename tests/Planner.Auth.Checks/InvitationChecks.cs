@@ -173,9 +173,10 @@ public static class InvitationChecks
 
         Role(null);
         var pendingLogin = await Login(invite.User.Email, "a long chosen password");
+        var unknownLogin = await Login("nobody@planner.test", "a long chosen password");
         check(pendingLogin.StatusCode == HttpStatusCode.BadRequest &&
-              (await pendingLogin.Content.ReadAsStringAsync()).Contains("invitation link"),
-            "Pending accounts cannot sign in and are pointed to their invitation link");
+              await pendingLogin.Content.ReadAsStringAsync() == await unknownLogin.Content.ReadAsStringAsync(),
+            "Pending accounts cannot sign in, and are answered exactly as an unknown address is");
         var preview = await Inspect(invite);
         check(preview.IsSuccessStatusCode && preview.Headers.CacheControl?.NoStore == true,
             "Anonymous holder can inspect an invitation without consuming it");
@@ -274,6 +275,37 @@ public static class InvitationChecks
             email = "legacy@planner.test", password = "legacy chosen password", displayName = "Legacy", role = "member"
         });
         check(legacy.StatusCode == HttpStatusCode.Created, "Legacy admin password-based creation remains compatible");
+
+        var legacyId = (await legacy.Content.ReadFromJsonAsync<UserSummary>(json))!.Id.ToBase58();
+        check((await client.DeleteAsync($"/api/v1/users/{legacyId}")).IsSuccessStatusCode, "Admins can deactivate an account");
+        Role(null);
+        var wrongPassword = await Login("legacy@planner.test", "not the chosen password");
+        var nobody = await Login("nobody@planner.test", "not the chosen password");
+        check(wrongPassword.StatusCode == HttpStatusCode.BadRequest &&
+              await wrongPassword.Content.ReadAsStringAsync() == await nobody.Content.ReadAsStringAsync(),
+            "A deactivated account is answered as an unknown address is, without its password");
+        var rightPassword = await Login("legacy@planner.test", "legacy chosen password");
+        check(rightPassword.StatusCode == HttpStatusCode.BadRequest &&
+              (await rightPassword.Content.ReadAsStringAsync()).Contains("deactivated"),
+            "A deactivated account cannot sign in, and is told why once the password is right");
+
+        Role("owner");
+        var secondOwner = await client.PostAsJsonAsync("/api/v1/users", new
+        {
+            email = "second-owner@planner.test", password = "owner chosen password", displayName = "Second Owner", role = "owner"
+        });
+        var ownerId = (await secondOwner.Content.ReadFromJsonAsync<UserSummary>(json))!.Id.ToBase58();
+        Task<HttpResponseMessage> Reset(string password) =>
+            client.PostAsJsonAsync($"/api/v1/users/{ownerId}/password", new { newPassword = password });
+        Role("admin");
+        check((await Reset("a password by admin")).StatusCode == HttpStatusCode.Forbidden,
+            "Admins cannot reset an owner's password");
+        Role(null);
+        check((await Login("second-owner@planner.test", "owner chosen password")).IsSuccessStatusCode,
+            "A refused reset leaves the owner's password as it was");
+        Role("owner");
+        check((await Reset("a password by owner")).StatusCode == HttpStatusCode.NoContent,
+            "Owners can reset an owner's password");
     }
 
     private sealed class CheckAuthentication(

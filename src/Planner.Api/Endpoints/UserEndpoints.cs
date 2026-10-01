@@ -357,12 +357,21 @@ public static class UserEndpoints
     private static async Task<IResult> ResetPasswordAsync(
         Guid id,
         ResetPasswordRequest request,
-        UserManager<AppUser> userManager)
+        UserManager<AppUser> userManager,
+        CurrentUser current,
+        ILoggerFactory loggers)
     {
         var user = await userManager.FindByIdAsync(id.ToString());
         if (user is null)
         {
             return ApiResults.NotFound("That user");
+        }
+
+        // Setting someone's password is being able to sign in as them, so an admin who could do it to
+        // the owner would hold the owner role in all but name.
+        if (!current.IsOwner && await userManager.IsInRoleAsync(user, PlannerRoles.Owner))
+        {
+            return ApiResults.Forbidden("Only the owner can reset an owner's password.");
         }
 
         if (user.IsInvitationPending)
@@ -372,7 +381,15 @@ public static class UserEndpoints
 
         var token = await userManager.GeneratePasswordResetTokenAsync(user);
         var result = await userManager.ResetPasswordAsync(user, token, request.NewPassword);
-        return result.Succeeded ? Results.NoContent() : IdentityProblem(result);
+        if (!result.Succeeded)
+        {
+            return IdentityProblem(result);
+        }
+
+        // The activity feed is per team and this belongs to none, so the record of who did it is the log.
+        loggers.CreateLogger("Planner.Auth.Users").LogInformation(
+            "User {ActorId} reset the password of user {UserId}", current.Id, user.Id);
+        return Results.NoContent();
     }
 
     private static async Task<IResult> DeactivateAsync(

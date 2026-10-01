@@ -998,6 +998,12 @@ public static class IssueEndpoints
 
             request = request with { FileName = document.Title, ContentType = "text/markdown", SizeBytes = null };
         }
+        else if (!IsWebLink(request.StorageUri))
+        {
+            return WriteResult<AttachmentDto>.Failed(new Validation()
+                .Add("storageUri", "storageUri must be an http or https address, or a /documents/{id} link.")
+                .ToResult());
+        }
 
         var attachment = new Attachment
         {
@@ -1022,6 +1028,14 @@ public static class IssueEndpoints
         await notifier.AttachmentChanged(ChangeKind.Created, dto, issue.TeamId);
         return WriteResult<AttachmentDto>.Succeeded(dto);
     }
+
+    /// <summary>Whether a link someone else will click is one a browser opens as a web page. Clients hand
+    /// <c>storageUri</c> to the browser or the shell as it is, so <c>javascript:</c>, <c>file:</c>, a UNC
+    /// path or <c>planner-attachment:</c> — which only an upload may claim — must never be stored.</summary>
+    public static bool IsWebLink(string? value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+        (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
+        !string.IsNullOrEmpty(uri.Host);
 
     private static async Task<IResult> DeleteAttachmentAsync(
         Guid attachmentId, AttachmentCommands attachments, CancellationToken ct) =>

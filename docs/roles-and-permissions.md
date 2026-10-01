@@ -70,7 +70,7 @@ Organisation-level actions bypass teams entirely:
 | Create a user, reset a password, deactivate a user | `owner` / `admin` |
 | Create a team | `owner` / `admin` |
 | Create or edit organisation-wide labels | `owner` / `admin` |
-| Grant or revoke the `owner` role | `owner` |
+| Grant or revoke the `owner` role, reset an owner's password | `owner` |
 
 ## How it answers
 
