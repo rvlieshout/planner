@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { assertPasskey, passkeyError, passkeysAvailable } from '$lib/auth/passkeys';
   import { ApiError } from '$lib/api';
   import { session } from '$lib/auth/session.svelte';
@@ -13,11 +14,11 @@
    * pointed anywhere; this application was served by the installation it talks to, so the address is
    * already settled and asking for it again would only be a way to get it wrong.
    */
-  let recovery = $state(false);
   const supportsPasskeys = passkeysAvailable();
   let email = $state(settings.lastEmail ?? '');
   let password = $state('');
-  let busy = $state(false);
+  let operation = $state<'password' | 'passkey' | null>(null);
+  const busy = $derived(operation !== null);
   let error = $state<string | null>(session.restoreError);
 
   let passwordField = $state<HTMLInputElement | null>(null);
@@ -32,19 +33,19 @@
   const resuming = Boolean(settings.lastEmail);
 
   $effect(() => {
-    if (resuming && recovery) passwordField?.focus();
+    if (resuming) passwordField?.focus();
   });
 
   async function signInWithPasskey() {
     if (busy) return;
-    busy = true;
+    operation = 'passkey';
     error = null;
     try {
       await session.signInWithPasskey(await assertPasskey());
     } catch (failure) {
       error = passkeyError(failure);
     } finally {
-      busy = false;
+      operation = null;
     }
   }
 
@@ -53,7 +54,7 @@
 
     if (busy) return;
 
-    busy = true;
+    operation = 'password';
     error = null;
 
     try {
@@ -66,9 +67,11 @@
           ? failure.message
           : 'Sign-in failed. Check the server and try again.';
       password = '';
+      operation = null;
+      await tick();
       passwordField?.focus();
     } finally {
-      busy = false;
+      operation = null;
     }
   }
 </script>
@@ -96,21 +99,7 @@
       </div>
     {/if}
 
-    <button type="button" class="btn btn-primary btn-lg btn-block"
-      disabled={busy || !supportsPasskeys} onclick={() => void signInWithPasskey()}>
-      {busy && !recovery ? 'Signing in…' : 'Sign in with a passkey'}
-    </button>
-    <p class="muted">Use your fingerprint, face, device PIN, or security key.</p>
-    {#if !supportsPasskeys}
-      <p class="muted">Passkeys need a supported browser over HTTPS (or localhost). You can still use setup and recovery below.</p>
-    {/if}
-    <p class="muted">You’ll stay signed in on this browser. Sign out when using a shared device.</p>
-    <button type="button" class="btn btn-sm" disabled={busy} aria-expanded={recovery}
-      onclick={() => { recovery = !recovery; error = null; }}>
-      {recovery ? 'Hide setup and recovery' : 'First-time setup or recovery'}
-    </button>
-    {#if recovery}
-    <p class="muted">Sign in with your existing password. On supported devices, we’ll guide you through setting up a passkey next. If you’ve lost access, ask your administrator to reset your password and share it with you directly. No email is sent.</p>
+    <h2>Sign in with your password</h2>
     <div class="field">
       <label for="email">Email</label>
       <input
@@ -137,14 +126,40 @@
     </div>
 
     <button type="submit" class="btn btn-primary btn-lg btn-block" disabled={busy || !email || !password}>
-      {#if busy}
+      {#if operation === 'password'}
         <Icon name="loader-circle" size={15} class="spin" />
-        Signing in…
+        Signing in with password…
       {:else}
-        Continue with password
+        Sign in with password
       {/if}
     </button>
-    {/if}
+
+    <section class="alternative" aria-labelledby="passkey-heading">
+      <h2 id="passkey-heading">Already registered a passkey?</h2>
+      <p class="muted">Use a passkey you’ve already added to this workspace, with your fingerprint, face, device PIN, or security key.</p>
+      <button type="button" class="btn btn-lg btn-block"
+        disabled={busy || !supportsPasskeys} onclick={() => void signInWithPasskey()}>
+        {#if operation === 'passkey'}
+          <Icon name="loader-circle" size={15} class="spin" />
+          Signing in with passkey…
+        {:else}
+          Sign in with passkey
+        {/if}
+      </button>
+      {#if !supportsPasskeys}
+        <p class="muted">Passkeys need a supported browser over HTTPS (or localhost). You can still sign in with your password above.</p>
+      {/if}
+    </section>
+
+    <section class="help" aria-labelledby="first-time-heading">
+      <h2 id="first-time-heading">First time here?</h2>
+      <p class="muted">Ask your administrator for an invitation link to set up your account.</p>
+    </section>
+    <section class="help" aria-labelledby="recovery-heading">
+      <h2 id="recovery-heading">Lost access to your account?</h2>
+      <p class="muted">Ask your administrator to reset your password and share it with you directly. No recovery email is sent.</p>
+    </section>
+    <p class="muted">You’ll stay signed in on this browser. Sign out when using a shared device.</p>
   </form>
 </div>
 
@@ -201,5 +216,20 @@
 
   .brand p {
     font-size: var(--text-sm);
+  }
+
+  h2 {
+    font-size: var(--text-sm);
+  }
+
+  .alternative,
+  .help {
+    display: grid;
+    gap: var(--s-3);
+  }
+
+  .alternative {
+    border-top: 1px solid var(--border);
+    padding-top: var(--s-5);
   }
 </style>

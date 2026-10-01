@@ -25,6 +25,7 @@
 
   const route = $derived(page.url.pathname);
   const onLogin = $derived(route === resolve('/login') || route === `${resolve('/login')}/`);
+  const onInvitation = $derived(route === resolve('/accept-invitation') || route === `${resolve('/accept-invitation')}/`);
   const onAuthorize = $derived(route === resolve('/authorize'));
 
   /*
@@ -56,7 +57,7 @@
   });
 
   $effect(() => {
-    if (session.status === 'signed-out' && !onLogin) {
+    if (session.status === 'signed-out' && !onLogin && !onInvitation) {
       const back = onAuthorize ? `?return=${encodeURIComponent(page.url.pathname + page.url.search)}` : '';
       void goto(resolve('/login') + back, { replaceState: true });
     }
@@ -85,7 +86,7 @@
     <Icon name="loader-circle" size={22} class="spin" />
     <p>Resuming your session…</p>
   </div>
-{:else if session.isSignedIn && session.suggestPasskeySetup}
+{:else if session.isSignedIn && session.suggestPasskeySetup && !onInvitation}
   <PasskeySetup onComplete={() => { session.suggestPasskeySetup = false; }} />
 {:else}
   {@render children()}

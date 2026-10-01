@@ -194,7 +194,8 @@ public static class UserEndpoints
             roles.FirstOrDefault() ?? PlannerRoles.Guest,
             user.IsActive,
             user.CreatedAt,
-            user.LastSeenAt));
+            user.LastSeenAt,
+            user.IsInvitationPending));
     }
 
     private static async Task<IResult> CreateAsync(
@@ -265,6 +266,11 @@ public static class UserEndpoints
         var roles = await userManager.GetRolesAsync(user);
         var currentRole = roles.FirstOrDefault() ?? PlannerRoles.Guest;
 
+        if (user.IsInvitationPending && request.IsActive.TryGet(out var activate) && activate)
+        {
+            return ApiResults.BadRequest("Pending users must accept their invitation before activation.");
+        }
+
         if (request.Role.TryGet(out var newRole) && newRole != currentRole)
         {
             if (!PlannerRoles.All.ContainsKey(newRole!))
@@ -290,7 +296,7 @@ public static class UserEndpoints
                 return ApiResults.BadRequest("You cannot deactivate your own account.");
             }
 
-            if (currentRole == PlannerRoles.Owner)
+            if (currentRole == PlannerRoles.Owner && !(user.IsInvitationPending && current.IsOwner))
             {
                 return ApiResults.Forbidden("The owner account cannot be deactivated. Transfer ownership first.");
             }
@@ -300,6 +306,11 @@ public static class UserEndpoints
         user.AvatarUrl = request.AvatarUrl.Or(user.AvatarUrl);
         user.TimeZone = request.TimeZone.Or(user.TimeZone)!;
         user.IsActive = request.IsActive.Or(user.IsActive);
+
+        if (user.IsInvitationPending && request.IsActive.TryGet(out var deactivate) && !deactivate)
+        {
+            user.SecurityStamp = Guid.NewGuid().ToString();
+        }
 
         var result = await userManager.UpdateAsync(user);
         if (!result.Succeeded)
@@ -327,6 +338,11 @@ public static class UserEndpoints
             return ApiResults.NotFound("That user");
         }
 
+        if (user.IsInvitationPending)
+        {
+            return ApiResults.BadRequest("Pending users must choose their own password by accepting an invitation.");
+        }
+
         var token = await userManager.GeneratePasswordResetTokenAsync(user);
         var result = await userManager.ResetPasswordAsync(user, token, request.NewPassword);
         return result.Succeeded ? Results.NoContent() : IdentityProblem(result);
@@ -351,13 +367,18 @@ public static class UserEndpoints
         }
 
         var roles = await userManager.GetRolesAsync(user);
-        if (roles.Contains(PlannerRoles.Owner))
+        if (roles.Contains(PlannerRoles.Owner) && !(user.IsInvitationPending && current.IsOwner))
         {
             return ApiResults.Forbidden("The owner account cannot be deactivated. Transfer ownership first.");
         }
 
         // Deactivate rather than delete: issues, comments and audit rows keep pointing at a real person.
         user.IsActive = false;
+        // Cancelling a pending invitation must invalidate its bearer link as well.
+        if (user.IsInvitationPending)
+        {
+            user.SecurityStamp = Guid.NewGuid().ToString();
+        }
         var result = await userManager.UpdateAsync(user);
         if (!result.Succeeded)
         {

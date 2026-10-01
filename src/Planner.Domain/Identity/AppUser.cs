@@ -12,6 +12,11 @@ public class AppUser : IdentityUser<Guid>
     /// <summary>Deactivated users keep authoring history but cannot obtain tokens.</summary>
     public bool IsActive { get; set; } = true;
 
+    /// <summary>Only invitation creation leaves the email unconfirmed and the password unset.
+    /// Existing accounts, including deactivated ones, must never become invitations.</summary>
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public bool IsInvitationPending => !EmailConfirmed && PasswordHash is null;
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? LastSeenAt { get; set; }
 

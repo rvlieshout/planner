@@ -104,6 +104,25 @@ Two server conventions the types depend on:
 
 ## Signing in
 
+The sign-in page shows password sign-in directly, with a separate button for a passkey already
+registered for this workspace. First-time access and recovery are different: a new user needs an
+administrator-issued invitation; an existing user who loses access asks an administrator for a
+password reset. Neither flow sends email.
+
+In **Users & access**, **Invite user** creates an inactive, passwordless account and displays a
+single-use link valid for 72 hours. Share it privately with the intended recipient. Pending accounts
+show **Invited** and offer **Reissue invitation**, which invalidates older links, and
+**Revoke invitation links** to cancel access. The link is only
+held in the current page's memory; copy it before leaving the account.
+
+The public `/app/accept-invitation` page reads credentials from the URL fragment, removes them from
+the current history entry, and sends them only in anonymous POST bodies. It checks the invitation
+before asking the recipient to choose and confirm their own password. A visitor already signed in
+must sign out first, so accepting cannot silently replace someone else's session. Successful
+acceptance activates the account and signs it in; if automatic sign-in fails, the new password still
+works on the normal sign-in page. On supported devices, the existing passkey setup screen then offers
+optional passwordless sign-in for future visits.
+
 `password` grant against `/connect/token` with `client_id=planner-web` — a second public client,
 registered beside `planner-desktop` by `OpenIddictClientSeeder`, so the two can be told apart in the
 logs and revoked independently. Then `GET /api/v1/me` for the profile and team list.

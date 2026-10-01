@@ -23,7 +23,7 @@ export async function passkeySetupAvailable(): Promise<boolean> {
 export function passkeyError(error: unknown): string {
   if (error instanceof DOMException) {
     if (error.name === 'NotAllowedError' || error.name === 'AbortError')
-      return 'Passkey sign-in was cancelled or timed out. Try again, or use setup and recovery.';
+      return 'The passkey request was cancelled or timed out. Try again. To sign in, you can also use your password.';
     if (error.name === 'InvalidStateError') return 'This passkey is already registered. Use it to sign in or choose another device.';
     if (error.name === 'SecurityError') return 'Passkeys require HTTPS (or localhost) and the same workspace address used during setup.';
   }
@@ -31,7 +31,7 @@ export function passkeyError(error: unknown): string {
 }
 
 function requireSupport() {
-  if (!passkeysAvailable()) throw new Error('Passkeys need a supported browser over HTTPS (or localhost). Use setup and recovery to sign in.');
+  if (!passkeysAvailable()) throw new Error('Passkeys need a supported browser over HTTPS (or localhost). You can still sign in with your password.');
 }
 
 // Decode explicitly so browsers with WebAuthn but without the newer JSON helpers work too.
