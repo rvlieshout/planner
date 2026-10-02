@@ -80,5 +80,14 @@
       "Very long comments, descriptions and documents are limited in length.",
       "Maintenance and reliability improvements."
     ]
+  },
+  {
+    "version": "1.2.2",
+    "title": "Delete accounts that were never used",
+    "date": "2026-10-02",
+    "changes": [
+      "Administrators can delete an account nobody has ever signed in to, such as an invitation sent to the wrong person.",
+      "Its team memberships go with it, anything assigned to it becomes unassigned, and its email address can be invited again."
+    ]
   }
 ]
