@@ -69,5 +69,16 @@
       "Open tabs share one session, so they no longer sign each other out.",
       "Issue attachments sit in the main column of the issue."
     ]
+  },
+  {
+    "version": "1.2.1",
+    "title": "Storage limits per team",
+    "date": "2026-10-02",
+    "changes": [
+      "Each team has a limit on the files it can hold, 5 GB unless the owner sets another under Preferences.",
+      "Uploads are limited to 1 GB per person per day; removing a file gives its space back.",
+      "Very long comments, descriptions and documents are limited in length.",
+      "Maintenance and reliability improvements."
+    ]
   }
 ]
