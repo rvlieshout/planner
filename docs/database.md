@@ -79,6 +79,7 @@ erDiagram
 | `attachments` | `issue_id`, `file_name`, `content_type`, `size_bytes`, `storage_uri` | Metadata only — bytes live wherever `storage_uri` points. |
 | `activity_events` | `entity_type`, `entity_id`, `action`, `data` (`jsonb`), denormalised `team_id`/`project_id`/`issue_id` | Append-only audit trail. |
 | `issue_subscriptions` | Composite PK `(issue_id, user_id)`, `created_at` | Who follows an issue. Filing, being assigned and commenting add a row. |
+| `organization_settings` | `id` (always 1), `team_storage_bytes`, `updated_at`, `updated_by_id` | What the owner decides for the installation. One row, or none until a setting is first changed, in which case the defaults apply. |
 | `notifications` | `recipient_id`, `activity_event_id`, `issue_id`, `read_at` | One audit event delivered to one follower. Points at the event rather than copying it, so the inbox and the history cannot disagree. |
 
 ## Referential behaviour

@@ -150,7 +150,8 @@ public static class DocumentEndpoints
             return WriteResult<DocumentSummary>.Failed(denied);
         }
 
-        var validation = new Validation().Required(request.Title, "title").MaxLength(request.Title, 300, "title");
+        var validation = new Validation().Required(request.Title, "title").MaxLength(request.Title, 300, "title")
+            .MaxLength(request.Content, TextLimits.Document, "content");
         if (validation.HasErrors)
         {
             return WriteResult<DocumentSummary>.Failed(validation.ToResult());
@@ -207,6 +208,15 @@ public static class DocumentEndpoints
         if (request.Title.TryGet(out var title))
         {
             var validation = new Validation().Required(title, "title").MaxLength(title, 300, "title");
+            if (validation.HasErrors)
+            {
+                return WriteResult<DocumentSummary>.Failed(validation.ToResult());
+            }
+        }
+
+        if (request.Content.TryGet(out var content))
+        {
+            var validation = new Validation().MaxLength(content, TextLimits.Document, "content");
             if (validation.HasErrors)
             {
                 return WriteResult<DocumentSummary>.Failed(validation.ToResult());

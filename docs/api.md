@@ -59,13 +59,17 @@ filter on a board means.
 | Status | When |
 | --- | --- |
 | `400` | Validation failed, or a request references something that does not exist |
-| `401` | Missing or expired token |
+| `401` | Missing or expired token, or one whose session has ended: the account was deactivated, or its password changed |
 | `403` | Authenticated, a member, but the action needs more authority |
 | `404` | Does not exist, **or** you cannot see it |
 | `409` | Unique-constraint conflict, a guard tripped (last lead, state in use), or a stale write |
-| `429` | Token endpoint rate limit |
+| `429` | A rate limit: sign-in routes (20 a minute per address), writes (300 a minute per user), `/mcp` (120 a minute per user), or the daily upload allowance |
 
 Validation accumulates: every problem with a request comes back at once, not one per round trip.
+
+Free text is bounded: a comment at 50,000 characters, an issue's or project's description at 100,000,
+a document at 1,000,000. Longer is a 400. Every `POST`, `PATCH`, `PUT` and `DELETE` a signed-in user
+makes counts towards 300 a minute; reads are not counted.
 
 ## Auth
 
@@ -143,6 +147,7 @@ and drops its own uniquely named database. Without that variable, these integrat
 | `POST /api/v1/teams/{id}/members` | `{ userId, role }` | Administer |
 | `PATCH /api/v1/teams/{id}/members/{userId}` | `{ role }` | Administer |
 | `DELETE /api/v1/teams/{id}/members/{userId}` | | Administer |
+| `GET /api/v1/teams/{id}/storage` | `{ teamId, usedBytes, limitBytes }` — attachment storage used; `limitBytes` is null without a limit | Read |
 
 New teams start with **Backlog · Todo · In Progress · In Review · Done · Canceled**, with `Todo` as
 the default for new issues.
@@ -317,6 +322,14 @@ Deleting an attachment also deletes its server-owned file. If file deletion fail
 an error and keeps the attachment record for retry. Missing files can still have their records removed.
 External links are detached only; Planner does not delete files at external locations.
 
+A team may hold 5 GiB of uploaded files in all, unless the owner sets another limit (see Settings).
+An upload that would take its team past the limit is a 409, whoever sends it; removing files, issues
+or projects gives the space back. Links to files held elsewhere do not count.
+
+Each person may upload 1 GiB in any 24 hours, counted from the files they still have stored, so
+removing one gives its space back. Past that an upload is a 429. Set `Attachments__DailyBytesPerUser`
+to another number of bytes, or to `0` for no limit.
+
 `Attachments__Path` must be an absolute, writable directory in any container deployment — the default
 lives under the application folder, which the image's non-root user cannot create. Back it up with the
 database.
@@ -394,6 +407,18 @@ missing from an inbox and a rolled-back one never appears in one.
 Each entry is `{ id, issue: { id, key, title }, teamId, event, createdAt, readAt }`, where `event` is
 the activity row above. The inbox follows access as it is *now*: someone removed from a team stops
 seeing its entries, and they stop counting towards `unread`. Deleting an issue deletes its entries.
+
+## Settings
+
+Organisation-wide settings, decided by the owner.
+
+| | | Requires |
+| --- | --- | --- |
+| `GET /api/v1/settings` | `{ teamStorageBytes }` | any user |
+| `PATCH /api/v1/settings` | `{ teamStorageBytes }` — bytes of uploaded attachments each team may hold; `0` for no limit | owner |
+
+`teamStorageBytes` is 5368709120 (5 GiB) until the owner changes it. In the web client the owner sets it
+under Preferences, in gigabytes.
 
 ## Health
 

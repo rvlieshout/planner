@@ -39,7 +39,8 @@ MCP client ──► POST /connect/token  grant_type=authorization_code + code_v
   that names no resource, or anything but the configured one; the token's `aud` is that resource and
   carries over on refresh.
 - **Claims are rebuilt from the database** at every code redemption and refresh, as for every other
-  grant, so a role change or deactivation reaches MCP clients at their next refresh.
+  grant, and the account is looked up on every request besides, so a role change, a deactivation or a
+  password change reaches MCP clients on their next call.
 
 ## Client registration
 
@@ -110,4 +111,5 @@ The issuer and resource follow, and Vite accepts the tunnel's host name.
   table, including ones abandoned before consent. They are harmless without a user's approval, but
   they accumulate.
 - **Revoking an assistant.** There is no screen yet listing connected clients. Access ends when the
-  account is deactivated, or when the refresh token lapses after `RefreshTokenDays` unused.
+  account is deactivated, when its password is changed or reset (which ends every session, assistants'
+  included), or when the refresh token lapses after `RefreshTokenDays` unused.

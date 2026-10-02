@@ -9,6 +9,7 @@
   import { BUILD_SHA, VERSION } from '$lib/version';
   import { ORG_ROLE, TEAM_ROLE } from '$lib/meta';
   import PasskeySettings from '$components/PasskeySettings.svelte';
+  import OrganizationSettings from '$components/OrganizationSettings.svelte';
   import Avatar from '$components/Avatar.svelte';
   import Icon from '$components/Icon.svelte';
   import TimeZoneSelect from '$components/TimeZoneSelect.svelte';
@@ -211,6 +212,10 @@
       </button>
     </div>
   </section>
+
+  {#if session.isOwner}
+    <OrganizationSettings />
+  {/if}
 
   <section class="panel">
     <div class="panel-title"><span>Date and time</span></div>

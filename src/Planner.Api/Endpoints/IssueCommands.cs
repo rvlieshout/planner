@@ -37,6 +37,7 @@ public sealed class IssueCommands(
         var validation = new Validation()
             .Required(request.Title, "title")
             .MaxLength(request.Title, 500, "title")
+            .MaxLength(request.Description, TextLimits.Description, "description")
             .Range(request.Estimate, 0, 1000, "estimate");
 
         if (validation.HasErrors)

@@ -332,6 +332,11 @@ public static class IssueEndpoints
             validation.Required(title, "title").MaxLength(title, 500, "title");
         }
 
+        if (request.Description.TryGet(out var description))
+        {
+            validation.MaxLength(description, TextLimits.Description, "description");
+        }
+
         if (request.Estimate.TryGet(out var estimate))
         {
             validation.Range(estimate, 0, 1000, "estimate");
@@ -810,7 +815,7 @@ public static class IssueEndpoints
             return WriteResult<CommentDto>.Failed(archived);
         }
 
-        var validation = new Validation().Required(request.Body, "body");
+        var validation = new Validation().Required(request.Body, "body").MaxLength(request.Body, TextLimits.Comment, "body");
         if (validation.HasErrors)
         {
             return WriteResult<CommentDto>.Failed(validation.ToResult());
@@ -879,7 +884,7 @@ public static class IssueEndpoints
             return WriteResult<CommentDto>.Failed(ApiResults.Forbidden("You can only edit your own comments."));
         }
 
-        var validation = new Validation().Required(request.Body, "body");
+        var validation = new Validation().Required(request.Body, "body").MaxLength(request.Body, TextLimits.Comment, "body");
         if (validation.HasErrors)
         {
             return WriteResult<CommentDto>.Failed(validation.ToResult());

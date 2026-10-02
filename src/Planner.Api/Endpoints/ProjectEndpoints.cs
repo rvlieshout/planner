@@ -120,7 +120,8 @@ public static class ProjectEndpoints
         var validation = new Validation()
             .Required(request.Name, "name")
             .MaxLength(request.Name, 200, "name")
-            .MaxLength(request.Summary, 500, "summary");
+            .MaxLength(request.Summary, 500, "summary")
+            .MaxLength(request.Description, TextLimits.Description, "description");
 
         if (request.StartDate is { } start && request.TargetDate is { } target && target < start)
         {
@@ -208,6 +209,15 @@ public static class ProjectEndpoints
             if (await db.Projects.AnyAsync(p => p.TeamId == project.TeamId && p.Name == name && p.Id != id, ct))
             {
                 return WriteResult<ProjectDto>.Failed(ApiResults.Conflict($"This team already has a project named {name}."));
+            }
+        }
+
+        if (request.Description.TryGet(out var description))
+        {
+            var validation = new Validation().MaxLength(description, TextLimits.Description, "description");
+            if (validation.HasErrors)
+            {
+                return WriteResult<ProjectDto>.Failed(validation.ToResult());
             }
         }
 

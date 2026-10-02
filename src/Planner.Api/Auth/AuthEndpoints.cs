@@ -139,7 +139,9 @@ public static class AuthEndpoints
 
         var user = subject is null ? null : await userManager.FindByIdAsync(subject);
 
-        if (user is null || !user.IsActive)
+        // The stamp check is what makes a password change or reset end the sessions that were open
+        // under the old one: their refresh tokens, and the ones assistants hold, stop here.
+        if (user is null || !user.IsActive || !SessionStamp.Matches(authentication.Principal!, user.SecurityStamp))
         {
             return Reject(Errors.InvalidGrant, "The account tied to this grant can no longer sign in.");
         }
@@ -174,6 +176,12 @@ public static class AuthEndpoints
 
         var roles = await userManager.GetRolesAsync(user);
         identity.SetClaims(Claims.Role, [.. roles]);
+
+        // See SessionStamp: what lets a password change end the sessions issued before it.
+        if (SessionStamp.Of(user.SecurityStamp) is { } stamp)
+        {
+            identity.SetClaim(SessionStamp.ClaimType, stamp);
+        }
 
         var principal = new ClaimsPrincipal(identity);
 

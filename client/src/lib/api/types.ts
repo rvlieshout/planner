@@ -168,6 +168,19 @@ export interface TeamDto {
   archivedAt: Timestamp | null;
 }
 
+/** How much of its attachment storage a team has used. `limitBytes` is null when there is no limit. */
+export interface TeamStorage {
+  teamId: Guid;
+  usedBytes: number;
+  limitBytes: number | null;
+}
+
+/** Organisation-wide settings. Anyone signed in reads them; the owner changes them. */
+export interface OrganizationSettings {
+  /** Bytes of uploaded attachments one team may hold; 0 for no limit. */
+  teamStorageBytes: number;
+}
+
 export interface CreateTeamRequest {
   key: string;
   name: string;

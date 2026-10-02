@@ -15,6 +15,36 @@ public static class IssueFileEndpoints
 {
     public const long MaxFileBytes = 20 * 1024 * 1024;
 
+    /// <summary>How much one person may upload in any 24 hours, unless <c>Attachments:DailyBytesPerUser</c>
+    /// says otherwise (0 for no limit). Anyone who may comment may upload, guests included, and the files
+    /// go to a volume that the database and the signing keys may share: without an allowance, one account
+    /// could fill it 20 MB at a time.</summary>
+    public const long DefaultDailyBytesPerUser = 1024L * 1024 * 1024;
+
+    /// <summary>What the caller may still upload today, or null when there is no limit. Counted from the
+    /// files they still have stored, so removing one gives its space back.</summary>
+    private static async Task<long?> RemainingAllowanceAsync(
+        PlannerDbContext db, Guid userId, IConfiguration config, CancellationToken ct)
+    {
+        var allowance = config.GetValue<long?>("Attachments:DailyBytesPerUser") ?? DefaultDailyBytesPerUser;
+        if (allowance <= 0) return null;
+
+        var since = DateTimeOffset.UtcNow.AddDays(-1);
+        var used = await db.Attachments
+            .Where(a => a.UploadedById == userId && a.CreatedAt >= since && a.StorageUri.StartsWith("planner-attachment:"))
+            .SumAsync(a => a.SizeBytes ?? 0, ct);
+
+        return Math.Max(0, allowance - used);
+    }
+
+    private static IResult TeamFull() => ApiResults.Conflict(
+        "This team's file storage is full. Remove attachments that are no longer needed, or ask the owner to raise the limit.");
+
+    private static IResult AllowanceSpent() => Results.Problem(
+        title: "Upload limit reached",
+        detail: "You have reached the amount you can upload in a day. Remove files you no longer need, or try again tomorrow.",
+        statusCode: StatusCodes.Status429TooManyRequests);
+
     public static void MapIssueFiles(this IEndpointRouteBuilder app)
     {
         app.MapPost("/api/v1/issues/{id:b58}/files", UploadAsync).WithTags("Attachments");
@@ -73,6 +103,13 @@ public static class IssueFileEndpoints
             return WriteResult<AttachmentDto>.Failed(ApiResults.BadRequest("Choose a file with a name of 300 characters or fewer."));
         if (declaredLength > MaxFileBytes)
             return WriteResult<AttachmentDto>.Failed(ApiResults.BadRequest("Attachments must be 20 MB or smaller."));
+        var remaining = await RemainingAllowanceAsync(db, current.Id, config, ct);
+        if (remaining is 0 || declaredLength > remaining)
+            return WriteResult<AttachmentDto>.Failed(AllowanceSpent());
+        // The person's own allowance is about how fast; the team's limit is about how much in all.
+        var teamRemaining = await TeamStorage.RemainingAsync(db, issue.TeamId, ct);
+        if (teamRemaining is 0 || declaredLength > teamRemaining)
+            return WriteResult<AttachmentDto>.Failed(TeamFull());
 
         var attachment = new Attachment
         {
@@ -95,6 +132,10 @@ public static class IssueFileEndpoints
                     length += read;
                     if (length > MaxFileBytes)
                         return WriteResult<AttachmentDto>.Failed(ApiResults.BadRequest("Attachments must be 20 MB or smaller."));
+                    if (length > remaining)
+                        return WriteResult<AttachmentDto>.Failed(AllowanceSpent());
+                    if (length > teamRemaining)
+                        return WriteResult<AttachmentDto>.Failed(TeamFull());
                     await file.WriteAsync(buffer.AsMemory(0, read), ct);
                 }
             }

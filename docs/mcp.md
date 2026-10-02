@@ -137,7 +137,8 @@ On a Windows development machine they come out in UTC: the repo builds with
   audience. `/mcp` accepts only those tokens, and the rest of the API (REST and realtime) refuses
   them, so approving an assistant hands it the tools on this endpoint and nothing else.
 - **Deactivation is immediate.** `/mcp` checks the account is still active on every call, so a
-  deactivated user's assistant stops at once instead of when its access token expires.
+  deactivated user's assistant stops at once instead of when its access token expires. A password
+  change or reset does the same to every assistant the account had approved.
 - **Rate limited** per user: 120 calls a minute. The limiter runs after authentication, so the users
   of one hosted assistant do not share a budget.
 - **Stateless.** Every call carries its own bearer token. Nothing about a caller is kept between calls.
