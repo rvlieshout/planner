@@ -74,7 +74,7 @@ first start. Watch it come up with `docker compose logs -f api`.
 - Web client: <http://localhost:8081/app>
 - Download website: <http://localhost:8081>
 - API: <http://localhost:8080>
-- Interactive docs: <http://localhost:8080/scalar>
+- Interactive docs: <http://localhost:8080/scalar> (on in this stack; see `Planner__ApiReference__Enabled`)
 - Health: <http://localhost:8080/health/ready>
 - pgAdmin (optional): `docker compose --profile tools up -d` → <http://localhost:5050>
 
@@ -83,7 +83,13 @@ everything else to the API. The API keeps its own published port because the doc
 and the desktop client address it directly; the browser client never does.
 
 Set `PLANNER_SEED_DEMO=true` in `.env` to start with a sample team, project, milestones and issues —
-useful while building the client.
+useful while building the client. The sample accounts get random passwords; set
+`Planner__Seed__DemoPassword` to sign in as one.
+
+Compose refuses to start until `POSTGRES_PASSWORD`, `PLANNER_KEY_PASSWORD` and `PLANNER_OWNER_PASSWORD`
+are set in `.env`. PostgreSQL and pgAdmin are published on `127.0.0.1` only. Upgrading a stack that ran
+on the old fallbacks: put the values it was started with in `.env` (`POSTGRES_PASSWORD=planner`,
+`PLANNER_KEY_PASSWORD=planner-dev-keys`) so the existing volumes still open, then change them.
 
 ### First call
 
@@ -210,6 +216,9 @@ Every setting binds from environment variables using `__` as the separator
 | `Planner__Seed__OwnerEmail` | `owner@planner.local` | Bootstrap owner account. |
 | `Planner__Seed__OwnerPassword` | — | Set it, or no owner is created. Minimum 12 characters. |
 | `Planner__Seed__SeedDemoData` | `false` | Populate an empty database with sample content. |
+| `Planner__Seed__DemoPassword` | — | Password of the sample accounts. Left empty, each gets a random one. |
+| `Planner__ApiReference__Enabled` | `true` in Development, otherwise `false` | Serve `/openapi/v1.json` and `/scalar` without a token. |
+| `Attachments__DailyBytesPerUser` | `1073741824` | What one person may upload in 24 hours; `0` for no limit. |
 
 ## Operational notes
 
@@ -217,6 +226,8 @@ Every setting binds from environment variables using `__` as the separator
   keys volume invalidates every issued token; users simply sign in again, but it is avoidable. Losing
   the attachments volume leaves rows pointing at files that no longer exist.
 - **TLS** is expected to terminate at a reverse proxy. The container speaks HTTP on 8080.
+- **Shipped defaults are called out.** Outside Development the API logs a warning on every start while
+  the key password, the database password or the owner password is still a value from this repository.
 - **Migrations** ship inside the image. `AutoMigrate=false` plus
   `dotnet ef migrations script --idempotent` gives you a script to hand to a DBA instead.
 - **Deleting** is deliberately rare. Teams, projects, issues and documents archive; users deactivate.

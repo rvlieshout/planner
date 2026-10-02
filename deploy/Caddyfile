@@ -18,6 +18,19 @@
 :80 {
     encode zstd gzip
 
+    # For everything served here, the API's answers included: take the declared content type as given,
+    # never render inside another site's frame, tell other sites no more than the origin a link was
+    # followed from, and keep to HTTPS. A browser ignores the last one on a plain-HTTP response, which
+    # is what a local run gets. Deferred, so these replace the API's own copies instead of doubling them.
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Content-Security-Policy "frame-ancestors 'none'"
+        Referrer-Policy strict-origin-when-cross-origin
+        Strict-Transport-Security "max-age=31536000"
+        defer
+    }
+
     # Bare /app, so a link shared without the trailing slash still works.
     @app-root path /app
     redir @app-root /app/ 308

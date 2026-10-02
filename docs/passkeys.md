@@ -48,6 +48,8 @@ stored refresh token. Users should sign out on shared devices.
   Caddy must also trust the upstream proxy to preserve HTTPS; see [production 400 troubleshooting](deploy-coolify.md#passkey-setup-returns-400-behind-coolify).
 - Changing the hostname requires enrolling passkeys for the new hostname using the recovery path.
 - Pending ceremonies are held in a bounded in-process cache for five minutes and consumed atomically.
+  Sign-ins and passkey additions have separate stores, and a full store makes room for the newest
+  ceremony, so a burst of sign-in attempts cannot keep anyone from signing in or adding a passkey.
   An HttpOnly, SameSite Strict cookie binds each ceremony to its browser; registration state is also
   bound to the authenticated account. Restarting the API cancels pending prompts, so retry them.
   Multi-replica hosting requires sticky routing for each ceremony or a shared store with atomic

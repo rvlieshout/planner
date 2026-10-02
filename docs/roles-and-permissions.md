@@ -14,7 +14,7 @@ endpoint asks a single question: *do I have at least X on this team?*
 
 | Role | Intended for | Can |
 | --- | --- | --- |
-| `owner` | The person who installed it | Everything an admin can, plus grant and revoke the `owner` role. Cannot be deactivated. |
+| `owner` | The person who installed it | Everything an admin can, plus grant and revoke the `owner` role. Cannot be deactivated, and the only owner cannot give the role up. |
 | `admin` | IT / operations | Create and deactivate users, create teams, manage organisation-wide labels, and administer **every** team. |
 | `member` | Everyone doing the work | Full author rights in the teams they belong to. |
 | `guest` | Contractors, stakeholders, other departments | Read and comment, only in teams they were explicitly added to. Never creates or edits content. |

@@ -2,7 +2,8 @@
 
 Base URL `http://localhost:8080`. Everything under `/api/v1` requires
 `Authorization: Bearer <access_token>`. The live, generated reference is at `/scalar`; the OpenAPI 3.1
-document is at `/openapi/v1.json`.
+document is at `/openapi/v1.json`. Both are served in Development and in the local compose stack, and
+elsewhere only when `Planner__ApiReference__Enabled` is `true`.
 
 ## Conventions
 
@@ -427,5 +428,9 @@ under Preferences, in gigabytes.
 | `GET /health/live` | Process is up. No dependency checks — this is the container's own probe. |
 | `GET /health/ready` | Database reachable. Use this for load-balancer readiness. |
 
-Both are anonymous, as are `/openapi/v1.json` and `/scalar` — the docs UI has to be able to load the
-document it renders. Every endpoint they describe still needs a token.
+Both are anonymous, as are `/openapi/v1.json` and `/scalar` where they are enabled — the docs UI has to
+be able to load the document it renders. Every endpoint they describe still needs a token.
+
+Every response carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, a
+`frame-ancestors 'none'` content security policy and a referrer policy; over HTTPS, outside
+Development, `Strict-Transport-Security` as well. The web container sets the same on what it serves.

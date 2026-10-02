@@ -53,6 +53,12 @@ builder.Services.AddSingleton<RealtimeConnections>();
 builder.Services.AddScoped<IRealtimeSubscriptions, RealtimeSubscriptions>();
 builder.Services.AddScoped<DatabaseSeeder>();
 builder.Services.AddScoped<OpenIddictClientSeeder>();
+builder.Services.AddScoped<McpClientCleanup>();
+builder.Services.AddHostedService<McpClientSweeper>();
+
+// A year, the usual term. Sent only on requests that arrived over HTTPS, which behind a proxy is what
+// the forwarded scheme says.
+builder.Services.AddHsts(options => options.MaxAge = TimeSpan.FromDays(365));
 
 builder.Services
     .AddSignalR(options => options.EnableDetailedErrors = builder.Environment.IsDevelopment())
@@ -185,6 +191,7 @@ builder.Services.AddRateLimiter(options =>
 var app = builder.Build();
 
 await app.InitializeDatabaseAsync();
+app.WarnAboutShippedDefaults(authOptions, connectionString);
 
 // First in the pipeline, so everything after it — logging, rate limiting, the URIs OpenIddict builds
 // for itself — sees the caller and scheme of the public request rather than the proxy's.
@@ -193,6 +200,12 @@ if (authOptions.TrustedProxyHops > 0)
     app.UseForwardedHeaders();
 }
 
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
+app.UseSecurityHeaders();
 app.UseExceptionHandler();
 
 // After the implicit UseRouting at the head of the pipeline, so the matched endpoint is known, and
@@ -215,12 +228,17 @@ app.UseRateLimiter();
 app.UseAuthorization();
 
 // The schema and its UI are readable without a token: the fallback policy would otherwise lock the
-// Scalar page out of the very document it needs to render. Every endpoint it describes still requires one.
-app.MapOpenApi().AllowAnonymous();
-app.MapScalarApiReference(options => options
-        .WithTitle("Planner API")
-        .WithTheme(ScalarTheme.Purple))
-    .AllowAnonymous();
+// Scalar page out of the very document it needs to render. Every endpoint it describes still requires
+// one, but the document is a complete map of the API handed to whoever asks, so outside development
+// it is served only where Planner:ApiReference:Enabled says so.
+if (builder.Configuration.GetValue<bool?>("Planner:ApiReference:Enabled") ?? app.Environment.IsDevelopment())
+{
+    app.MapOpenApi().AllowAnonymous();
+    app.MapScalarApiReference(options => options
+            .WithTitle("Planner API")
+            .WithTheme(ScalarTheme.Purple))
+        .AllowAnonymous();
+}
 
 app.MapAuthEndpoints();
 app.MapAuthorizeEndpoints();

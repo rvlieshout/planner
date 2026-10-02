@@ -89,6 +89,7 @@ Then, before the first deploy:
 | `PLANNER_OWNER_PASSWORD` | `openssl rand -hex 24`, at least 12 characters |
 | `PLANNER_OWNER_NAME` | Optional display name |
 | `PLANNER_SEED_DEMO` | `true` only on a throwaway deployment, and only before the first start |
+| `PLANNER_API_REFERENCE` | Optional. `true` serves `/openapi/v1.json` and `/scalar` to anyone; off by default |
 
 Store the generated values in a password manager. `PLANNER_KEY_PASSWORD` protects the token signing
 certificates on the `planner-keys` volume: change it later and those certificates cannot be read,
