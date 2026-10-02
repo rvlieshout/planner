@@ -58,7 +58,7 @@ erDiagram
 
 | Table | Notes |
 | --- | --- |
-| `users` | `IdentityUser<Guid>` plus `display_name`, `avatar_url`, `time_zone`, `is_active`, `last_seen_at`. Users are deactivated, never deleted, so authored content keeps a real author. |
+| `users` | `IdentityUser<Guid>` plus `display_name`, `avatar_url`, `time_zone`, `is_active`, `last_seen_at`. Users are deactivated rather than deleted, so authored content keeps a real author; only an account that has never signed in, and so has authored nothing, can be deleted. |
 | `roles`, `user_roles`, `role_claims`, `user_claims`, `user_logins`, `user_tokens` | Standard Identity, renamed. Exactly one role per user is expected: `owner`, `admin`, `member`, `guest`. |
 | `team_members` | Composite PK `(team_id, user_id)` and a `role` column (`Viewer` / `Member` / `Lead`). The join *is* the permission grant. |
 

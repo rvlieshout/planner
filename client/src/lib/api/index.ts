@@ -135,7 +135,11 @@ export const users = {
     request<void>(`${v1}/users/${id}/password`, { ...o, method: 'POST', body: { newPassword } }),
 
   deactivate: (id: Guid, o: Signal = {}) =>
-    request<void>(`${v1}/users/${id}`, { ...o, method: 'DELETE' })
+    request<void>(`${v1}/users/${id}`, { ...o, method: 'DELETE' }),
+
+  /** Only for an account nobody has ever signed in to; the server refuses any other. */
+  delete: (id: Guid, o: Signal = {}) =>
+    request<void>(`${v1}/users/${id}`, { ...o, method: 'DELETE', query: { permanent: true } })
 };
 
 /* ---------------------------------------------------------- organisation ---- */

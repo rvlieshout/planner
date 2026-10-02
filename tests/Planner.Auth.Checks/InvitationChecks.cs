@@ -369,6 +369,47 @@ public static class InvitationChecks
         var cleared = await client.PatchAsJsonAsync("/api/v1/me", new { avatarUrl = (string?)null });
         check(cleared.IsSuccessStatusCode && (await cleared.Content.ReadFromJsonAsync<UserSummary>(json))!.AvatarUrl is null,
             "A person can take their own avatar down");
+
+        // Deleting outright. `pending` was invited and never accepted, and is given a team membership;
+        // `renewalRace` is pending too, and becomes the only lead of a second team.
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PlannerDbContext>();
+            var checks = await db.Teams.SingleAsync(t => t.Key == "CHK");
+            var led = new Planner.Domain.Entities.Team { Key = "LED", Name = "Led" };
+            db.Teams.Add(led);
+            db.TeamMembers.Add(new Planner.Domain.Entities.TeamMember { TeamId = checks.Id, UserId = pending.User.Id });
+            db.TeamMembers.Add(new Planner.Domain.Entities.TeamMember
+            {
+                TeamId = led.Id, UserId = renewalRace.User.Id, Role = Planner.Contracts.Enums.TeamRole.Lead
+            });
+            await db.SaveChangesAsync();
+        }
+
+        Task<HttpResponseMessage> Delete(Guid id) => client.DeleteAsync($"/api/v1/users/{id.ToBase58()}?permanent=true");
+        check((await Delete(pending.User.Id)).StatusCode == HttpStatusCode.Forbidden,
+            "Members cannot delete an account");
+        Role("admin");
+        check((await Delete(teammate)).StatusCode == HttpStatusCode.Conflict && (await Get(teammate)).IsSuccessStatusCode,
+            "An account that has signed in cannot be deleted, only deactivated");
+        check((await Delete(owner.User.Id)).StatusCode == HttpStatusCode.Forbidden,
+            "Admins cannot delete an owner account");
+        check((await Delete(renewalRace.User.Id)).StatusCode == HttpStatusCode.Conflict,
+            "Deleting an account does not leave a team without a lead");
+        check((await Delete(pending.User.Id)).StatusCode == HttpStatusCode.NoContent &&
+              (await Get(pending.User.Id)).StatusCode == HttpStatusCode.NotFound,
+            "An administrator deletes an account that never signed in");
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PlannerDbContext>();
+            check(!await db.TeamMembers.AnyAsync(m => m.UserId == pending.User.Id),
+                "A deleted account's team memberships go with it");
+        }
+        check((await Create("renew@planner.test")).StatusCode == HttpStatusCode.Created,
+            "A deleted account's email address can be invited again");
+        Role("owner");
+        check((await Delete(owner.User.Id)).StatusCode == HttpStatusCode.NoContent,
+            "Owners can delete an owner account that never signed in");
     }
 
     private sealed class CheckAuthentication(

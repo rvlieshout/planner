@@ -92,6 +92,7 @@ makes counts towards 300 a minute; reads are not counted.
 | `PATCH /api/v1/users/{id}` | Profile, `role`, `isActive`, `avatarUrl` (http, https or a path on this server); `email` only while the invitation is pending | admin |
 | `POST /api/v1/users/{id}/password` | Reset without the current password. Written to the server log | admin; owner for an owner's |
 | `DELETE /api/v1/users/{id}` | Deactivate; authored content is kept | admin |
+| `DELETE /api/v1/users/{id}?permanent=true` | Delete an account that has never signed in. Written to the server log | admin; owner for an owner's |
 
 Who the directory shows depends on who asks. Admins see every account, and `includeInactive` is theirs
 alone. Members see active accounts only: a pending invitation or a deactivated account is a 404 to
@@ -105,6 +106,13 @@ endpoint does not reveal who has been invited.
 Deactivating one revokes its invitation links; it remains pending and can receive a new invitation.
 A pending user's `email` can be corrected with `PATCH`; links already issued keep working.
 Only an owner may issue, renew, or revoke an owner invitation.
+
+An account can be deleted outright only while nobody has ever signed in to it (`lastSeenAt` is null):
+an invitation that went to the wrong person, or an account that was made and never used. Its team
+memberships and followed issues go with it, and issues assigned to it and projects it leads are left
+without one; each of those is announced over the realtime hub as an ordinary update. The answer is `409` once the account has signed in, when content is recorded under it
+(seeded data, for instance), or when it is the only lead of a team. Its email address is free to be
+invited again.
 
 ## Invitations
 

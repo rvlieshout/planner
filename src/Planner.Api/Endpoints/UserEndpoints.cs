@@ -6,6 +6,7 @@ using Planner.Api.Common;
 using Planner.Api.Realtime;
 using Planner.Contracts.Auth;
 using Planner.Contracts.Common;
+using Planner.Contracts.Enums;
 using Planner.Contracts.Realtime;
 using Planner.Domain.Identity;
 using Planner.Infrastructure;
@@ -49,7 +50,7 @@ public static class UserEndpoints
 
         users.MapDelete("/{id:b58}", DeactivateAsync)
             .RequireAuthorization(PlannerPolicies.OrgAdmin)
-            .WithSummary("Deactivate a user; authored content is kept");
+            .WithSummary("Deactivate a user; authored content is kept. With permanent=true, delete one that never signed in");
 
         return app;
     }
@@ -464,15 +465,24 @@ public static class UserEndpoints
 
     private static async Task<IResult> DeactivateAsync(
         Guid id,
+        bool? permanent,
+        PlannerDbContext db,
         UserManager<AppUser> userManager,
         CurrentUser current,
         IRealtimeNotifier notifier,
-        IRealtimeSubscriptions subscriptions)
+        IRealtimeSubscriptions subscriptions,
+        ILoggerFactory loggers,
+        CancellationToken ct)
     {
         var user = await userManager.FindByIdAsync(id.ToString());
         if (user is null)
         {
             return ApiResults.NotFound("That user");
+        }
+
+        if (permanent == true)
+        {
+            return await DeleteAsync(user, db, userManager, current, notifier, loggers, ct);
         }
 
         if (user.Id == current.Id)
@@ -502,6 +512,107 @@ public static class UserEndpoints
 
         await notifier.UserChanged(ChangeKind.Updated, Mapping.ToUserSummary(user));
         await subscriptions.SyncUserAsync(user.Id);
+        return Results.NoContent();
+    }
+
+    /// <summary>Removes an account outright. Only one nobody has ever signed in to: an invitation sent
+    /// to the wrong person, or an account made and never used. Every way of obtaining a token stamps
+    /// <see cref="AppUser.LastSeenAt"/>, so an account without one has done nothing that needs an author.
+    /// What others did with it goes with it: team memberships and followed issues are removed, and
+    /// issues assigned to it and projects it leads are left without one.</summary>
+    private static async Task<IResult> DeleteAsync(
+        AppUser user,
+        PlannerDbContext db,
+        UserManager<AppUser> userManager,
+        CurrentUser current,
+        IRealtimeNotifier notifier,
+        ILoggerFactory loggers,
+        CancellationToken ct)
+    {
+        if (!current.IsOwner && await userManager.IsInRoleAsync(user, PlannerRoles.Owner))
+        {
+            return ApiResults.Forbidden("Only the owner can delete an owner account.");
+        }
+
+        if (user.LastSeenAt is not null)
+        {
+            return ApiResults.Conflict("This account has been signed in to, so it can only be deactivated.");
+        }
+
+        // Seeded and imported content can sit under an account nobody has used. The database would
+        // refuse the delete anyway; this says why.
+        var userId = user.Id;
+        if (await db.Issues.AnyAsync(i => i.CreatorId == userId, ct) ||
+            await db.Comments.AnyAsync(c => c.AuthorId == userId, ct) ||
+            await db.Attachments.AnyAsync(a => a.UploadedById == userId, ct) ||
+            await db.Documents.AnyAsync(d => d.CreatedById == userId, ct) ||
+            await db.ActivityEvents.AnyAsync(a => a.ActorId == userId, ct))
+        {
+            return ApiResults.Conflict("Content is recorded under this account, so it can only be deactivated.");
+        }
+
+        // The same rule as removing a member: a team is not left without a lead.
+        var leaderless = await db.TeamMembers
+            .Where(m => m.UserId == userId && m.Role == TeamRole.Lead &&
+                        !m.Team.Members.Any(o => o.UserId != userId && o.Role == TeamRole.Lead))
+            .Select(m => m.Team.Name)
+            .ToListAsync(ct);
+        if (leaderless.Count > 0)
+        {
+            return ApiResults.Conflict(
+                $"This account is the only lead of {string.Join(", ", leaderless)}. Promote another member first.");
+        }
+
+        var memberships = await db.TeamMembers.AsNoTracking()
+            .Where(m => m.UserId == userId)
+            .Select(Mapping.TeamMemberProjection)
+            .ToListAsync(ct);
+
+        // The database clears these references itself as the account goes, so nothing passes through
+        // here to announce. They are noted now, and read back and broadcast once it has.
+        var assignedIssueIds = await db.Issues.Where(i => i.AssigneeId == userId).Select(i => i.Id).ToListAsync(ct);
+        var ledProjectIds = await db.Projects.Where(p => p.LeadUserId == userId).Select(p => p.Id).ToListAsync(ct);
+
+        var summary = Mapping.ToUserSummary(user);
+
+        // A sign-in that lands between the check above and here changes the row's concurrency stamp,
+        // and Identity then refuses the delete.
+        var result = await userManager.DeleteAsync(user);
+        if (!result.Succeeded)
+        {
+            return IdentityProblem(result);
+        }
+
+        // The activity feed is per team and this belongs to none, so the record of who did it is the log.
+        loggers.CreateLogger("Planner.Auth.Users").LogInformation(
+            "User {ActorId} deleted user {UserId}, who had never signed in", current.Id, userId);
+
+        foreach (var membership in memberships)
+        {
+            await notifier.TeamMemberChanged(ChangeKind.Deleted, membership);
+        }
+
+        // Past this point the account is gone whatever happens, so a caller hanging up must not cut
+        // the announcements short.
+        var unassigned = await db.Issues.AsNoTracking()
+            .Where(i => assignedIssueIds.Contains(i.Id))
+            .Select(Mapping.IssueSummaryProjection)
+            .ToListAsync(CancellationToken.None);
+        foreach (var issue in unassigned)
+        {
+            await notifier.IssueChanged(ChangeKind.Updated, issue);
+        }
+
+        var leaderlessProjects = await db.Projects.AsNoTracking()
+            .Where(p => ledProjectIds.Contains(p.Id))
+            .Select(Mapping.ProjectProjection)
+            .ToListAsync(CancellationToken.None);
+        foreach (var project in leaderlessProjects)
+        {
+            await notifier.ProjectChanged(ChangeKind.Updated, project);
+        }
+
+        await notifier.UserChanged(ChangeKind.Deleted, summary);
         return Results.NoContent();
     }
 

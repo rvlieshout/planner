@@ -115,6 +115,8 @@ show **Invited**, **Invite expired** or **Invite revoked**, with the link's expi
 **Reissue invitation**, which invalidates older links, and **Revoke invitation links** to cancel
 access. The link is only held in the current page's memory; copy it before leaving the account.
 A pending account's email can still be edited, so a mistyped address does not need a new invitation.
+An account nobody has ever signed in to, pending or not, also offers **Delete account**, which removes
+it and its team memberships for good; once someone has signed in, it can only be deactivated.
 
 The public `/app/accept-invitation` page reads credentials from the URL fragment, removes them from
 the current history entry, and sends them only in anonymous POST bodies. It checks the invitation
