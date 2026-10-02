@@ -70,6 +70,7 @@ Organisation-level actions bypass teams entirely:
 | See pending invitations, deactivated accounts and when someone was last here | `owner` / `admin` |
 | Set someone's avatar address | `owner` / `admin` |
 | Create a user, reset a password, deactivate a user | `owner` / `admin` |
+| Delete a user who has never signed in | `owner` / `admin`; `owner` for an owner account |
 | Create a team | `owner` / `admin` |
 | Create or edit organisation-wide labels | `owner` / `admin` |
 | Grant or revoke the `owner` role, reset an owner's password | `owner` |

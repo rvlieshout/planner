@@ -111,6 +111,15 @@
   // form follows only in the fields nobody is editing, so a half-typed change is not pulled away.
   $effect(() =>
     realtime.on('UserChanged', (change) => {
+      if (change.kind === 'Deleted') {
+        users = users.filter((existing) => existing.id !== change.id);
+        if (selected?.id === change.id) {
+          selected = null;
+          invitation = null;
+        }
+        return;
+      }
+
       const user = change.entity;
       if (!user) return;
 
@@ -403,6 +412,36 @@
     }
   }
 
+  /** An account nobody has signed in to has authored nothing, so it can go entirely. */
+  const canDelete = $derived(
+    Boolean(selected) && !selected!.lastSeenAt && (selected!.role !== 'owner' || session.isOwner)
+  );
+
+  async function deleteAccount() {
+    if (!selected || saving) return;
+    const userId = selected.id;
+    if (!await confirm.ask({
+      title: 'Delete account?',
+      message: `${selected.displayName} (${selected.email}) has never signed in. The account, its invitation links and its team memberships are removed, and anything assigned to it becomes unassigned. This cannot be undone.`,
+      confirmLabel: 'Delete account', cancelLabel: 'Cancel', danger: true
+    })) return;
+    if (saving || selected?.id !== userId) return;
+    saving = true;
+    error = null;
+    try {
+      await usersApi.delete(userId);
+      users = users.filter((user) => user.id !== userId);
+      selected = null;
+      invitation = null;
+      toasts.success('Account deleted.');
+      await workspace.refreshTeams();
+    } catch (failure) {
+      error = failure instanceof ApiError ? failure.message : 'Could not delete the account.';
+    } finally {
+      saving = false;
+    }
+  }
+
   async function saveMemberships(userId: Guid): Promise<number> {
     let failures = 0;
 
@@ -586,6 +625,17 @@
                   disabled={saving}>
                   <Icon name="key-round" size={13} />
                   Reset password
+                </button>
+              {/if}
+              {#if canDelete}
+                <button
+                  type="button"
+                  class="btn btn-sm"
+                  title="This account has never signed in"
+                  onclick={() => void deleteAccount()}
+                  disabled={saving}>
+                  <Icon name="trash-2" size={13} />
+                  Delete account
                 </button>
               {/if}
             </div>

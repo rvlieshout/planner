@@ -37,7 +37,7 @@ connection.On<IReadOnlyList<string>>("Subscribed", groups =>
 | `team:{teamId}` | Board-level traffic: the team, its states, labels, members, projects, milestones, documents and issues. Joined automatically. |
 | `issue:{issueId}` | Comments, attachments and relations for one issue. Joined on demand. |
 | `user:{userId}` | Messages for one person across all their connections. |
-| `org` | Directory changes — users renamed, activated, deactivated. Everyone but guests. |
+| `org` | Directory changes — users renamed, activated, deactivated, deleted. Everyone but guests. |
 | `org:admins` | Directory changes about invitations that are still pending. Owners and admins. |
 
 **Every event goes to exactly one group.** A connection in several groups therefore never receives
