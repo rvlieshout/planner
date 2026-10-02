@@ -207,7 +207,7 @@ public static class IssueEndpoints
             return denied;
         }
 
-        return Results.Ok(await BuildDetailAsync(db, issue, ct));
+        return Results.Ok(await BuildDetailAsync(db, access, issue, ct));
     }
 
     private static async Task<IResult> GetByKeyAsync(
@@ -235,13 +235,14 @@ public static class IssueEndpoints
             return denied;
         }
 
-        return Results.Ok(await BuildDetailAsync(db, issue, ct));
+        return Results.Ok(await BuildDetailAsync(db, access, issue, ct));
     }
 
     /// <summary>Sub-issues and the comment count are projected in SQL rather than pulled through the
     /// include graph, which keeps a busy issue's payload proportional to what the detail pane shows.</summary>
     private static async Task<Contracts.Issues.IssueDetail> BuildDetailAsync(
         PlannerDbContext db,
+        ITeamAccess access,
         Issue issue,
         CancellationToken ct)
     {
@@ -254,7 +255,7 @@ public static class IssueEndpoints
 
         var commentCount = await db.Comments.CountAsync(c => c.IssueId == issue.Id, ct);
 
-        return Mapping.ToIssueDetail(issue, children, commentCount);
+        return Mapping.ToIssueDetail(issue, children, commentCount, await access.ReadableTeamIdsAsync(ct));
     }
 
     private static Task<Issue?> LoadDetailAsync(
@@ -329,6 +330,11 @@ public static class IssueEndpoints
         if (request.Title.TryGet(out var title))
         {
             validation.Required(title, "title").MaxLength(title, 500, "title");
+        }
+
+        if (request.Description.TryGet(out var description))
+        {
+            validation.MaxLength(description, TextLimits.Description, "description");
         }
 
         if (request.Estimate.TryGet(out var estimate))
@@ -809,7 +815,7 @@ public static class IssueEndpoints
             return WriteResult<CommentDto>.Failed(archived);
         }
 
-        var validation = new Validation().Required(request.Body, "body");
+        var validation = new Validation().Required(request.Body, "body").MaxLength(request.Body, TextLimits.Comment, "body");
         if (validation.HasErrors)
         {
             return WriteResult<CommentDto>.Failed(validation.ToResult());
@@ -878,7 +884,7 @@ public static class IssueEndpoints
             return WriteResult<CommentDto>.Failed(ApiResults.Forbidden("You can only edit your own comments."));
         }
 
-        var validation = new Validation().Required(request.Body, "body");
+        var validation = new Validation().Required(request.Body, "body").MaxLength(request.Body, TextLimits.Comment, "body");
         if (validation.HasErrors)
         {
             return WriteResult<CommentDto>.Failed(validation.ToResult());
@@ -998,6 +1004,12 @@ public static class IssueEndpoints
 
             request = request with { FileName = document.Title, ContentType = "text/markdown", SizeBytes = null };
         }
+        else if (!IsWebLink(request.StorageUri))
+        {
+            return WriteResult<AttachmentDto>.Failed(new Validation()
+                .Add("storageUri", "storageUri must be an http or https address, or a /documents/{id} link.")
+                .ToResult());
+        }
 
         var attachment = new Attachment
         {
@@ -1022,6 +1034,14 @@ public static class IssueEndpoints
         await notifier.AttachmentChanged(ChangeKind.Created, dto, issue.TeamId);
         return WriteResult<AttachmentDto>.Succeeded(dto);
     }
+
+    /// <summary>Whether a link someone else will click is one a browser opens as a web page. Clients hand
+    /// <c>storageUri</c> to the browser or the shell as it is, so <c>javascript:</c>, <c>file:</c>, a UNC
+    /// path or <c>planner-attachment:</c> — which only an upload may claim — must never be stored.</summary>
+    public static bool IsWebLink(string? value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+        (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
+        !string.IsNullOrEmpty(uri.Host);
 
     private static async Task<IResult> DeleteAttachmentAsync(
         Guid attachmentId, AttachmentCommands attachments, CancellationToken ct) =>
@@ -1166,7 +1186,7 @@ public static class IssueEndpoints
             target.Title,
             target.State.Type);
 
-        await notifier.IssueRelationChanged(ChangeKind.Created, dto, id, issue.TeamId);
+        await notifier.IssueRelationChanged(ChangeKind.Created, dto, id, issue.TeamId, target.TeamId);
         return Results.Created($"/api/v1/issues/{id.ToBase58()}/relations/{relation.Id.ToBase58()}", dto);
     }
 
@@ -1218,7 +1238,8 @@ public static class IssueEndpoints
 
         await db.SaveChangesAsync(ct);
 
-        await notifier.IssueRelationChanged(ChangeKind.Deleted, dto, id, relation.SourceIssue.TeamId);
+        await notifier.IssueRelationChanged(ChangeKind.Deleted, dto, id, relation.SourceIssue.TeamId,
+            relation.TargetIssue.TeamId);
         return Results.NoContent();
     }
 

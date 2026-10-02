@@ -66,11 +66,14 @@ Organisation-level actions bypass teams entirely:
 
 | Action | Required |
 | --- | --- |
-| List users (for assignee pickers) | any authenticated user |
+| List users (for assignee pickers) | any authenticated user — members see active accounts, guests only the people in their teams |
+| See pending invitations, deactivated accounts and when someone was last here | `owner` / `admin` |
+| Set someone's avatar address | `owner` / `admin` |
 | Create a user, reset a password, deactivate a user | `owner` / `admin` |
 | Create a team | `owner` / `admin` |
 | Create or edit organisation-wide labels | `owner` / `admin` |
-| Grant or revoke the `owner` role | `owner` |
+| Grant or revoke the `owner` role, reset an owner's password | `owner` |
+| Change organisation settings (the storage limit per team) | `owner` |
 
 ## How it answers
 
@@ -101,15 +104,24 @@ POST /connect/token
   { access_token (JWT, 60 min), refresh_token (30 days), token_type: "Bearer" }
 ```
 
-The access token carries `sub`, `name`, `email` and `role`. Refreshing rebuilds those claims from the
-database rather than copying them from the old token, so a role change or a deactivation takes effect
-at the next refresh rather than at the next sign-in.
+The access token carries `sub`, `name`, `email` and `role`, but the API does not take its word for who
+someone is now. Every request looks the account up once: a deactivated account is refused with 401
+although its token has not expired, and the organisation role used for every check is the one the
+account holds at that moment, so a demotion takes effect on the next request. Refreshing rebuilds the
+token's claims from the database as well, which is what a client's own idea of its role follows.
+
+Changing or resetting a password ends every session opened under the old one. Each token carries a
+digest of the account's security stamp, which Identity replaces with the password; a token whose
+digest no longer matches is refused, access and refresh alike, including those held by assistants.
+That includes the session the password was changed from: sign in again with the new one. Tokens
+issued before this was introduced carry no digest and are accepted until their next refresh.
 
 Both `planner-web` and `planner-desktop` are **public** clients: a binary on every workstation cannot
 keep a secret, and a browser application is source anyone can read, so each has an identifier rather
 than a credential. The user's passkey or recovery password is the credential. They are registered separately so the two
 can be told apart in the logs and revoked independently. The token endpoint is rate-limited to 20
 requests per minute per IP, and Identity locks an account for 15 minutes after 10 failed attempts.
+Writes through the REST API are limited to 300 a minute per user.
 
 Where the refresh token then lives differs by client: the desktop one encrypts it into a file only its
 own user can read, while the web one keeps it in `localStorage`, which is the only store a browser has

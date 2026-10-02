@@ -33,7 +33,10 @@ public sealed record EntityChange<T>(
 /// <item>Issue — comment, attachment and relation traffic for the one issue a client has open.
 /// Joined on demand so an open board does not stream every comment in the team.</item>
 /// <item>User — messages addressed to one person across all their connections.</item>
-/// <item>Organization — directory-level changes such as a user being added or deactivated.</item>
+/// <item>Organization — directory-level changes such as a user being renamed or deactivated. Joined by
+/// everyone but guests, who are in teams rather than in the organisation.</item>
+/// <item>Administrators — directory changes about invitations that are still pending. Joined by owners
+/// and admins, alongside Organization.</item>
 /// </list></summary>
 public static class RealtimeGroups
 {
@@ -44,6 +47,7 @@ public static class RealtimeGroups
     public static string Issue(Guid issueId) => $"issue:{issueId.ToBase58()}";
     public static string User(Guid userId) => $"user:{userId.ToBase58()}";
     public const string Organization = "org";
+    public const string Administrators = "org:admins";
 }
 
 public static class EntityTypes

@@ -27,3 +27,9 @@ await Planner.Api.Checks.InvitationChecks.RunAsync((condition, message) =>
     if (!condition) throw new InvalidOperationException(message);
     Console.WriteLine($"PASS: {message}");
 });
+
+await Planner.Api.Checks.SessionChecks.RunAsync((condition, message) =>
+{
+    if (!condition) throw new InvalidOperationException(message);
+    Console.WriteLine($"PASS: {message}");
+});

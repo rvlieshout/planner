@@ -24,8 +24,8 @@ An unauthenticated connection is refused outright — the hub carries `[Authoriz
 
 ## Groups
 
-On connect the server puts you in a group per team you can read, plus a personal group and an
-organisation group, and then tells you which ones you actually got:
+On connect the server puts you in a group per team you can read, plus a personal group and the
+organisation groups your role allows, and then tells you which ones you actually got:
 
 ```csharp
 connection.On<IReadOnlyList<string>>("Subscribed", groups =>
@@ -37,10 +37,13 @@ connection.On<IReadOnlyList<string>>("Subscribed", groups =>
 | `team:{teamId}` | Board-level traffic: the team, its states, labels, members, projects, milestones, documents and issues. Joined automatically. |
 | `issue:{issueId}` | Comments, attachments and relations for one issue. Joined on demand. |
 | `user:{userId}` | Messages for one person across all their connections. |
-| `org` | Directory changes — users created, renamed, deactivated. |
+| `org` | Directory changes — users renamed, activated, deactivated. Everyone but guests. |
+| `org:admins` | Directory changes about invitations that are still pending. Owners and admins. |
 
 **Every event goes to exactly one group.** A connection in several groups therefore never receives
 the same change twice, and an open board does not stream every comment typed anywhere in the team.
+The one narrowing: `IssueRelationChanged` names a second issue, which may be in another team, so within
+the issue group it reaches only the connections that can read that team as well.
 
 Issue-local traffic is opt-in because it is the high-volume kind. When the user opens an issue:
 
@@ -52,8 +55,8 @@ await connection.InvokeAsync("UnsubscribeFromIssue", issueId);   // when the pan
 
 **Groups follow access for the life of the connection.** When a user is added to or removed from a
 team, changes organisation role, or is deactivated, the server moves every open connection of theirs
-into and out of team groups at that moment, drops any issue groups whose team they can no longer
-read, and sends them a fresh `Subscribed`. Access is read from the database, not from the token, so a
+into and out of team and organisation groups at that moment, drops any issue groups whose team they
+can no longer read, and sends them a fresh `Subscribed`. Access is read from the database, not from the token, so a
 revocation takes effect on the socket before the user's token is next refreshed. A member who is
 removed still receives the `TeamMemberChanged` that announces it; one who is added receives the one
 announcing their arrival.
@@ -109,8 +112,8 @@ names and payloads are checked at compile time.
 | `IssueChanged` | `IssueSummary` | team |
 | `CommentChanged` | `CommentDto` | issue |
 | `AttachmentChanged` | `AttachmentDto` | issue |
-| `IssueRelationChanged` | `IssueRelationDto` | issue |
-| `UserChanged` | `UserSummary` | org |
+| `IssueRelationChanged` | `IssueRelationDto` | issue, readers of the related issue's team only |
+| `UserChanged` | `UserSummary` | org, or org:admins while the invitation is pending |
 | `ActivityRecorded` | `ActivityEventDto`, with its `issue` reference | team |
 | `ActivityPurged` | `ActivityPurge` — `{ teamId, projectId, before, deleted }`; drop matching rows | team |
 | `NotificationChanged` | `NotificationDto` — a new inbox entry | user |

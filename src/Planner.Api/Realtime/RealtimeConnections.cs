@@ -24,6 +24,14 @@ public sealed class RealtimeConnections
 
     public IReadOnlyList<RealtimeConnection> ForUser(Guid userId) =>
         _connections.Values.Where(c => c.UserId == userId).ToList();
+
+    /// <summary>The connections that have an issue open and can also read another team: who may be told
+    /// about something on that issue which names an issue of that team.</summary>
+    public IReadOnlyList<string> Watching(Guid issueId, Guid alsoReadsTeamId) =>
+        _connections.Values
+            .Where(c => c.Issues.ContainsKey(issueId) && c.Teams.Contains(alsoReadsTeamId))
+            .Select(c => c.ConnectionId)
+            .ToList();
 }
 
 public sealed class RealtimeConnection(string connectionId, Guid userId)
@@ -37,10 +45,16 @@ public sealed class RealtimeConnection(string connectionId, Guid userId)
     /// sets before it writes the groups.</summary>
     public SemaphoreSlim Gate { get; } = new(1, 1);
 
-    /// <summary>Teams whose group this connection is in.</summary>
+    /// <summary>Teams whose group this connection is in. Replaced as a whole, never changed in place,
+    /// so it can be read without the gate.</summary>
     public HashSet<Guid> Teams { get; set; } = [];
 
     /// <summary>Issue groups joined on demand, with the team each belongs to, so losing a team also
-    /// drops its issues.</summary>
-    public Dictionary<Guid, Guid> Issues { get; } = [];
+    /// drops its issues. Concurrent, because a publish reads it while the gate may be held elsewhere.</summary>
+    public ConcurrentDictionary<Guid, Guid> Issues { get; } = new();
+
+    /// <summary>Whether this connection is in the organisation group, and in the administrators' one.</summary>
+    public bool InOrganization { get; set; }
+
+    public bool InAdministrators { get; set; }
 }

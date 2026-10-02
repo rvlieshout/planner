@@ -23,6 +23,7 @@ public class PlannerDbContext(DbContextOptions<PlannerDbContext> options)
     public DbSet<ActivityEvent> ActivityEvents => Set<ActivityEvent>();
     public DbSet<IssueSubscription> IssueSubscriptions => Set<IssueSubscription>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<OrganizationSettings> OrganizationSettings => Set<OrganizationSettings>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

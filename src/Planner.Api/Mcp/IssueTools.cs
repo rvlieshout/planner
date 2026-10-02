@@ -133,15 +133,17 @@ public sealed class IssueTools(McpReader reader)
             .ToListAsync(ct);
 
         // Stored once per pair; read from this issue's side, "blocks" seen from the target is "blocked by".
+        // A relation can cross teams, so the issue at its other end has to be one the user can read too.
+        var readable = await reader.ReadableTeamIdsAsync(ct);
         var outgoing = await db.Set<Domain.Entities.IssueRelation>().AsNoTracking()
-            .Where(r => r.SourceIssueId == found.Id)
+            .Where(r => r.SourceIssueId == found.Id && readable.Contains(r.TargetIssue.TeamId))
             .Select(r => new RelationView(
                 r.Type == IssueRelationType.Blocks ? "blocks" : r.Type == IssueRelationType.Duplicates ? "duplicates" : "related",
                 r.TargetIssue.Team.Key + "-" + r.TargetIssue.Number, r.TargetIssue.Title, r.TargetIssue.State.Name))
             .ToListAsync(ct);
 
         var incoming = await db.Set<Domain.Entities.IssueRelation>().AsNoTracking()
-            .Where(r => r.TargetIssueId == found.Id)
+            .Where(r => r.TargetIssueId == found.Id && readable.Contains(r.SourceIssue.TeamId))
             .Select(r => new RelationView(
                 r.Type == IssueRelationType.Blocks ? "blocked_by" : r.Type == IssueRelationType.Duplicates ? "duplicated_by" : "related",
                 r.SourceIssue.Team.Key + "-" + r.SourceIssue.Number, r.SourceIssue.Title, r.SourceIssue.State.Name))

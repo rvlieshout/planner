@@ -23,9 +23,9 @@ After recovery, add a replacement passkey and remove any lost credentials. Keep 
 the owner's recovery password and preferably two owner passkeys: the initial seed password does
 not reset an existing owner's account. No recovery email or magic link is sent.
 
-Removing a passkey prevents new sign-ins with it; it does not end existing sessions. Deactivate a
-compromised account to prevent further token issuance, including refreshes. Already-issued access
-tokens remain valid until expiration, as in the existing token model.
+Removing a passkey prevents new sign-ins with it; it does not end existing sessions. To end them,
+reset the account's password or deactivate it: either takes effect on the next request, for access
+tokens already issued as well as for refreshes.
 
 ## Remembered sessions
 

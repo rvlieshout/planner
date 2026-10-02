@@ -59,13 +59,17 @@ filter on a board means.
 | Status | When |
 | --- | --- |
 | `400` | Validation failed, or a request references something that does not exist |
-| `401` | Missing or expired token |
+| `401` | Missing or expired token, or one whose session has ended: the account was deactivated, or its password changed |
 | `403` | Authenticated, a member, but the action needs more authority |
 | `404` | Does not exist, **or** you cannot see it |
 | `409` | Unique-constraint conflict, a guard tripped (last lead, state in use), or a stale write |
-| `429` | Token endpoint rate limit |
+| `429` | A rate limit: sign-in routes (20 a minute per address), writes (300 a minute per user), `/mcp` (120 a minute per user), or the daily upload allowance |
 
 Validation accumulates: every problem with a request comes back at once, not one per round trip.
+
+Free text is bounded: a comment at 50,000 characters, an issue's or project's description at 100,000,
+a document at 1,000,000. Longer is a 400. Every `POST`, `PATCH`, `PUT` and `DELETE` a signed-in user
+makes counts towards 300 a minute; reads are not counted.
 
 ## Auth
 
@@ -74,24 +78,29 @@ Validation accumulates: every problem with a request comes back at once, not one
 | `POST /connect/token` | Password or refresh-token grant. Form-encoded. |
 | `GET \| POST /connect/userinfo` | Claims about the current subject |
 | `GET /api/v1/me` | Profile, organisation role and team memberships — the first call a client makes |
-| `PATCH /api/v1/me` | Update your own display name, avatar, timezone |
+| `PATCH /api/v1/me` | Update your own display name and timezone. `avatarUrl` can only be cleared here (`null`); an admin sets it |
 | `POST /api/v1/me/password` | Change your own password (needs the current one) |
 
 ## Users
 
 | | | Requires |
 | --- | --- | --- |
-| `GET /api/v1/users` | `?search=&includeInactive=&page=` — for assignee and lead pickers | any user |
-| `GET /api/v1/users/{id}` | One user with their role | any user |
+| `GET /api/v1/users` | `?search=&includeInactive=&page=` — for assignee and lead pickers. See below for who is listed | any user |
+| `GET /api/v1/users/{id}` | One user with their role. `lastSeenAt` is null unless you are an admin or it is you | any user |
 | `POST /api/v1/users` | Legacy password-based account creation; prefer invitations for first-time access | admin |
-| `PATCH /api/v1/users/{id}` | Profile, `role`, `isActive`; `email` only while the invitation is pending | admin |
-| `POST /api/v1/users/{id}/password` | Reset without the current password | admin |
+| `PATCH /api/v1/users/{id}` | Profile, `role`, `isActive`, `avatarUrl` (http, https or a path on this server); `email` only while the invitation is pending | admin |
+| `POST /api/v1/users/{id}/password` | Reset without the current password. Written to the server log | admin; owner for an owner's |
 | `DELETE /api/v1/users/{id}` | Deactivate; authored content is kept | admin |
+
+Who the directory shows depends on who asks. Admins see every account, and `includeInactive` is theirs
+alone. Members see active accounts only: a pending invitation or a deactivated account is a 404 to
+them. Guests see themselves and the people they share a team with, and nobody else.
 
 User summaries and details include `isInvitationPending` and `invitationExpiresAt`, the moment the
 latest link lapses; it is null once the invitation is revoked or accepted. Invited users are inactive
 and have no password until acceptance. Activating or resetting the password of a pending user is
-rejected, and a password sign-in attempt is answered with a pointer to the invitation link.
+rejected, and a password sign-in attempt is answered as one for an unknown address is, so the token
+endpoint does not reveal who has been invited.
 Deactivating one revokes its invitation links; it remains pending and can receive a new invitation.
 A pending user's `email` can be corrected with `PATCH`; links already issued keep working.
 Only an owner may issue, renew, or revoke an owner invitation.
@@ -138,6 +147,7 @@ and drops its own uniquely named database. Without that variable, these integrat
 | `POST /api/v1/teams/{id}/members` | `{ userId, role }` | Administer |
 | `PATCH /api/v1/teams/{id}/members/{userId}` | `{ role }` | Administer |
 | `DELETE /api/v1/teams/{id}/members/{userId}` | | Administer |
+| `GET /api/v1/teams/{id}/storage` | `{ teamId, usedBytes, limitBytes }` — attachment storage used; `limitBytes` is null without a limit | Read |
 
 New teams start with **Backlog · Todo · In Progress · In Review · Done · Canceled**, with `Todo` as
 the default for new issues.
@@ -290,7 +300,7 @@ back out clears them. Rename your columns freely.
 | `GET \| POST /api/v1/issues/{id}/comments` | `{ body, parentCommentId? }` — one level of threading | Read / **Comment** |
 | `PATCH /api/v1/comments/{id}` | Author only | author |
 | `DELETE /api/v1/comments/{id}` | Author, or a team lead moderating | author / Administer |
-| `POST /api/v1/issues/{id}/attachments` | `{ fileName, storageUri, contentType?, sizeBytes? }` — metadata for a file held elsewhere | **Comment** |
+| `POST /api/v1/issues/{id}/attachments` | `{ fileName, storageUri, contentType?, sizeBytes? }` — a link to a file held elsewhere | **Comment** |
 | `POST /api/v1/issues/{id}/files?fileName=` | The raw bytes as the request body, up to 20 MiB | **Comment** |
 | `GET /api/v1/attachments/{id}/content` | Downloads bytes this server holds | Read |
 | `DELETE /api/v1/attachments/{id}` | Uploader, or any team member | uploader / Write |
@@ -298,14 +308,27 @@ back out clears them. Rename your columns freely.
 | `DELETE /api/v1/issues/{id}/relations/{relationId}` | | Write |
 
 An attachment goes on either way. `POST …/attachments` stores **metadata only** — put the bytes on your
-own share or object store and the resulting location in `storageUri`. `POST …/files` sends the bytes
+own share or object store and its `http` or `https` address in `storageUri`. Any other scheme is
+refused with a 400: clients open the link as it is, so it has to be one a browser opens as a web page.
+(`/documents/{id}` links a document of the issue's project instead.) `POST …/files` sends the bytes
 themselves; the API writes them under `Attachments__Path`, outside the web root, and sets
 `storageUri` to `planner-attachment:{id}`, which is how a client tells the two apart. Downloading
 through `GET /attachments/{id}/content` re-checks the issue's team permission.
 
+Relations can cross teams. An issue's `relations` list only the ones whose other issue is in a team
+you can read; the rest are left out entirely, as that issue is a 404 when asked for directly.
+
 Deleting an attachment also deletes its server-owned file. If file deletion fails, the API returns
 an error and keeps the attachment record for retry. Missing files can still have their records removed.
 External links are detached only; Planner does not delete files at external locations.
+
+A team may hold 5 GiB of uploaded files in all, unless the owner sets another limit (see Settings).
+An upload that would take its team past the limit is a 409, whoever sends it; removing files, issues
+or projects gives the space back. Links to files held elsewhere do not count.
+
+Each person may upload 1 GiB in any 24 hours, counted from the files they still have stored, so
+removing one gives its space back. Past that an upload is a 429. Set `Attachments__DailyBytesPerUser`
+to another number of bytes, or to `0` for no limit.
 
 `Attachments__Path` must be an absolute, writable directory in any container deployment — the default
 lives under the application folder, which the image's non-root user cannot create. Back it up with the
@@ -384,6 +407,18 @@ missing from an inbox and a rolled-back one never appears in one.
 Each entry is `{ id, issue: { id, key, title }, teamId, event, createdAt, readAt }`, where `event` is
 the activity row above. The inbox follows access as it is *now*: someone removed from a team stops
 seeing its entries, and they stop counting towards `unread`. Deleting an issue deletes its entries.
+
+## Settings
+
+Organisation-wide settings, decided by the owner.
+
+| | | Requires |
+| --- | --- | --- |
+| `GET /api/v1/settings` | `{ teamStorageBytes }` | any user |
+| `PATCH /api/v1/settings` | `{ teamStorageBytes }` — bytes of uploaded attachments each team may hold; `0` for no limit | owner |
+
+`teamStorageBytes` is 5368709120 (5 GiB) until the owner changes it. In the web client the owner sets it
+under Preferences, in gigabytes.
 
 ## Health
 

@@ -175,7 +175,7 @@ Content-Type: application/json
 
 {
   "fileName": "network-trace.har",
-  "storageUri": "file:///srv/planner/attachments/network-trace.har",
+  "storageUri": "https://files.example.com/planner/network-trace.har",
   "contentType": "application/json",
   "sizeBytes": 148213
 }

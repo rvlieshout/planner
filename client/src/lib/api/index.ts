@@ -28,11 +28,13 @@ import type {
   MilestoneDto,
   MoveIssueRequest,
   NotificationDto,
+  OrganizationSettings,
   PagedResult,
   ProjectDto,
   TeamDto,
   TeamMemberDto,
   TeamRole,
+  TeamStorage,
   UpdateDocumentRequest,
   UpdateIssueRequest,
   UpdateLabelRequest,
@@ -136,6 +138,15 @@ export const users = {
     request<void>(`${v1}/users/${id}`, { ...o, method: 'DELETE' })
 };
 
+/* ---------------------------------------------------------- organisation ---- */
+
+export const organization = {
+  settings: (o: Signal = {}) => request<OrganizationSettings>(`${v1}/settings`, o),
+
+  update: (body: Partial<OrganizationSettings>, o: Signal = {}) =>
+    request<OrganizationSettings>(`${v1}/settings`, { ...o, method: 'PATCH', body })
+};
+
 /* ----------------------------------------------------------------- teams ---- */
 
 export const teams = {
@@ -157,6 +168,8 @@ export const teams = {
     request<TeamDto>(`${v1}/teams/${id}/restore`, { ...o, method: 'POST' }),
 
   members: (id: Guid, o: Signal = {}) => request<TeamMemberDto[]>(`${v1}/teams/${id}/members`, o),
+
+  storage: (id: Guid, o: Signal = {}) => request<TeamStorage>(`${v1}/teams/${id}/storage`, o),
 
   addMember: (id: Guid, userId: Guid, role: TeamRole, o: Signal = {}) =>
     request<TeamMemberDto>(`${v1}/teams/${id}/members`, {

@@ -145,6 +145,29 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0
         }));
 
+    // Everything a signed-in person writes through the REST API, per person. Reading is not counted: a
+    // board loads in bursts, and a read stores nothing. The sign-in routes and /mcp have budgets of
+    // their own above and below, and the hub's traffic is not requests in this sense. Five writes a
+    // second for a whole minute is far beyond dragging cards about; it is a script.
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        var request = context.Request;
+
+        if (HttpMethods.IsGet(request.Method) || HttpMethods.IsHead(request.Method) || HttpMethods.IsOptions(request.Method) ||
+            request.Path.StartsWithSegments("/mcp") || request.Path.StartsWithSegments("/hubs") ||
+            context.User.FindFirst(OpenIddict.Abstractions.OpenIddictConstants.Claims.Subject)?.Value is not { } subject)
+        {
+            return RateLimitPartition.GetNoLimiter("unlimited");
+        }
+
+        return RateLimitPartition.GetFixedWindowLimiter("writes:" + subject, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 300,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        });
+    });
+
     // Assistants can call tools in quick loops. Per user rather than per IP: every MCP client behind
     // one hosted assistant shares that assistant's addresses.
     options.AddPolicy("mcp", context => RateLimitPartition.GetFixedWindowLimiter(
@@ -181,6 +204,10 @@ app.UseCors();
 app.UseAuthentication();
 app.UseMcpAudienceBoundary(authOptions);
 
+// A token says who someone was when it was issued. This asks the database who they are now: still
+// active, same password, and in which organisation role.
+app.UseLiveAccounts();
+
 // After authentication, so a policy that limits per user can see the user. Before it, every caller is
 // anonymous, and "per user" quietly becomes "per address": every user of one hosted assistant would share
 // a single budget. The sign-in limits partition by address either way.
@@ -207,6 +234,7 @@ app.MapDocumentEndpoints();
 app.MapIssueEndpoints();
 app.MapNotificationEndpoints();
 app.MapActivityEndpoints();
+app.MapSettingsEndpoints();
 
 app.MapHub<PlannerHub>("/hubs/planner");
 app.MapPlannerMcp();

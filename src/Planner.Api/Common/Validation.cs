@@ -2,6 +2,19 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Planner.Api.Common;
 
+/// <summary>How long free text may be. The database columns are unbounded, so without these the only
+/// ceiling is the server's request size limit, and one account could store tens of megabytes per call.
+/// They are set well above anything a person writes: they stop abuse, not long documents.</summary>
+public static class TextLimits
+{
+    public const int Comment = 50_000;
+
+    /// <summary>An issue's or a project's description.</summary>
+    public const int Description = 100_000;
+
+    public const int Document = 1_000_000;
+}
+
 /// <summary>Small accumulating validator. Endpoints collect every problem with a request before
 /// answering, so a client never has to fix one field, retry, and discover the next.</summary>
 public sealed class Validation

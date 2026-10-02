@@ -26,8 +26,8 @@ public sealed class PlannerHub(
         connections.Register(Context.ConnectionId, user.Id);
 
         await Groups.AddToGroupAsync(Context.ConnectionId, RealtimeGroups.User(user.Id));
-        await Groups.AddToGroupAsync(Context.ConnectionId, RealtimeGroups.Organization);
 
+        // The team groups, and the organisation ones the account's role allows.
         var groups = await subscriptions.SyncConnectionAsync(Context.ConnectionId, Context.ConnectionAborted);
 
         logger.LogDebug("Connection {ConnectionId} joined {GroupCount} groups", Context.ConnectionId, groups.Count);

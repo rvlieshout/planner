@@ -341,10 +341,19 @@ public static class Mapping
     /// <summary>Builds the detail view. Children and the comment count are passed in rather than read
     /// off navigations: counting an unloaded collection silently yields zero, and loading every comment
     /// body just to count them is worse. Relations are unioned from both directions, so a row stored as
-    /// "A blocks B" also surfaces on B as an inbound relation.</summary>
-    public static IssueDetail ToIssueDetail(Issue issue, IReadOnlyList<IssueSummary> children, int commentCount)
+    /// "A blocks B" also surfaces on B as an inbound relation.
+    ///
+    /// A relation can cross teams, and reading this issue is not reading the one at its other end: a
+    /// relation to an issue outside <paramref name="readableTeamIds"/> is left out, key, title and all,
+    /// the same as that issue is "not found" when asked for directly.</summary>
+    public static IssueDetail ToIssueDetail(
+        Issue issue,
+        IReadOnlyList<IssueSummary> children,
+        int commentCount,
+        IReadOnlyCollection<Guid> readableTeamIds)
     {
         var relations = issue.OutgoingRelations
+            .Where(r => readableTeamIds.Contains(r.TargetIssue.TeamId))
             .Select(r => new IssueRelationDto(
                 r.Id,
                 r.Type,
@@ -354,6 +363,7 @@ public static class Mapping
                 r.TargetIssue.Title,
                 r.TargetIssue.State.Type))
             .Concat(issue.IncomingRelations
+                .Where(r => readableTeamIds.Contains(r.SourceIssue.TeamId))
                 .Select(r => new IssueRelationDto(
                     r.Id,
                     r.Type,

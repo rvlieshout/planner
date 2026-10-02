@@ -75,8 +75,10 @@ public static class AuthEndpoints
         {
             HttpContext = context, CredentialJson = credential, AssertionState = state
         });
-        if (!result.Succeeded || !result.User.IsActive ||
-            !await signInManager.CanSignInAsync(result.User) || await users.IsLockedOutAsync(result.User))
+        // Lockout is not consulted: it counts wrong passwords, which anyone who knows the address can
+        // supply, and a passkey assertion cannot be guessed. Honouring it here would let a stranger keep
+        // someone out of their own account.
+        if (!result.Succeeded || !result.User.IsActive || !await signInManager.CanSignInAsync(result.User))
             return Reject(Errors.InvalidGrant, "The passkey could not sign in to an active account.");
         // Assertion updates the authenticator counter and backup flags; persist before issuing tokens.
         if (!(await users.AddOrUpdatePasskeyAsync(result.User, result.Passkey)).Succeeded)
@@ -103,13 +105,9 @@ public static class AuthEndpoints
             return Reject(Errors.InvalidGrant, "The username or password is incorrect.");
         }
 
-        if (!user.IsActive)
-        {
-            return Reject(Errors.InvalidGrant, user.IsInvitationPending
-                ? "This account has not been set up yet. Open your invitation link to choose a password, or ask your administrator for a new link."
-                : "This account has been deactivated.");
-        }
-
+        // The password comes before anything about the account's state, for the same reason: whether an
+        // address is deactivated, or invited and not yet set up, is only for someone who knows its
+        // password. A pending account has none, so it always gets the answer above.
         var result = await signInManager.CheckPasswordSignInAsync(user, request.Password ?? string.Empty, lockoutOnFailure: true);
 
         if (result.IsLockedOut)
@@ -120,6 +118,11 @@ public static class AuthEndpoints
         if (!result.Succeeded)
         {
             return Reject(Errors.InvalidGrant, "The username or password is incorrect.");
+        }
+
+        if (!user.IsActive)
+        {
+            return Reject(Errors.InvalidGrant, "This account has been deactivated.");
         }
 
         user.LastSeenAt = DateTimeOffset.UtcNow;
@@ -136,7 +139,9 @@ public static class AuthEndpoints
 
         var user = subject is null ? null : await userManager.FindByIdAsync(subject);
 
-        if (user is null || !user.IsActive)
+        // The stamp check is what makes a password change or reset end the sessions that were open
+        // under the old one: their refresh tokens, and the ones assistants hold, stop here.
+        if (user is null || !user.IsActive || !SessionStamp.Matches(authentication.Principal!, user.SecurityStamp))
         {
             return Reject(Errors.InvalidGrant, "The account tied to this grant can no longer sign in.");
         }
@@ -171,6 +176,12 @@ public static class AuthEndpoints
 
         var roles = await userManager.GetRolesAsync(user);
         identity.SetClaims(Claims.Role, [.. roles]);
+
+        // See SessionStamp: what lets a password change end the sessions issued before it.
+        if (SessionStamp.Of(user.SecurityStamp) is { } stamp)
+        {
+            identity.SetClaim(SessionStamp.ClaimType, stamp);
+        }
 
         var principal = new ClaimsPrincipal(identity);
 

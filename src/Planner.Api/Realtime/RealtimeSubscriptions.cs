@@ -43,14 +43,14 @@ public sealed class RealtimeSubscriptions(
             return;
         }
 
-        var readable = await ReadableTeamIdsAsync(userId, ct);
+        var access = await AccessAsync(userId, ct);
 
         foreach (var connection in open)
         {
             await connection.Gate.WaitAsync(ct);
             try
             {
-                var groups = await ApplyAsync(connection, readable, ct);
+                var groups = await ApplyAsync(connection, access, ct);
                 await hub.Clients.Client(connection.ConnectionId).Subscribed(groups);
             }
             finally
@@ -65,12 +65,12 @@ public sealed class RealtimeSubscriptions(
         var connection = connections.Find(connectionId)
                          ?? throw new InvalidOperationException($"Connection {connectionId} is not registered.");
 
-        var readable = await ReadableTeamIdsAsync(connection.UserId, ct);
+        var access = await AccessAsync(connection.UserId, ct);
 
         await connection.Gate.WaitAsync(ct);
         try
         {
-            return await ApplyAsync(connection, readable, ct);
+            return await ApplyAsync(connection, access, ct);
         }
         finally
         {
@@ -92,7 +92,7 @@ public sealed class RealtimeSubscriptions(
             // Asking again is cheaper than refusing an issue the user can open over REST.
             if (!connection.Teams.Contains(teamId))
             {
-                await ApplyAsync(connection, await ReadableTeamIdsAsync(connection.UserId, ct), ct);
+                await ApplyAsync(connection, await AccessAsync(connection.UserId, ct), ct);
             }
 
             if (!connection.Teams.Contains(teamId))
@@ -120,7 +120,7 @@ public sealed class RealtimeSubscriptions(
         await connection.Gate.WaitAsync(ct);
         try
         {
-            connection.Issues.Remove(issueId);
+            connection.Issues.TryRemove(issueId, out _);
             await hub.Groups.RemoveFromGroupAsync(connectionId, RealtimeGroups.Issue(issueId), ct);
         }
         finally
@@ -133,10 +133,28 @@ public sealed class RealtimeSubscriptions(
     /// holds the connection's gate.</summary>
     private async Task<IReadOnlyList<string>> ApplyAsync(
         RealtimeConnection connection,
-        IReadOnlySet<Guid> readable,
+        Access access,
         CancellationToken ct)
     {
         var id = connection.ConnectionId;
+        var readable = access.Teams;
+
+        connection.InOrganization = await SetAsync(connection.InOrganization, access.Organization, RealtimeGroups.Organization);
+        connection.InAdministrators = await SetAsync(connection.InAdministrators, access.Administrator, RealtimeGroups.Administrators);
+
+        async Task<bool> SetAsync(bool isIn, bool shouldBeIn, string group)
+        {
+            if (shouldBeIn && !isIn)
+            {
+                await hub.Groups.AddToGroupAsync(id, group, ct);
+            }
+            else if (isIn && !shouldBeIn)
+            {
+                await hub.Groups.RemoveFromGroupAsync(id, group, ct);
+            }
+
+            return shouldBeIn;
+        }
 
         foreach (var teamId in readable.Except(connection.Teams))
         {
@@ -150,7 +168,7 @@ public sealed class RealtimeSubscriptions(
 
         foreach (var (issueId, _) in connection.Issues.Where(i => !readable.Contains(i.Value)).ToList())
         {
-            connection.Issues.Remove(issueId);
+            connection.Issues.TryRemove(issueId, out _);
             await hub.Groups.RemoveFromGroupAsync(id, RealtimeGroups.Issue(issueId), ct);
         }
 
@@ -165,15 +183,22 @@ public sealed class RealtimeSubscriptions(
         return
         [
             RealtimeGroups.User(connection.UserId),
-            RealtimeGroups.Organization,
+            .. access.Organization ? [RealtimeGroups.Organization] : Array.Empty<string>(),
+            .. access.Administrator ? [RealtimeGroups.Administrators] : Array.Empty<string>(),
             .. readable.Select(RealtimeGroups.Team)
         ];
     }
 
-    /// <summary>The same rule as <c>TeamAccess.ReadableTeamIdsAsync</c>, for any user rather than the
-    /// caller: administrators read every team, everyone else the teams they are a member of, and a
-    /// deactivated account reads none.</summary>
-    private async Task<IReadOnlySet<Guid>> ReadableTeamIdsAsync(Guid userId, CancellationToken ct)
+    /// <summary>What one user's sockets may hear.</summary>
+    /// <param name="Teams">The teams they can read.</param>
+    /// <param name="Organization">Directory changes: everyone but guests, as in the user directory.</param>
+    /// <param name="Administrator">Directory changes about pending invitations as well.</param>
+    private sealed record Access(IReadOnlySet<Guid> Teams, bool Organization, bool Administrator);
+
+    /// <summary>The same rules as <c>TeamAccess.ReadableTeamIdsAsync</c> and the user directory, for any
+    /// user rather than the caller: administrators read every team, everyone else the teams they are a
+    /// member of, guests hear nothing about the directory, and a deactivated account hears nothing.</summary>
+    private async Task<Access> AccessAsync(Guid userId, CancellationToken ct)
     {
         var isActive = await db.Users.AsNoTracking()
             .Where(u => u.Id == userId)
@@ -182,18 +207,21 @@ public sealed class RealtimeSubscriptions(
 
         if (isActive != true)
         {
-            return new HashSet<Guid>();
+            return new Access(new HashSet<Guid>(), Organization: false, Administrator: false);
         }
 
-        var isAdmin = await db.UserRoles.AsNoTracking()
+        var roles = await db.UserRoles.AsNoTracking()
             .Where(ur => ur.UserId == userId)
             .Join(db.Roles, ur => ur.RoleId, r => r.Id, (_, r) => r.Name)
-            .AnyAsync(name => name == PlannerRoles.Owner || name == PlannerRoles.Admin, ct);
+            .ToListAsync(ct);
+
+        var isAdmin = roles.Contains(PlannerRoles.Owner) || roles.Contains(PlannerRoles.Admin);
 
         var teamIds = isAdmin
             ? await db.Teams.AsNoTracking().Select(t => t.Id).ToListAsync(ct)
             : await db.TeamMembers.AsNoTracking().Where(m => m.UserId == userId).Select(m => m.TeamId).ToListAsync(ct);
 
-        return teamIds.ToHashSet();
+        // An account with no role at all is treated as a guest, as CurrentUser treats one.
+        return new Access(teamIds.ToHashSet(), isAdmin || roles.Contains(PlannerRoles.Member), isAdmin);
     }
 }
