@@ -7,11 +7,13 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-planner}
       POSTGRES_USER: ${POSTGRES_USER:-planner}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-planner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       # Deterministic collation, so index ordering does not shift with the host locale.
       POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      # This machine only: for `dotnet run`, migrations and pgAdmin. Nothing else on the network has a
+      # reason to reach the database directly.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       # PostgreSQL 18 stores PGDATA in /var/lib/postgresql/18/docker.
       - pgdata:/var/lib/postgresql
@@ -31,7 +33,7 @@ services:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
-      ConnectionStrings__Planner: "Host=db;Port=5432;Database=${POSTGRES_DB:-planner};Username=${POSTGRES_USER:-planner};Password=${POSTGRES_PASSWORD:-planner};Include Error Detail=true"
+      ConnectionStrings__Planner: "Host=db;Port=5432;Database=${POSTGRES_DB:-planner};Username=${POSTGRES_USER:-planner};Password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"
 
       Planner__Database__AutoMigrate: "true"
 
@@ -40,12 +42,16 @@ services:
       Attachments__Path: /var/lib/planner/attachments
 
       Planner__Auth__KeyDirectory: /var/lib/planner/keys
-      Planner__Auth__KeyPassword: ${PLANNER_KEY_PASSWORD:-planner-dev-keys}
+      Planner__Auth__KeyPassword: ${PLANNER_KEY_PASSWORD:?set PLANNER_KEY_PASSWORD in .env}
       Planner__Auth__AccessTokenMinutes: "60"
       Planner__Auth__RefreshTokenDays: "14"
       # The API speaks plain HTTP inside the compose network; terminate TLS at your reverse proxy.
       Planner__Auth__AllowInsecureHttp: "true"
       Planner__Auth__AllowedOrigins__0: ${PLANNER_ALLOWED_ORIGIN:-http://localhost:8080}
+
+      # The OpenAPI document and the Scalar page at /scalar. On here because this stack is for
+      # evaluating and developing against; the VPS stack leaves it off.
+      Planner__ApiReference__Enabled: ${PLANNER_API_REFERENCE:-true}
 
       Planner__Seed__OwnerEmail: ${PLANNER_OWNER_EMAIL:-owner@planner.local}
       Planner__Seed__OwnerPassword: ${PLANNER_OWNER_PASSWORD:?set PLANNER_OWNER_PASSWORD in .env}
@@ -86,7 +92,7 @@ services:
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-planner}
       PGADMIN_CONFIG_SERVER_MODE: "False"
     ports:
-      - "${PGADMIN_PORT:-5050}:80"
+      - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
     depends_on:
       db:
         condition: service_healthy

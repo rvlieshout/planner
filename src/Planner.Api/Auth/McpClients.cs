@@ -15,6 +15,9 @@ public static class McpClients
     /// installation vouches for, and the consent screen says so.</summary>
     public const string DynamicProperty = "planner:dynamic";
 
+    /// <summary>When a client registered itself, in Unix seconds. See <see cref="McpClientCleanup"/>.</summary>
+    public const string RegisteredProperty = "planner:registered";
+
     public static OpenIddictApplicationDescriptor Describe(
         string clientId,
         string displayName,
@@ -58,6 +61,8 @@ public static class McpClients
         if (dynamic)
         {
             descriptor.Properties[DynamicProperty] = JsonSerializer.SerializeToElement(true);
+            descriptor.Properties[RegisteredProperty] =
+                JsonSerializer.SerializeToElement(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
         }
 
         return descriptor;

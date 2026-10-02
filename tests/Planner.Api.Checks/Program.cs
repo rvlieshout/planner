@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Planner.Api.Auth;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Planner.Api.Common;
@@ -130,6 +132,30 @@ foreach (var url in new[]
         "A relation naming another team's issue is pushed only to watchers who can read that team");
     Check(connections.Watching(open.Id, ours.Id).Order().SequenceEqual(["both", "one"]),
         "A relation within the team is pushed to everyone with the issue open");
+}
+
+{
+    // A browser's side of a passkey ceremony: the cookie Begin hands out, sent back on the next request.
+    static HttpContext Begin(PasskeyCeremonies ceremonies, string operation, string state, string? userId = null)
+    {
+        var first = new DefaultHttpContext();
+        ceremonies.Begin(first, operation, state, userId);
+        var cookie = first.Response.Headers.SetCookie.ToString().Split(';')[0];
+        var next = new DefaultHttpContext();
+        next.Request.Headers.Cookie = cookie;
+        return next;
+    }
+
+    using var ceremonies = new PasskeyCeremonies(maxSignIns: 10, maxRegistrations: 5);
+    var adding = Begin(ceremonies, "register", "attestation", "user-1");
+    for (var i = 0; i < 200; i++) Begin(ceremonies, "login", $"flood-{i}");
+    var signingIn = Begin(ceremonies, "login", "assertion");
+
+    Check(ceremonies.Take(signingIn, "login") == "assertion",
+        "A sign-in started while the store is full takes the place of an older one");
+    Check(ceremonies.Take(signingIn, "login") is null, "A ceremony is used once");
+    Check(ceremonies.Take(adding, "register", "user-1") == "attestation",
+        "Any number of sign-in attempts leaves someone adding a passkey alone");
 }
 
 await Planner.Api.Checks.Base58Checks.RunAsync(Check);

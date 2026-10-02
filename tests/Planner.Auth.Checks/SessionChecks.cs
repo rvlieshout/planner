@@ -12,6 +12,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using OpenIddict.Abstractions;
 using Planner.Api.Auth;
 using Planner.Api.Authorization;
 using Planner.Api.Common;
@@ -23,6 +24,7 @@ using Planner.Contracts.Settings;
 using Planner.Domain.Entities;
 using Planner.Domain.Identity;
 using Planner.Infrastructure;
+using Planner.Infrastructure.Seeding;
 
 namespace Planner.Api.Checks;
 
@@ -75,6 +77,14 @@ public static class SessionChecks
             builder.Services.AddScoped<CommentCommands>();
             builder.Services.AddScoped<AttachmentCommands>();
             builder.Services.AddScoped<OpenIddictClientSeeder>();
+            builder.Services.AddScoped<McpClientCleanup>();
+            builder.Services.AddScoped<DatabaseSeeder>();
+            builder.Services.Configure<PlannerSeedOptions>(options =>
+            {
+                options.OwnerEmail = "seeded-owner@planner.test";
+                options.OwnerPassword = Password;
+                options.SeedDemoData = true;
+            });
             builder.Services.AddSignalR();
             builder.Services.AddScoped<IRealtimeNotifier, RealtimeNotifier>();
             builder.Services.AddScoped<IRealtimeSubscriptions, RealtimeSubscriptions>();
@@ -102,12 +112,15 @@ public static class SessionChecks
                     await roles.CreateAsync(new AppRole { Name = role });
                 await scope.ServiceProvider.GetRequiredService<OpenIddictClientSeeder>().SeedAsync(auth);
 
+                // Before anything else exists: demo data only goes into an empty database.
+                await scope.ServiceProvider.GetRequiredService<DatabaseSeeder>().SeedAsync();
+
                 var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
                 foreach (var (name, role) in new[]
                 {
                     ("owner", PlannerRoles.Owner), ("admin", PlannerRoles.Admin), ("leaver", PlannerRoles.Member),
                     ("reset", PlannerRoles.Member), ("changer", PlannerRoles.Member), ("writer", PlannerRoles.Member),
-                    ("uploader", PlannerRoles.Member)
+                    ("uploader", PlannerRoles.Member), ("second", PlannerRoles.Admin)
                 })
                 {
                     var user = new AppUser
@@ -310,5 +323,79 @@ public static class SessionChecks
         check((await Limit(owner, 0)).IsSuccessStatusCode && (await Get<TeamStorageDto>(writer, storagePath)).LimitBytes is null &&
               (await Add("over.bin", 200)).StatusCode == HttpStatusCode.Created,
             "A limit of 0 means no limit");
+
+        // Roles: nothing half-applied, and never an installation without an owner.
+        var second = await Read(await Login("second"));
+        check((await Json(second, HttpMethod.Patch, UserPath("second"), new { role = "member", isActive = false })).StatusCode == HttpStatusCode.BadRequest &&
+              (await Json(second, HttpMethod.Patch, UserPath("writer"), new { displayName = "Writer" })).IsSuccessStatusCode,
+            "A refused update leaves the role as it was");
+        using (var scope = app.Services.CreateScope())
+        {
+            // The seeder made an owner of its own; with it deactivated, `owner` is the only one left.
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            var seeded = (await users.FindByEmailAsync("seeded-owner@planner.test"))!;
+            seeded.IsActive = false;
+            await users.UpdateAsync(seeded);
+        }
+        check((await Json(owner, HttpMethod.Patch, UserPath("owner"), new { role = "admin" })).StatusCode == HttpStatusCode.Conflict,
+            "The only owner cannot give up the role");
+        check((await Json(owner, HttpMethod.Patch, UserPath("second"), new { role = "owner" })).IsSuccessStatusCode &&
+              (await Json(owner, HttpMethod.Patch, UserPath("owner"), new { role = "admin" })).IsSuccessStatusCode,
+            "With a second owner in place, an owner can step down");
+
+        // Demo accounts.
+        var demoLogin = await Token(new()
+        {
+            ["grant_type"] = "password", ["username"] = "dana@planner.local", ["password"] = Password, ["scope"] = "planner.api"
+        });
+        using (var scope = app.Services.CreateScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            check(await users.FindByEmailAsync("dana@planner.local") is not null && demoLogin.StatusCode == HttpStatusCode.BadRequest,
+                "Demo accounts are created, and the owner's password does not open them");
+        }
+
+        // Self-registered MCP clients that nobody ever used are removed, in time.
+        using (var scope = app.Services.CreateScope())
+        {
+            var applications = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
+            var tokens = scope.ServiceProvider.GetRequiredService<IOpenIddictTokenManager>();
+            var cleanup = scope.ServiceProvider.GetRequiredService<McpClientCleanup>();
+            var now = DateTimeOffset.UtcNow;
+
+            async Task<object> Register(string clientId, DateTimeOffset? registered)
+            {
+                var descriptor = McpClients.Describe(clientId, clientId, [new Uri("https://client.example/callback")], null, dynamic: true);
+                if (registered is { } at)
+                    descriptor.Properties[McpClients.RegisteredProperty] = JsonSerializer.SerializeToElement(at.ToUnixTimeSeconds());
+                else
+                    descriptor.Properties.Remove(McpClients.RegisteredProperty);
+                return await applications.CreateAsync(descriptor);
+            }
+            async Task<bool> Exists(string clientId) => await applications.FindByClientIdAsync(clientId) is not null;
+
+            await Register("mcp-abandoned", now.AddDays(-40));
+            await Register("mcp-recent", now.AddDays(-2));
+            await Register("mcp-undated", null);
+            var used = await Register("mcp-used", now.AddDays(-40));
+            await tokens.CreateAsync(new OpenIddictTokenDescriptor
+            {
+                ApplicationId = await applications.GetIdAsync(used),
+                Subject = people["writer"].ToString(),
+                Type = OpenIddictConstants.TokenTypeHints.RefreshToken,
+                Status = OpenIddictConstants.Statuses.Valid,
+                CreationDate = now.AddDays(-39),
+                ExpirationDate = now.AddDays(-9)
+            });
+
+            check(await cleanup.SweepAsync(now) == 1 && !await Exists("mcp-abandoned"),
+                "A self-registered client unused for over 30 days is removed");
+            check(await Exists("mcp-recent") && await Exists("mcp-undated") && await Exists("mcp-used") &&
+                  await Exists(auth.McpClientId) && await Exists(auth.WebClientId),
+                "Recent, undated, used and configured clients are kept");
+            check(await cleanup.SweepAsync(now.AddDays(31)) == 2 && !await Exists("mcp-recent") && !await Exists("mcp-undated") &&
+                  await Exists("mcp-used") && await Exists(auth.McpClientId),
+                "An undated registration is dated on first sight and ages out like any other; a client someone used never does");
+        }
     }
 }

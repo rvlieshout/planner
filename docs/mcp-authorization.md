@@ -107,9 +107,10 @@ The issuer and resource follow, and Vite accepts the tunnel's host name.
 
 ## Known gaps
 
-- **Registrations are never cleaned up.** Every registration is a row in the OpenIddict applications
-  table, including ones abandoned before consent. They are harmless without a user's approval, but
-  they accumulate.
+- **Unused registrations are removed after 30 days.** Every registration is a row in the OpenIddict
+  applications table, including ones abandoned before consent. Once a day the API deletes clients that
+  registered themselves more than 30 days ago and were never issued a code or a token. A client anyone
+  has approved is kept, and so is the configured `planner-mcp`.
 - **Revoking an assistant.** There is no screen yet listing connected clients. Access ends when the
   account is deactivated, when its password is changed or reset (which ends every session, assistants'
   included), or when the refresh token lapses after `RefreshTokenDays` unused.

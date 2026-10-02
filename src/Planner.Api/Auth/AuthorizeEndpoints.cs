@@ -93,8 +93,9 @@ public static class AuthorizeEndpoints
 
         var user = await users.FindByIdAsync(decision.FindFirstValue(Claims.Subject) ?? string.Empty);
 
-        if (user is null || !user.IsActive || !await signInManager.CanSignInAsync(user) ||
-            await users.IsLockedOutAsync(user))
+        // Lockout is not consulted, as for passkey sign-in: it counts wrong passwords, which a stranger
+        // can supply, and this decision was made by someone already signed in.
+        if (user is null || !user.IsActive || !await signInManager.CanSignInAsync(user))
         {
             return Forbid(Errors.AccessDenied, "This account can no longer sign in.");
         }

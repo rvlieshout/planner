@@ -343,7 +343,10 @@ public static class UserEndpoints
                 .ToResult();
         }
 
-        if (request.Role.TryGet(out var newRole) && newRole != currentRole)
+        // Checked here and applied at the end, with everything else: a request that is refused further
+        // down must not have changed the role on its way there.
+        var changesRole = request.Role.TryGet(out var newRole) && newRole != currentRole;
+        if (changesRole)
         {
             if (!PlannerRoles.All.ContainsKey(newRole!))
             {
@@ -357,8 +360,12 @@ public static class UserEndpoints
                 return ApiResults.Forbidden("Only the owner can grant or revoke the owner role.");
             }
 
-            await userManager.RemoveFromRolesAsync(user, roles);
-            await userManager.AddToRoleAsync(user, newRole!);
+            // Only an owner can make another owner, so an installation without one stays without one.
+            if (currentRole == PlannerRoles.Owner && user.IsActive &&
+                !(await userManager.GetUsersInRoleAsync(PlannerRoles.Owner)).Any(o => o.Id != user.Id && o.IsActive))
+            {
+                return ApiResults.Conflict("This is the only owner. Grant the owner role to someone else first.");
+            }
         }
 
         if (request.IsActive.TryGet(out var isActive) && isActive == false)
@@ -392,6 +399,20 @@ public static class UserEndpoints
         if (!result.Succeeded)
         {
             return IdentityProblem(result);
+        }
+
+        if (changesRole)
+        {
+            result = await userManager.RemoveFromRolesAsync(user, roles);
+            if (result.Succeeded)
+            {
+                result = await userManager.AddToRoleAsync(user, newRole!);
+            }
+
+            if (!result.Succeeded)
+            {
+                return IdentityProblem(result);
+            }
         }
 
         var summary = Mapping.ToUserSummary(user);

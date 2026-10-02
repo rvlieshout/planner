@@ -43,6 +43,10 @@ services:
       # false to allow only the configured planner-mcp client. See docs/mcp.md.
       Planner__Auth__AllowDynamicClientRegistration: ${PLANNER_MCP_REGISTRATION:-true}
 
+      # The OpenAPI document and the Scalar page at /scalar: a complete map of the API for whoever
+      # asks. Off unless you want it public.
+      Planner__ApiReference__Enabled: ${PLANNER_API_REFERENCE:-false}
+
       Planner__Seed__OwnerEmail: ${PLANNER_OWNER_EMAIL:?set PLANNER_OWNER_EMAIL}
       Planner__Seed__OwnerPassword: ${PLANNER_OWNER_PASSWORD:?set PLANNER_OWNER_PASSWORD}
       Planner__Seed__OwnerDisplayName: ${PLANNER_OWNER_NAME:-Planner Owner}

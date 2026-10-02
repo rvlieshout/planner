@@ -220,8 +220,13 @@ public sealed class DatabaseSeeder(
             DisplayName = displayName
         };
 
-        // Demo accounts share the owner password so the sample install has one credential to remember.
-        var result = await users.CreateAsync(user, _options.OwnerPassword);
+        // Never the owner's password: these addresses are the same on every installation that seeds
+        // demo data, so whoever knows them would hold a working sign-in.
+        var password = string.IsNullOrWhiteSpace(_options.DemoPassword)
+            ? Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24))
+            : _options.DemoPassword;
+
+        var result = await users.CreateAsync(user, password);
         if (!result.Succeeded)
         {
             throw new InvalidOperationException($"Could not create demo user {email}: {Describe(result)}");
