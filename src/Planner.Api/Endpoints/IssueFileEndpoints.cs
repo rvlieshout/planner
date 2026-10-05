@@ -88,8 +88,8 @@ public static class IssueFileEndpoints
     /// <summary>Stores a file on an issue. <paramref name="declaredLength"/> is what the sender said it
     /// would send, checked up front; the bytes actually read are checked as they arrive.</summary>
     internal static async Task<WriteResult<AttachmentDto>> StoreAsync(
-        Guid id, string fileName, Stream content, long? declaredLength, PlannerDbContext db, ITeamAccess access,
-        CurrentUser current, IActivityLog activity, IRealtimeNotifier notifier,
+        Guid id, string fileName, Stream content, long? declaredLength, PlannerDbContext db, TeamAccess access,
+        CurrentUser current, ActivityLog activity, RealtimeNotifier notifier,
         IConfiguration config, IWebHostEnvironment environment, CancellationToken ct)
     {
         var issue = await db.Issues.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct);
@@ -158,7 +158,7 @@ public static class IssueFileEndpoints
     }
 
     private static async Task<IResult> DownloadAsync(
-        Guid attachmentId, PlannerDbContext db, ITeamAccess access,
+        Guid attachmentId, PlannerDbContext db, TeamAccess access,
         IConfiguration config, IWebHostEnvironment environment, CancellationToken ct)
     {
         var attachment = await db.Attachments.AsNoTracking().Include(a => a.Issue)

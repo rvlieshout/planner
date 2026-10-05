@@ -57,7 +57,7 @@ public static class IssueEndpoints
 
     private static async Task<IResult> ListAsync(
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         [AsParameters] IssueFilter filter,
         [AsParameters] PageQuery paging,
         CancellationToken ct)
@@ -194,7 +194,7 @@ public static class IssueEndpoints
         _ => query.OrderByDescending(i => i.UpdatedAt)
     };
 
-    private static async Task<IResult> GetAsync(Guid id, PlannerDbContext db, ITeamAccess access, CancellationToken ct)
+    private static async Task<IResult> GetAsync(Guid id, PlannerDbContext db, TeamAccess access, CancellationToken ct)
     {
         var issue = await LoadDetailAsync(db, i => i.Id == id, ct);
         if (issue is null)
@@ -213,7 +213,7 @@ public static class IssueEndpoints
     private static async Task<IResult> GetByKeyAsync(
         string key,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CancellationToken ct)
     {
         var separator = key.LastIndexOf('-');
@@ -242,7 +242,7 @@ public static class IssueEndpoints
     /// include graph, which keeps a busy issue's payload proportional to what the detail pane shows.</summary>
     private static async Task<Contracts.Issues.IssueDetail> BuildDetailAsync(
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         Issue issue,
         CancellationToken ct)
     {
@@ -301,9 +301,9 @@ public static class IssueEndpoints
         Guid id,
         UpdateIssueRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
-        IActivityLog activity,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        ActivityLog activity,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var issue = await db.Issues.Include(i => i.State).FirstOrDefaultAsync(i => i.Id == id, ct);
@@ -500,9 +500,9 @@ public static class IssueEndpoints
         Guid id,
         MoveIssueRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
-        IActivityLog activity,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        ActivityLog activity,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var issue = await db.Issues.Include(i => i.State).FirstOrDefaultAsync(i => i.Id == id, ct);
@@ -654,19 +654,19 @@ public static class IssueEndpoints
     }
 
     private static Task<IResult> ArchiveAsync(
-        Guid id, PlannerDbContext db, ITeamAccess access, IActivityLog activity, IRealtimeNotifier notifier,
+        Guid id, PlannerDbContext db, TeamAccess access, ActivityLog activity, RealtimeNotifier notifier,
         CancellationToken ct) => SetArchivedAsync(id, db, access, activity, notifier, DateTimeOffset.UtcNow, ct);
 
     private static Task<IResult> RestoreAsync(
-        Guid id, PlannerDbContext db, ITeamAccess access, IActivityLog activity, IRealtimeNotifier notifier,
+        Guid id, PlannerDbContext db, TeamAccess access, ActivityLog activity, RealtimeNotifier notifier,
         CancellationToken ct) => SetArchivedAsync(id, db, access, activity, notifier, null, ct);
 
     private static async Task<IResult> SetArchivedAsync(
         Guid id,
         PlannerDbContext db,
-        ITeamAccess access,
-        IActivityLog activity,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        ActivityLog activity,
+        RealtimeNotifier notifier,
         DateTimeOffset? archivedAt,
         CancellationToken ct)
     {
@@ -700,8 +700,8 @@ public static class IssueEndpoints
     private static async Task<IResult> DeleteAsync(
         Guid id,
         PlannerDbContext db,
-        ITeamAccess access,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        RealtimeNotifier notifier,
         IConfiguration config,
         IWebHostEnvironment environment,
         ILoggerFactory loggerFactory,
@@ -755,7 +755,7 @@ public static class IssueEndpoints
     private static async Task<IResult> ListCommentsAsync(
         Guid id,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         [AsParameters] PageQuery paging,
         CancellationToken ct)
     {
@@ -792,10 +792,10 @@ public static class IssueEndpoints
         Guid id,
         CreateCommentRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CurrentUser current,
-        IActivityLog activity,
-        IRealtimeNotifier notifier,
+        ActivityLog activity,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var issue = await db.Issues.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct);
@@ -857,9 +857,9 @@ public static class IssueEndpoints
         Guid commentId,
         UpdateCommentRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CurrentUser current,
-        IRealtimeNotifier notifier,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var comment = await db.Comments.Include(c => c.Issue).FirstOrDefaultAsync(c => c.Id == commentId, ct);
@@ -905,9 +905,9 @@ public static class IssueEndpoints
     private static async Task<IResult> DeleteCommentAsync(
         Guid commentId,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CurrentUser current,
-        IRealtimeNotifier notifier,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var comment = await db.Comments.Include(c => c.Issue).FirstOrDefaultAsync(c => c.Id == commentId, ct);
@@ -954,10 +954,10 @@ public static class IssueEndpoints
         Guid id,
         CreateAttachmentRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CurrentUser current,
-        IActivityLog activity,
-        IRealtimeNotifier notifier,
+        ActivityLog activity,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var issue = await db.Issues.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct);
@@ -1050,9 +1050,9 @@ public static class IssueEndpoints
     internal static async Task<WriteResult<AttachmentDto>> ApplyDeleteAttachmentAsync(
         Guid attachmentId,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CurrentUser current,
-        IRealtimeNotifier notifier,
+        RealtimeNotifier notifier,
         IConfiguration config,
         IWebHostEnvironment environment,
         ILoggerFactory loggerFactory,
@@ -1110,9 +1110,9 @@ public static class IssueEndpoints
         Guid id,
         CreateIssueRelationRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
-        IActivityLog activity,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        ActivityLog activity,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var issue = await db.Issues.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct);
@@ -1194,9 +1194,9 @@ public static class IssueEndpoints
         Guid id,
         Guid relationId,
         PlannerDbContext db,
-        ITeamAccess access,
-        IActivityLog activity,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        ActivityLog activity,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var relation = await db.IssueRelations
@@ -1246,7 +1246,7 @@ public static class IssueEndpoints
     private static async Task<IResult> ListIssueActivityAsync(
         Guid id,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         [AsParameters] PageQuery paging,
         CancellationToken ct)
     {
@@ -1276,7 +1276,7 @@ public static class IssueEndpoints
 
     private static async Task<IResult> ListActivityAsync(
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         [AsParameters] PageQuery paging,
         Guid? teamId,
         Guid? projectId,
@@ -1401,7 +1401,7 @@ public static class IssueEndpoints
     /// </summary>
     internal static async Task PublishRollupsAsync(
         PlannerDbContext db,
-        IRealtimeNotifier notifier,
+        RealtimeNotifier notifier,
         Guid teamId,
         Rollup? before,
         Rollup? after,

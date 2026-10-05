@@ -20,7 +20,7 @@ namespace Planner.Api.Mcp;
 /// endpoints apply, so an assistant sees exactly what its user sees in the app.</summary>
 public sealed class McpReader(
     PlannerDbContext db,
-    ITeamAccess access,
+    TeamAccess access,
     CurrentUser user,
     IHttpContextAccessor http,
     IOptions<PlannerAuthOptions> auth)

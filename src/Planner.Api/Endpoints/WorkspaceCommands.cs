@@ -15,9 +15,9 @@ namespace Planner.Api.Endpoints;
 
 public sealed class ProjectCommands(
     PlannerDbContext db,
-    ITeamAccess access,
-    IActivityLog activity,
-    IRealtimeNotifier notifier)
+    TeamAccess access,
+    ActivityLog activity,
+    RealtimeNotifier notifier)
 {
     public Task<WriteResult<ProjectDto>> UpdateAsync(Guid id, UpdateProjectRequest request, CancellationToken ct) =>
         ProjectEndpoints.ApplyUpdateAsync(id, request, db, access, activity, notifier, ct);
@@ -25,10 +25,10 @@ public sealed class ProjectCommands(
 
 public sealed class DocumentCommands(
     PlannerDbContext db,
-    ITeamAccess access,
+    TeamAccess access,
     CurrentUser current,
-    IActivityLog activity,
-    IRealtimeNotifier notifier)
+    ActivityLog activity,
+    RealtimeNotifier notifier)
 {
     public Task<WriteResult<DocumentSummary>> CreateAsync(CreateDocumentRequest request, CancellationToken ct) =>
         DocumentEndpoints.ApplyCreateAsync(request, db, access, current, activity, notifier, ct);
@@ -39,10 +39,10 @@ public sealed class DocumentCommands(
 
 public sealed class CommentCommands(
     PlannerDbContext db,
-    ITeamAccess access,
+    TeamAccess access,
     CurrentUser current,
-    IActivityLog activity,
-    IRealtimeNotifier notifier)
+    ActivityLog activity,
+    RealtimeNotifier notifier)
 {
     public Task<WriteResult<CommentDto>> CreateAsync(Guid issueId, CreateCommentRequest request, CancellationToken ct) =>
         IssueEndpoints.ApplyCreateCommentAsync(issueId, request, db, access, current, activity, notifier, ct);
@@ -60,10 +60,10 @@ public sealed record AttachmentText(AttachmentDto Attachment, string? Text, bool
 
 public sealed class AttachmentCommands(
     PlannerDbContext db,
-    ITeamAccess access,
+    TeamAccess access,
     CurrentUser current,
-    IActivityLog activity,
-    IRealtimeNotifier notifier,
+    ActivityLog activity,
+    RealtimeNotifier notifier,
     IConfiguration config,
     IWebHostEnvironment environment,
     ILoggerFactory loggers)

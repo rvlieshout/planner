@@ -26,7 +26,7 @@ public static class DependencyInjection
             configure?.Invoke(provider, options);
         });
 
-        services.AddScoped<IIssueNumberGenerator, IssueNumberGenerator>();
+        services.AddScoped<IssueNumberGenerator>();
 
         return services;
     }

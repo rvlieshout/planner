@@ -5,7 +5,7 @@ using Planner.Infrastructure;
 namespace Planner.Api.Authorization;
 
 /// <summary>Who, among a set of people, can read which of a set of teams — for questions about users
-/// other than the caller, which <see cref="ITeamAccess"/> cannot answer.
+/// other than the caller, which <see cref="TeamAccess"/> cannot answer.
 ///
 /// The rule is <c>TeamAccess</c>'s: administrators read every team, everyone else the teams they are a
 /// member of, and a deactivated account reads none. It is loaded in three small queries for the whole

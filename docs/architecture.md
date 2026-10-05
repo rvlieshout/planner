@@ -33,9 +33,9 @@ running API to build the client.
 There is no service or repository layer. Endpoints talk to `PlannerDbContext` directly. For an
 application whose business rules are mostly "check the caller's permission on this team, then write a
 row", a service layer would be a second name for the same code. What *is* factored out is anything
-that would otherwise be repeated inconsistently: permission resolution (`ITeamAccess`), realtime
-publishing (`IRealtimeNotifier`), audit writes (`IActivityLog`), issue numbering
-(`IIssueNumberGenerator`) and DTO projections (`Mapping`).
+that would otherwise be repeated inconsistently: permission resolution (`TeamAccess`), realtime
+publishing (`RealtimeNotifier`), audit writes (`ActivityLog`), issue numbering
+(`IssueNumberGenerator`) and DTO projections (`Mapping`).
 
 ## Decisions worth knowing
 
@@ -166,7 +166,7 @@ HTTP request
        ├─ ApiResults.RequireTeamAsync  permission gate, returns the response to send when denied
        ├─ Validation                   accumulates every problem before answering
        ├─ DbContext                    read, mutate, single SaveChangesAsync (audit row included)
-       └─ IRealtimeNotifier            publish after the commit
+       └─ RealtimeNotifier            publish after the commit
   └─ PlannerExceptionHandler           unique violation → 409, FK violation → 400, stale write → 409
 ```
 

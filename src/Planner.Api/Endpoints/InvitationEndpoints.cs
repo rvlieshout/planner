@@ -36,7 +36,7 @@ public static class InvitationEndpoints
 
     private static async Task<IResult> CreateAsync(
         CreateInvitationRequest request, UserManager<AppUser> users, PlannerDbContext db,
-        CurrentUser current, Invitations invitations, IRealtimeNotifier notifier, CancellationToken ct)
+        CurrentUser current, Invitations invitations, RealtimeNotifier notifier, CancellationToken ct)
     {
         var validation = new Validation()
             .Required(request.Email, "email")
@@ -119,7 +119,7 @@ public static class InvitationEndpoints
     }
 
     private static async Task<IResult> AcceptAsync(
-        AcceptInvitationRequest request, Invitations invitations, IRealtimeNotifier notifier)
+        AcceptInvitationRequest request, Invitations invitations, RealtimeNotifier notifier)
     {
         var invitation = await invitations.InspectAsync(request.UserId, request.Token);
         if (invitation is not { } valid)

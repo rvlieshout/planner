@@ -83,10 +83,10 @@ public static class Base58Checks
 
     private static void Json(Action<bool, string> check)
     {
-        var options = OptionalJson.CreateOptions(
-            new JsonStringEnumConverter(),
-            new Base58GuidConverter(),
-            new NullableBase58GuidConverter());
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        {
+            Converters = { new JsonStringEnumConverter(), new Base58GuidConverter(), new NullableBase58GuidConverter() }
+        };
 
         var id = Guid.Parse("019205f7-0c3e-7b6a-9f21-4d8c5e6a1b37");
         var payload = new Payload(id, null, Optional<Guid?>.From(id), [id, id]);
@@ -147,7 +147,10 @@ public static class Base58Checks
             using var http = new HttpClient { BaseAddress = new Uri(root) };
 
             // The client reads what the server writes, so it needs the same converters.
-            var wire = OptionalJson.CreateOptions(new Base58GuidConverter(), new NullableBase58GuidConverter());
+            var wire = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+            {
+                Converters = { new Base58GuidConverter(), new NullableBase58GuidConverter() }
+            };
 
             var id = Guid.CreateVersion7();
             var other = Guid.CreateVersion7();

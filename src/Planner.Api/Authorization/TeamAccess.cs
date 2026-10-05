@@ -23,17 +23,7 @@ public enum TeamPermission
     Administer = 4
 }
 
-public interface ITeamAccess
-{
-    Task<TeamPermission> GetPermissionAsync(Guid teamId, CancellationToken ct = default);
-
-    Task<bool> HasAsync(Guid teamId, TeamPermission required, CancellationToken ct = default);
-
-    /// <summary>Team ids the caller may at least read. Used to scope every cross-team list query.</summary>
-    Task<IReadOnlyList<Guid>> ReadableTeamIdsAsync(CancellationToken ct = default);
-}
-
-public sealed class TeamAccess(PlannerDbContext db, CurrentUser user) : ITeamAccess
+public sealed class TeamAccess(PlannerDbContext db, CurrentUser user)
 {
     // Memberships are read repeatedly within a request (list endpoints check one team per row),
     // so the lookup is cached for the lifetime of this scoped service.
@@ -74,6 +64,7 @@ public sealed class TeamAccess(PlannerDbContext db, CurrentUser user) : ITeamAcc
     public async Task<bool> HasAsync(Guid teamId, TeamPermission required, CancellationToken ct = default) =>
         await GetPermissionAsync(teamId, ct) >= required;
 
+    /// <summary>Team ids the caller may at least read. Used to scope every cross-team list query.</summary>
     public async Task<IReadOnlyList<Guid>> ReadableTeamIdsAsync(CancellationToken ct = default)
     {
         if (user.IsAdmin)

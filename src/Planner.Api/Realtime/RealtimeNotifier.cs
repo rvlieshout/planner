@@ -10,29 +10,10 @@ namespace Planner.Api.Realtime;
 
 /// <summary>Publishes entity changes to connected clients. Endpoints call this after a successful
 /// SaveChanges, never before — a client must never be told about a write that then rolls back.</summary>
-public interface IRealtimeNotifier
-{
-    Task TeamChanged(ChangeKind kind, TeamDto team);
-    Task TeamMemberChanged(ChangeKind kind, TeamMemberDto member);
-    Task WorkflowStateChanged(ChangeKind kind, WorkflowStateDto state);
-    Task LabelChanged(ChangeKind kind, LabelDto label, Guid teamId);
-    Task ProjectChanged(ChangeKind kind, ProjectDto project);
-    Task MilestoneChanged(ChangeKind kind, MilestoneDto milestone, Guid teamId);
-    Task DocumentChanged(ChangeKind kind, DocumentSummary document);
-    Task IssueChanged(ChangeKind kind, IssueSummary issue);
-    Task CommentChanged(ChangeKind kind, CommentDto comment, Guid teamId);
-    Task AttachmentChanged(ChangeKind kind, AttachmentDto attachment, Guid teamId);
-    /// <param name="relatedTeamId">The team of the issue the payload names, which a recipient must be
-    /// able to read as well as the issue they have open.</param>
-    Task IssueRelationChanged(ChangeKind kind, IssueRelationDto relation, Guid issueId, Guid teamId, Guid relatedTeamId);
-    Task UserChanged(ChangeKind kind, UserSummary user);
-}
-
 public sealed class RealtimeNotifier(
     IHubContext<PlannerHub, IPlannerClient> hub,
     RealtimeConnections connections,
     CurrentUser currentUser)
-    : IRealtimeNotifier
 {
     private Guid ActorId => currentUser.IsAuthenticated ? currentUser.Id : Guid.Empty;
 
@@ -78,6 +59,8 @@ public sealed class RealtimeNotifier(
 
     // A relation names another issue, which may sit in a team that someone with this issue open cannot
     // read. So it goes to the connections in the issue's group that can read both, not to the group.
+    /// <param name="relatedTeamId">The team of the issue the payload names, which a recipient must be
+    /// able to read as well as the issue they have open.</param>
     public Task IssueRelationChanged(ChangeKind kind, IssueRelationDto relation, Guid issueId, Guid teamId, Guid relatedTeamId) =>
         hub.Clients.Clients(connections.Watching(issueId, relatedTeamId)).IssueRelationChanged(
             Envelope(kind, EntityTypes.IssueRelation, relation.Id, teamId, null, issueId, relation));

@@ -131,7 +131,7 @@ On a Windows development machine they come out in UTC: the repo builds with
 - **Retries don't duplicate.** An identical issue title from the same user in the same team, or an
   identical comment from the same user on the same issue, within 10 minutes returns the existing one,
   unless the call passes `allowDuplicate`.
-- **The user's permissions, never more.** Every query is scoped through `ITeamAccess`, like the REST
+- **The user's permissions, never more.** Every query is scoped through `TeamAccess`, like the REST
   endpoints. A guest's assistant sees and does what the guest can.
 - **MCP tokens stay on `/mcp`.** A token issued to an assistant carries the MCP resource as its
   audience. `/mcp` accepts only those tokens, and the rest of the API (REST and realtime) refuses

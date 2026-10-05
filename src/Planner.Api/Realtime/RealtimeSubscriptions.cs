@@ -15,26 +15,13 @@ namespace Planner.Api.Realtime;
 /// Access is read from the database rather than from the caller's token. A token keeps the role it
 /// was issued with until it is refreshed; a socket that stops receiving a team the moment access is
 /// revoked is the point of this class.</summary>
-public interface IRealtimeSubscriptions
-{
-    /// <summary>Re-evaluates every open connection of one user.</summary>
-    Task SyncUserAsync(Guid userId, CancellationToken ct = default);
-
-    /// <summary>Re-evaluates one connection and returns the groups it is now in.</summary>
-    Task<IReadOnlyList<string>> SyncConnectionAsync(string connectionId, CancellationToken ct = default);
-
-    /// <summary>Joins an issue's group, provided the connection's user can still read its team.</summary>
-    Task<bool> JoinIssueAsync(string connectionId, Guid issueId, Guid teamId, CancellationToken ct = default);
-
-    Task LeaveIssueAsync(string connectionId, Guid issueId, CancellationToken ct = default);
-}
-
 public sealed class RealtimeSubscriptions(
     IHubContext<PlannerHub, IPlannerClient> hub,
     RealtimeConnections connections,
     PlannerDbContext db,
-    ILogger<RealtimeSubscriptions> logger) : IRealtimeSubscriptions
+    ILogger<RealtimeSubscriptions> logger)
 {
+    /// <summary>Re-evaluates every open connection of one user.</summary>
     public async Task SyncUserAsync(Guid userId, CancellationToken ct = default)
     {
         var open = connections.ForUser(userId);
@@ -60,6 +47,7 @@ public sealed class RealtimeSubscriptions(
         }
     }
 
+    /// <summary>Re-evaluates one connection and returns the groups it is now in.</summary>
     public async Task<IReadOnlyList<string>> SyncConnectionAsync(string connectionId, CancellationToken ct = default)
     {
         var connection = connections.Find(connectionId)
@@ -78,6 +66,7 @@ public sealed class RealtimeSubscriptions(
         }
     }
 
+    /// <summary>Joins an issue's group, provided the connection's user can still read its team.</summary>
     public async Task<bool> JoinIssueAsync(string connectionId, Guid issueId, Guid teamId, CancellationToken ct = default)
     {
         if (connections.Find(connectionId) is not { } connection)

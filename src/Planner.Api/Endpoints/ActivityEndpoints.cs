@@ -33,7 +33,7 @@ public static class ActivityEndpoints
     /// </summary>
     private static async Task<IResult> PurgeAsync(
         PlannerDbContext db,
-        IActivityLog activity,
+        ActivityLog activity,
         IHubContext<PlannerHub, IPlannerClient> hub,
         Guid? projectId,
         Guid? teamId,

@@ -38,7 +38,7 @@ public static class ApiResults
     /// response to send back. Deliberately answers 404 for teams the caller cannot see at all, so the
     /// API does not leak the existence of private teams through a 403.</summary>
     public static async Task<IResult?> RequireTeamAsync(
-        ITeamAccess access,
+        TeamAccess access,
         Guid teamId,
         TeamPermission required,
         CancellationToken ct = default)

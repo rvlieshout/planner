@@ -38,7 +38,7 @@ public static class ProjectEndpoints
 
     private static async Task<IResult> ListAsync(
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         [AsParameters] PageQuery paging,
         Guid? teamId,
         ProjectStatus[]? status,
@@ -83,7 +83,7 @@ public static class ProjectEndpoints
         return Results.Ok(new PagedResult<ProjectDto>(items, paging.NormalizedPage, paging.NormalizedSize, total));
     }
 
-    private static async Task<IResult> GetAsync(Guid id, PlannerDbContext db, ITeamAccess access, CancellationToken ct)
+    private static async Task<IResult> GetAsync(Guid id, PlannerDbContext db, TeamAccess access, CancellationToken ct)
     {
         var teamId = await db.Projects.Where(p => p.Id == id).Select(p => (Guid?)p.TeamId).FirstOrDefaultAsync(ct);
         if (teamId is null)
@@ -107,9 +107,9 @@ public static class ProjectEndpoints
     private static async Task<IResult> CreateAsync(
         CreateProjectRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
-        IActivityLog activity,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        ActivityLog activity,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         if (await ApiResults.RequireTeamAsync(access, request.TeamId, TeamPermission.Write, ct) is { } denied)
@@ -182,9 +182,9 @@ public static class ProjectEndpoints
         Guid id,
         UpdateProjectRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
-        IActivityLog activity,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        ActivityLog activity,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var project = await db.Projects.FirstOrDefaultAsync(p => p.Id == id, ct);
@@ -272,19 +272,19 @@ public static class ProjectEndpoints
     }
 
     private static Task<IResult> ArchiveAsync(
-        Guid id, PlannerDbContext db, ITeamAccess access, IActivityLog activity, IRealtimeNotifier notifier,
+        Guid id, PlannerDbContext db, TeamAccess access, ActivityLog activity, RealtimeNotifier notifier,
         CancellationToken ct) => SetArchivedAsync(id, db, access, activity, notifier, DateTimeOffset.UtcNow, ct);
 
     private static Task<IResult> RestoreAsync(
-        Guid id, PlannerDbContext db, ITeamAccess access, IActivityLog activity, IRealtimeNotifier notifier,
+        Guid id, PlannerDbContext db, TeamAccess access, ActivityLog activity, RealtimeNotifier notifier,
         CancellationToken ct) => SetArchivedAsync(id, db, access, activity, notifier, null, ct);
 
     private static async Task<IResult> SetArchivedAsync(
         Guid id,
         PlannerDbContext db,
-        ITeamAccess access,
-        IActivityLog activity,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        ActivityLog activity,
+        RealtimeNotifier notifier,
         DateTimeOffset? archivedAt,
         CancellationToken ct)
     {
@@ -314,8 +314,8 @@ public static class ProjectEndpoints
     private static async Task<IResult> DeleteAsync(
         Guid id,
         PlannerDbContext db,
-        ITeamAccess access,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var project = await db.Projects.FirstOrDefaultAsync(p => p.Id == id, ct);
@@ -342,7 +342,7 @@ public static class ProjectEndpoints
     private static async Task<IResult> ListMilestonesAsync(
         Guid id,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CancellationToken ct)
     {
         var teamId = await db.Projects.Where(p => p.Id == id).Select(p => (Guid?)p.TeamId).FirstOrDefaultAsync(ct);
@@ -370,9 +370,9 @@ public static class ProjectEndpoints
         Guid id,
         CreateMilestoneRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
-        IActivityLog activity,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        ActivityLog activity,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var project = await db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct);
@@ -426,7 +426,7 @@ public static class ProjectEndpoints
     private static async Task<IResult> GetMilestoneAsync(
         Guid milestoneId,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CancellationToken ct)
     {
         var teamId = await db.Milestones.Where(m => m.Id == milestoneId)
@@ -452,8 +452,8 @@ public static class ProjectEndpoints
         Guid milestoneId,
         UpdateMilestoneRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var milestone = await db.Milestones.Include(m => m.Project)
@@ -503,8 +503,8 @@ public static class ProjectEndpoints
     private static async Task<IResult> DeleteMilestoneAsync(
         Guid milestoneId,
         PlannerDbContext db,
-        ITeamAccess access,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var milestone = await db.Milestones.Include(m => m.Project)

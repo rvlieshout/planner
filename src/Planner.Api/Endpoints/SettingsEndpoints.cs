@@ -69,7 +69,7 @@ public static class SettingsEndpoints
     }
 
     private static async Task<IResult> GetTeamStorageAsync(
-        Guid id, PlannerDbContext db, ITeamAccess access, CancellationToken ct)
+        Guid id, PlannerDbContext db, TeamAccess access, CancellationToken ct)
     {
         if (await ApiResults.RequireTeamAsync(access, id, TeamPermission.Read, ct) is { } denied)
         {

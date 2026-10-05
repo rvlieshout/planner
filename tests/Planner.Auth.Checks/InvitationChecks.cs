@@ -72,8 +72,8 @@ public static class InvitationChecks
             builder.Services.AddScoped<Invitations>();
             builder.Services.AddScoped<OpenIddictClientSeeder>();
             builder.Services.AddSignalR();
-            builder.Services.AddScoped<IRealtimeNotifier, RealtimeNotifier>();
-            builder.Services.AddScoped<IRealtimeSubscriptions, RealtimeSubscriptions>();
+            builder.Services.AddScoped<RealtimeNotifier>();
+            builder.Services.AddScoped<RealtimeSubscriptions>();
             builder.Services.AddSingleton<RealtimeConnections>();
             builder.Services.AddRateLimiter(options => options.AddPolicy("auth", _ => RateLimitPartition.GetNoLimiter("all")));
             await using var app = builder.Build();

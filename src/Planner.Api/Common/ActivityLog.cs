@@ -7,19 +7,7 @@ namespace Planner.Api.Common;
 
 /// <summary>Writes the audit trail. Rows are added to the same DbContext as the change itself, so a
 /// failed write leaves no orphaned history behind — the caller's single SaveChanges commits both.</summary>
-public interface IActivityLog
-{
-    void Record(
-        string entityType,
-        Guid entityId,
-        string action,
-        object? data = null,
-        Guid? teamId = null,
-        Guid? projectId = null,
-        Guid? issueId = null);
-}
-
-public sealed class ActivityLog(PlannerDbContext db, CurrentUser user) : IActivityLog
+public sealed class ActivityLog(PlannerDbContext db, CurrentUser user)
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 

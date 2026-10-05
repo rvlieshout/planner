@@ -36,7 +36,7 @@ public static class DocumentEndpoints
 
     private static async Task<IResult> ListAsync(
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         [AsParameters] PageQuery paging,
         Guid? teamId,
         Guid? projectId,
@@ -83,7 +83,7 @@ public static class DocumentEndpoints
     private static async Task<IResult> ListByProjectAsync(
         Guid projectId,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CancellationToken ct)
     {
         var teamId = await db.Projects.Where(p => p.Id == projectId)
@@ -108,7 +108,7 @@ public static class DocumentEndpoints
         return Results.Ok(items);
     }
 
-    private static async Task<IResult> GetAsync(Guid id, PlannerDbContext db, ITeamAccess access, CancellationToken ct)
+    private static async Task<IResult> GetAsync(Guid id, PlannerDbContext db, TeamAccess access, CancellationToken ct)
     {
         var teamId = await db.Documents.Where(d => d.Id == id).Select(d => (Guid?)d.TeamId).FirstOrDefaultAsync(ct);
         if (teamId is null)
@@ -139,10 +139,10 @@ public static class DocumentEndpoints
     internal static async Task<WriteResult<DocumentSummary>> ApplyCreateAsync(
         CreateDocumentRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CurrentUser current,
-        IActivityLog activity,
-        IRealtimeNotifier notifier,
+        ActivityLog activity,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         if (await ApiResults.RequireTeamAsync(access, request.TeamId, TeamPermission.Write, ct) is { } denied)
@@ -189,9 +189,9 @@ public static class DocumentEndpoints
         Guid id,
         UpdateDocumentRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CurrentUser current,
-        IRealtimeNotifier notifier,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var document = await db.Documents.FirstOrDefaultAsync(d => d.Id == id, ct);
@@ -244,18 +244,18 @@ public static class DocumentEndpoints
     }
 
     private static Task<IResult> ArchiveAsync(
-        Guid id, PlannerDbContext db, ITeamAccess access, IRealtimeNotifier notifier, CancellationToken ct) =>
+        Guid id, PlannerDbContext db, TeamAccess access, RealtimeNotifier notifier, CancellationToken ct) =>
         SetArchivedAsync(id, db, access, notifier, DateTimeOffset.UtcNow, ct);
 
     private static Task<IResult> RestoreAsync(
-        Guid id, PlannerDbContext db, ITeamAccess access, IRealtimeNotifier notifier, CancellationToken ct) =>
+        Guid id, PlannerDbContext db, TeamAccess access, RealtimeNotifier notifier, CancellationToken ct) =>
         SetArchivedAsync(id, db, access, notifier, null, ct);
 
     private static async Task<IResult> SetArchivedAsync(
         Guid id,
         PlannerDbContext db,
-        ITeamAccess access,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        RealtimeNotifier notifier,
         DateTimeOffset? archivedAt,
         CancellationToken ct)
     {
@@ -283,8 +283,8 @@ public static class DocumentEndpoints
     private static async Task<IResult> DeleteAsync(
         Guid id,
         PlannerDbContext db,
-        ITeamAccess access,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var document = await db.Documents.FirstOrDefaultAsync(d => d.Id == id, ct);

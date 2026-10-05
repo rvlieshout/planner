@@ -31,7 +31,7 @@ public static class IssueSubscriptionEndpoints
     private static async Task<IResult> ListAsync(
         Guid id,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CancellationToken ct)
     {
         if (await AuthorizeAsync(db, access, id, TeamPermission.Read, ct) is { Denied: { } denied })
@@ -46,7 +46,7 @@ public static class IssueSubscriptionEndpoints
         Guid id,
         Guid userId,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CurrentUser current,
         CancellationToken ct)
     {
@@ -84,7 +84,7 @@ public static class IssueSubscriptionEndpoints
         Guid id,
         Guid userId,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CurrentUser current,
         CancellationToken ct)
     {
@@ -101,7 +101,7 @@ public static class IssueSubscriptionEndpoints
 
     private static async Task<(Guid TeamId, DateTimeOffset? ArchivedAt, IResult? Denied)> AuthorizeAsync(
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         Guid issueId,
         TeamPermission required,
         CancellationToken ct)

@@ -15,11 +15,11 @@ namespace Planner.Api.Endpoints;
 /// the same way.</summary>
 public sealed class IssueCommands(
     PlannerDbContext db,
-    ITeamAccess access,
+    TeamAccess access,
     CurrentUser current,
-    IIssueNumberGenerator numbers,
-    IActivityLog activity,
-    IRealtimeNotifier notifier)
+    IssueNumberGenerator numbers,
+    ActivityLog activity,
+    RealtimeNotifier notifier)
 {
     public Task<WriteResult<IssueSummary>> UpdateAsync(Guid id, UpdateIssueRequest request, CancellationToken ct) =>
         IssueEndpoints.ApplyUpdateAsync(id, request, db, access, activity, notifier, ct);

@@ -55,7 +55,7 @@ public static class TeamEndpoints
 
     private static async Task<IResult> ListAsync(
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         bool? includeArchived,
         CancellationToken ct)
     {
@@ -72,7 +72,7 @@ public static class TeamEndpoints
         return Results.Ok(items);
     }
 
-    private static async Task<IResult> GetAsync(Guid id, PlannerDbContext db, ITeamAccess access, CancellationToken ct)
+    private static async Task<IResult> GetAsync(Guid id, PlannerDbContext db, TeamAccess access, CancellationToken ct)
     {
         if (await ApiResults.RequireTeamAsync(access, id, TeamPermission.Read, ct) is { } denied)
         {
@@ -89,7 +89,7 @@ public static class TeamEndpoints
         CreateTeamRequest request,
         PlannerDbContext db,
         CurrentUser current,
-        IRealtimeNotifier notifier,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var key = request.Key?.Trim().ToUpperInvariant() ?? string.Empty;
@@ -137,8 +137,8 @@ public static class TeamEndpoints
         Guid id,
         UpdateTeamRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         if (await ApiResults.RequireTeamAsync(access, id, TeamPermission.Administer, ct) is { } denied)
@@ -176,22 +176,22 @@ public static class TeamEndpoints
     private static Task<IResult> ArchiveAsync(
         Guid id,
         PlannerDbContext db,
-        ITeamAccess access,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        RealtimeNotifier notifier,
         CancellationToken ct) => SetArchivedAsync(id, db, access, notifier, DateTimeOffset.UtcNow, ct);
 
     private static Task<IResult> RestoreAsync(
         Guid id,
         PlannerDbContext db,
-        ITeamAccess access,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        RealtimeNotifier notifier,
         CancellationToken ct) => SetArchivedAsync(id, db, access, notifier, null, ct);
 
     private static async Task<IResult> SetArchivedAsync(
         Guid id,
         PlannerDbContext db,
-        ITeamAccess access,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        RealtimeNotifier notifier,
         DateTimeOffset? archivedAt,
         CancellationToken ct)
     {
@@ -217,7 +217,7 @@ public static class TeamEndpoints
     private static async Task<IResult> ListMembersAsync(
         Guid id,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CancellationToken ct)
     {
         if (await ApiResults.RequireTeamAsync(access, id, TeamPermission.Read, ct) is { } denied)
@@ -239,10 +239,10 @@ public static class TeamEndpoints
         Guid id,
         AddTeamMemberRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
-        IActivityLog activity,
-        IRealtimeNotifier notifier,
-        IRealtimeSubscriptions subscriptions,
+        TeamAccess access,
+        ActivityLog activity,
+        RealtimeNotifier notifier,
+        RealtimeSubscriptions subscriptions,
         CancellationToken ct)
     {
         if (await ApiResults.RequireTeamAsync(access, id, TeamPermission.Administer, ct) is { } denied)
@@ -282,9 +282,9 @@ public static class TeamEndpoints
         Guid userId,
         UpdateTeamMemberRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
-        IActivityLog activity,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        ActivityLog activity,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         if (await ApiResults.RequireTeamAsync(access, id, TeamPermission.Administer, ct) is { } denied)
@@ -326,10 +326,10 @@ public static class TeamEndpoints
         Guid id,
         Guid userId,
         PlannerDbContext db,
-        ITeamAccess access,
-        IActivityLog activity,
-        IRealtimeNotifier notifier,
-        IRealtimeSubscriptions subscriptions,
+        TeamAccess access,
+        ActivityLog activity,
+        RealtimeNotifier notifier,
+        RealtimeSubscriptions subscriptions,
         CancellationToken ct)
     {
         if (await ApiResults.RequireTeamAsync(access, id, TeamPermission.Administer, ct) is { } denied)
@@ -368,7 +368,7 @@ public static class TeamEndpoints
     private static async Task<IResult> ListStatesAsync(
         Guid id,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CancellationToken ct)
     {
         if (await ApiResults.RequireTeamAsync(access, id, TeamPermission.Read, ct) is { } denied)
@@ -390,8 +390,8 @@ public static class TeamEndpoints
         Guid id,
         CreateWorkflowStateRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         if (await ApiResults.RequireTeamAsync(access, id, TeamPermission.Administer, ct) is { } denied)
@@ -445,8 +445,8 @@ public static class TeamEndpoints
         Guid stateId,
         UpdateWorkflowStateRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         if (await ApiResults.RequireTeamAsync(access, id, TeamPermission.Administer, ct) is { } denied)
@@ -508,8 +508,8 @@ public static class TeamEndpoints
         Guid id,
         Guid stateId,
         PlannerDbContext db,
-        ITeamAccess access,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         if (await ApiResults.RequireTeamAsync(access, id, TeamPermission.Administer, ct) is { } denied)
@@ -551,7 +551,7 @@ public static class TeamEndpoints
     private static async Task<IResult> ListTeamLabelsAsync(
         Guid id,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CancellationToken ct)
     {
         if (await ApiResults.RequireTeamAsync(access, id, TeamPermission.Read, ct) is { } denied)
@@ -571,7 +571,7 @@ public static class TeamEndpoints
 
     private static async Task<IResult> ListLabelsAsync(
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CancellationToken ct)
     {
         var readable = await access.ReadableTeamIdsAsync(ct);
@@ -590,8 +590,8 @@ public static class TeamEndpoints
         Guid id,
         CreateLabelRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
-        IRealtimeNotifier notifier,
+        TeamAccess access,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         if (await ApiResults.RequireTeamAsync(access, id, TeamPermission.Administer, ct) is { } denied)
@@ -605,14 +605,14 @@ public static class TeamEndpoints
     private static Task<IResult> CreateOrgLabelAsync(
         CreateLabelRequest request,
         PlannerDbContext db,
-        IRealtimeNotifier notifier,
+        RealtimeNotifier notifier,
         CancellationToken ct) => CreateLabelAsync(null, request, db, notifier, ct);
 
     private static async Task<IResult> CreateLabelAsync(
         Guid? teamId,
         CreateLabelRequest request,
         PlannerDbContext db,
-        IRealtimeNotifier notifier,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var name = request.Name?.Trim();
@@ -660,9 +660,9 @@ public static class TeamEndpoints
         Guid labelId,
         UpdateLabelRequest request,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CurrentUser current,
-        IRealtimeNotifier notifier,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var label = await db.Labels.FirstOrDefaultAsync(l => l.Id == labelId, ct);
@@ -717,9 +717,9 @@ public static class TeamEndpoints
     private static async Task<IResult> DeleteLabelAsync(
         Guid labelId,
         PlannerDbContext db,
-        ITeamAccess access,
+        TeamAccess access,
         CurrentUser current,
-        IRealtimeNotifier notifier,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var label = await db.Labels.FirstOrDefaultAsync(l => l.Id == labelId, ct);

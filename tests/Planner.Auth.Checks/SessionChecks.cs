@@ -71,8 +71,8 @@ public static class SessionChecks
             builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.AddIdConverters());
             builder.Services.AddHttpContextAccessor();
             builder.Services.AddScoped<CurrentUser>();
-            builder.Services.AddScoped<ITeamAccess, TeamAccess>();
-            builder.Services.AddScoped<IActivityLog, ActivityLog>();
+            builder.Services.AddScoped<TeamAccess>();
+            builder.Services.AddScoped<ActivityLog>();
             builder.Services.AddScoped<IssueCommands>();
             builder.Services.AddScoped<CommentCommands>();
             builder.Services.AddScoped<AttachmentCommands>();
@@ -86,8 +86,8 @@ public static class SessionChecks
                 options.SeedDemoData = true;
             });
             builder.Services.AddSignalR();
-            builder.Services.AddScoped<IRealtimeNotifier, RealtimeNotifier>();
-            builder.Services.AddScoped<IRealtimeSubscriptions, RealtimeSubscriptions>();
+            builder.Services.AddScoped<RealtimeNotifier>();
+            builder.Services.AddScoped<RealtimeSubscriptions>();
             builder.Services.AddSingleton<RealtimeConnections>();
             builder.Services.AddRateLimiter(options => options.AddPolicy("auth", _ => RateLimitPartition.GetNoLimiter("all")));
             await using var app = builder.Build();

@@ -2,15 +2,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Planner.Infrastructure;
 
-public interface IIssueNumberGenerator
-{
-    Task<int> NextAsync(Guid teamId, CancellationToken cancellationToken = default);
-}
-
 /// <summary>Hands out the next per-team issue number with a single atomic UPDATE .. RETURNING.
 /// Read-then-write in application code would hand two concurrent creates the same number, and the
 /// unique (team_id, number) index would then reject one of them.</summary>
-public sealed class IssueNumberGenerator(PlannerDbContext db) : IIssueNumberGenerator
+public sealed class IssueNumberGenerator(PlannerDbContext db)
 {
     public async Task<int> NextAsync(Guid teamId, CancellationToken cancellationToken = default)
     {

@@ -90,7 +90,7 @@ public static class UserEndpoints
         UpdateProfileRequest request,
         UserManager<AppUser> userManager,
         CurrentUser current,
-        IRealtimeNotifier notifier,
+        RealtimeNotifier notifier,
         CancellationToken ct)
     {
         var user = await userManager.FindByIdAsync(current.Id.ToString());
@@ -246,7 +246,7 @@ public static class UserEndpoints
         CreateUserRequest request,
         UserManager<AppUser> userManager,
         CurrentUser current,
-        IRealtimeNotifier notifier)
+        RealtimeNotifier notifier)
     {
         var validation = new Validation()
             .Required(request.Email, "email")
@@ -298,8 +298,8 @@ public static class UserEndpoints
         UpdateUserRequest request,
         UserManager<AppUser> userManager,
         CurrentUser current,
-        IRealtimeNotifier notifier,
-        IRealtimeSubscriptions subscriptions)
+        RealtimeNotifier notifier,
+        RealtimeSubscriptions subscriptions)
     {
         var user = await userManager.FindByIdAsync(id.ToString());
         if (user is null)
@@ -469,8 +469,8 @@ public static class UserEndpoints
         PlannerDbContext db,
         UserManager<AppUser> userManager,
         CurrentUser current,
-        IRealtimeNotifier notifier,
-        IRealtimeSubscriptions subscriptions,
+        RealtimeNotifier notifier,
+        RealtimeSubscriptions subscriptions,
         ILoggerFactory loggers,
         CancellationToken ct)
     {
@@ -525,7 +525,7 @@ public static class UserEndpoints
         PlannerDbContext db,
         UserManager<AppUser> userManager,
         CurrentUser current,
-        IRealtimeNotifier notifier,
+        RealtimeNotifier notifier,
         ILoggerFactory loggers,
         CancellationToken ct)
     {

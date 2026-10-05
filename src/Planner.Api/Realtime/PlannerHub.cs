@@ -10,14 +10,14 @@ namespace Planner.Api.Realtime;
 /// <summary>Live change feed for connected clients. Connections are placed in a group per team the
 /// caller can read, so the server never has to re-check permissions when publishing a change. Those
 /// groups follow the caller's access for the life of the connection: see
-/// <see cref="IRealtimeSubscriptions"/>.</summary>
+/// <see cref="RealtimeSubscriptions"/>.</summary>
 [Authorize]
 public sealed class PlannerHub(
-    ITeamAccess access,
+    TeamAccess access,
     CurrentUser user,
     PlannerDbContext db,
     RealtimeConnections connections,
-    IRealtimeSubscriptions subscriptions,
+    RealtimeSubscriptions subscriptions,
     ILogger<PlannerHub> logger)
     : Hub<IPlannerClient>
 {
