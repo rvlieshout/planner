@@ -1,14 +1,18 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { Popover } from 'bits-ui';
 
   /**
    * A panel anchored to the control that opened it: the team switcher, a property pill, a row's
    * context menu.
    *
-   * Positioned `fixed` against the trigger's own rectangle rather than absolutely inside it, so a
-   * scrolling column or an `overflow: hidden` ancestor cannot clip it, and flipped above the trigger
-   * when there is more room there — a picker that opens off the bottom of the window is a picker with
-   * one option visible.
+   * Placement, flipping above the trigger when there is more room there, and closing on Escape or a
+   * click elsewhere are bits-ui's. It is positioned `fixed`, so a scrolling column or an
+   * `overflow: hidden` ancestor cannot clip it, and it is deliberately not portalled: inside a modal
+   * <dialog> a panel moved to <body> would sit under the top layer, inert.
+   *
+   * The caller's trigger keeps its own click handler and its own focus — a picker walks its list with
+   * the arrow keys from the trigger — so nothing here toggles, traps or moves focus.
    */
   interface Props {
     open: boolean;
@@ -24,121 +28,64 @@
   let { open, onclose, align = 'start', width, trigger, children }: Props = $props();
 
   let anchor = $state<HTMLElement | null>(null);
-  let panel = $state<HTMLElement | null>(null);
-  let position = $state({ top: 0, left: 0, width: 0, maxHeight: 320 });
 
-  const GAP = 4;
-  const MARGIN = 8;
+  // The wrapper is `display: contents`, so the control keeps whatever layout its parent gives it —
+  // and so the wrapper has no box to hang a panel off. The control inside it is what gets measured.
+  const control = $derived(open ? ((anchor?.firstElementChild ?? anchor) as HTMLElement | null) : null);
 
-  /**
-   * The rectangle to hang the panel off.
-   *
-   * The wrapper around the trigger is `display: contents` so that it adds no box of its own and the
-   * control keeps whatever layout its parent gives it — which is the point, since these sit inside
-   * flex rows and grid cells. The consequence is that the wrapper has no box to measure either:
-   * `getBoundingClientRect()` on it returns all zeros, and a panel placed from that lands in the
-   * top-left corner of the window. So the control inside it is what gets measured.
-   */
-  function anchorRect(): DOMRect | null {
-    const element = anchor?.firstElementChild ?? anchor;
-    return element?.getBoundingClientRect() ?? null;
-  }
+  const minWidth = $derived(
+    width === undefined ? undefined : width === 'trigger' ? 'var(--bits-popover-anchor-width)' : `${width}px`
+  );
 
-  function place() {
-    const rect = anchorRect();
-    if (!rect) return;
-    const panelWidth = width === 'trigger' ? rect.width : (width ?? panel?.offsetWidth ?? rect.width);
-    const below = window.innerHeight - rect.bottom - GAP - MARGIN;
-    const above = rect.top - GAP - MARGIN;
-    const flip = below < 180 && above > below;
-    const height = panel?.offsetHeight ?? 0;
-
-    position = {
-      top: flip ? Math.max(MARGIN, rect.top - GAP - height) : rect.bottom + GAP,
-      left: clamp(
-        align === 'end' ? rect.right - panelWidth : rect.left,
-        MARGIN,
-        window.innerWidth - panelWidth - MARGIN
-      ),
-      width: panelWidth,
-      maxHeight: Math.max(160, flip ? above : below)
-    };
-  }
-
-  const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), Math.max(min, max));
-
-  $effect(() => {
-    if (!open) return;
-
-    place();
-
-    // Re-placed on scroll and resize, because `fixed` does not follow the trigger on its own. Capture
-    // phase, so a scrolling container inside the page is heard as well as the window.
-    const reposition = () => place();
-    window.addEventListener('scroll', reposition, true);
-    window.addEventListener('resize', reposition);
-
-    return () => {
-      window.removeEventListener('scroll', reposition, true);
-      window.removeEventListener('resize', reposition);
-    };
-  });
-
-  function onPointerDown(event: PointerEvent) {
-    if (!open) return;
-
-    const target = event.target as Node;
-    if (anchor?.contains(target) || panel?.contains(target)) return;
-
-    onclose();
-  }
-
-  function onKeyDown(event: KeyboardEvent) {
-    if (open && event.key === 'Escape') {
-      event.stopPropagation();
-      onclose();
-    }
-  }
+  const leaveFocus = (event: Event) => event.preventDefault();
 </script>
-
-<svelte:window onpointerdown={onPointerDown} onkeydown={onKeyDown} />
 
 <span class="anchor" bind:this={anchor}>
   {@render trigger({ open })}
 </span>
 
-{#if open}
-  <div
-    bind:this={panel}
+<Popover.Root
+  bind:open={
+    () => open,
+    (next) => {
+      if (!next) onclose();
+    }
+  }>
+  <Popover.Content
     class="popover"
-    style:top="{position.top}px"
-    style:left="{position.left}px"
-    style:min-width="{position.width}px"
-    style:max-height="{position.maxHeight}px">
+    customAnchor={control}
+    {align}
+    sideOffset={4}
+    collisionPadding={8}
+    strategy="fixed"
+    trapFocus={false}
+    onOpenAutoFocus={leaveFocus}
+    onCloseAutoFocus={leaveFocus}
+    style={minWidth && `min-width: ${minWidth}`}>
     {@render children()}
-  </div>
-{/if}
+  </Popover.Content>
+</Popover.Root>
 
 <style>
   .anchor {
     display: contents;
   }
 
-  .popover {
-    position: fixed;
+  :global(.popover) {
     z-index: var(--z-dropdown);
     display: flex;
     flex-direction: column;
     overflow: hidden auto;
+    max-height: max(160px, var(--bits-popover-content-available-height));
     padding: var(--s-2);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--bg-raised);
     box-shadow: var(--shadow-md);
-    animation: appear 90ms var(--ease);
+    animation: popover-appear 90ms var(--ease);
   }
 
-  @keyframes appear {
+  @keyframes -global-popover-appear {
     from {
       opacity: 0;
       transform: translateY(-2px);
