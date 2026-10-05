@@ -2,16 +2,9 @@
 #
 # Build from the repository root:  docker build -f deploy/web.Dockerfile .
 #
-# Two Node stages and no Node at runtime. Both applications compile to static files, which Caddy
-# serves from one container — so the client reaches the API over the same origin it was loaded from,
+# One Node stage and no Node at runtime. The website is static files already and the client compiles
+# to them, which Caddy serves from one container — so the client reaches the API over the same origin it was loaded from,
 # and the deployment gains no runtime to patch.
-
-FROM node:24-alpine AS website
-WORKDIR /website
-COPY website/package.json website/package-lock.json ./
-RUN npm ci
-COPY website/ ./
-RUN npm run build
 
 FROM node:24-alpine AS client
 WORKDIR /client
@@ -27,7 +20,7 @@ ENV PLANNER_BUILD_SHA=$PLANNER_BUILD_SHA
 RUN npm run build
 
 FROM caddy:2-alpine
-COPY --from=website /website/dist /srv/site
+COPY website/index.html website/changelog.json website/favicon.svg /srv/site/
 COPY --from=client /client/build /srv/app
 # Baked in rather than mounted: the routing rules then version and roll back with the image, and a
 # deployment that pulls images needs no checkout of this repository on the server.

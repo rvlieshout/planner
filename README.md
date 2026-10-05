@@ -176,8 +176,8 @@ src/
   Planner.Api             minimal API endpoints, authorization, OpenIddict, the hub
   Planner.AppHost         Aspire app host — the development stack as one command
 client/                   the web client: SvelteKit, static, served at /app
-website/                  the Astro homepage, served at /
-deploy/web.Dockerfile     builds both of those into one Caddy image
+website/                  the static homepage, served at /
+deploy/web.Dockerfile     puts both of those into one Caddy image
 deploy/Caddyfile          what belongs to the website, the client, and the API
 docs/                     architecture, database, roles, API, realtime and client references
 tools/planner.http        example requests
@@ -188,7 +188,7 @@ tools/planner.http        example requests
 | Document | What it covers |
 | --- | --- |
 | [docs/deploy-coolify.md](docs/deploy-coolify.md) | The VPS deployment: Coolify resources, image builds, backups and recovery |
-| [website/README.md](website/README.md) | Astro homepage and changelog authoring |
+| [website/README.md](website/README.md) | Homepage and changelog authoring |
 | [docs/architecture.md](docs/architecture.md) | Layering, the decisions worth knowing about, and why |
 | [docs/database.md](docs/database.md) | Schema, relationships, indexes and the conventions behind them |
 | [docs/roles-and-permissions.md](docs/roles-and-permissions.md) | Organisation roles, team roles, and the full permission matrix |

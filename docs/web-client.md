@@ -513,7 +513,7 @@ works when it is grey; the view is simply as fresh as its last fetch.
 
 `npm run build` writes `client/build`: one `index.html` shell, hashed assets, and Brotli and gzip
 copies of each. `deploy/web.Dockerfile` builds that in a Node stage, copies it into a Caddy image
-beside the Astro website, and bakes `deploy/Caddyfile` in — so the routing rules version and roll back
+beside the static website, and bakes `deploy/Caddyfile` in — so the routing rules version and roll back
 with the image.
 
 ```

@@ -2,11 +2,11 @@
 
 The server runs [Coolify](https://coolify.io), which owns the reverse proxy, the TLS certificates,
 the database and its backups. Planner supplies two images, built by GitHub Actions and pulled from
-GHCR: the API, and a Caddy container holding the Astro site, the web client, and the routing
+GHCR: the API, and a Caddy container holding the static site, the web client, and the routing
 rules that decide which requests belong to which. Nothing is compiled on the VPS.
 
 ```text
-Internet -> Coolify proxy (TLS) -> web:80 -> /            Astro homepage
+Internet -> Coolify proxy (TLS) -> web:80 -> /            static homepage
                                           -> /app/*      the web client (static)
                                           -> everything   api:8080 -> Coolify PostgreSQL
 ```
@@ -19,7 +19,7 @@ no CORS configuration exists anywhere in this deployment.
 | --- | --- |
 | The stack Coolify runs | [`docker-compose.coolify.yml`](../docker-compose.coolify.yml) |
 | Website / client / API routing | [`deploy/Caddyfile`](../deploy/Caddyfile), baked into the web image |
-| The web image itself | [`deploy/web.Dockerfile`](../deploy/web.Dockerfile) — builds the website and the client, copies both into Caddy |
+| The web image itself | [`deploy/web.Dockerfile`](../deploy/web.Dockerfile) — builds the client, copies it and the website into Caddy |
 | Image build and deploy trigger | [`.github/workflows/release-images.yml`](../.github/workflows/release-images.yml) — gated on CI passing the same commit |
 
 ## 1. Prepare the server

@@ -1,32 +1,24 @@
 # Planner homepage
 
-A static Astro homepage for the demo VPS. Caddy serves the generated files from its own image;
-there is no Node process running on the VPS after the image is built.
+A static homepage for the demo VPS: `index.html`, `changelog.json` and `favicon.svg`, served by Caddy
+from its own image as they are. There is nothing to install and nothing to build.
 
 ## Develop
 
-Use Node.js 24 LTS (matching the Docker build), or Node 22.19 or later.
+Serve this folder with any static file server and open it:
 
 ```powershell
 cd website
-npm ci
-npm run dev
+python -m http.server 4321
 ```
 
-Open the local address printed by Astro. The page is entirely static — it fetches nothing at runtime —
-so no API needs to be running to work on it. No production domain or private credentials are baked
-into the page.
-
-```powershell
-npm run build
-npm run preview
-```
-
-`dist/` is the production output. The preview does not represent Caddy's API routes.
+The page fetches `changelog.json` from beside itself and nothing else, so no API needs to be running
+to work on it — but it does need a server, because a page opened from disk cannot fetch. No production
+domain or private credentials are baked into the page.
 
 ## Changelog
 
-Release notes live in `src/data/changelog.json` and are rendered at build time, newest version first.
+Release notes live in `changelog.json` and are drawn by the page's own script, newest version first.
 There is one entry per git tag (`git tag -l`); when you tag a release, add its entry from the commits
 since the previous tag (`git log --format=%s vPREV..vNEW`), written for users and leaving out
 build and deploy chores. Keep the page free of any product or company name. Use this shape:
@@ -51,7 +43,7 @@ restriction.
 ## Deploy
 
 The site ships inside the `planner-web` image, which it shares with the web client:
-`deploy/web.Dockerfile` builds Astro and SvelteKit in two Node stages and copies both outputs next to
+`deploy/web.Dockerfile` builds SvelteKit in a Node stage and copies its output and these files next to
 `deploy/Caddyfile` in a Caddy image — the site at `/srv/site`, the client at `/srv/app`. Pushing to
 `main` builds and publishes it, and Coolify redeploys — see
 [the deployment guide](../docs/deploy-coolify.md). Changing the site or its notes needs nothing else.
@@ -65,5 +57,5 @@ curl --fail https://planner.lyste.net/
 
 Roll back by pinning `PLANNER_WEB_IMAGE` to an earlier commit-SHA tag. Redeploying the web container
 briefly interrupts connections, including realtime clients, which reconnect on their own. See
-`deploy/Caddyfile` for the exact route allowlist: `/`, `/index.html`, `/favicon.svg` and `/_astro/*`
+`deploy/Caddyfile` for the exact route allowlist: `/`, `/index.html`, `/favicon.svg` and `/changelog.json`
 are static; everything else continues to the API.

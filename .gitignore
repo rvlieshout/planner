@@ -24,11 +24,6 @@ coverage/
 
 App_Data/
 
-# Astro website
-website/node_modules/
-website/dist/
-website/.astro/
-
 # Python deployment checks
 __pycache__/
 
