@@ -1,5 +1,7 @@
-import type { ChangeKind, EntityChange, IssueSummary } from '$lib/api/types';
+import { ApiError, issues as issuesApi } from '$lib/api';
+import type { ChangeKind, EntityChange, IssueSummary, UpdateIssueRequest } from '$lib/api/types';
 import { realtime } from '$lib/realtime/hub.svelte';
+import { toasts } from '$components/toast.svelte';
 
 /*
  * Issue changes, from either direction.
@@ -45,6 +47,32 @@ export function announce(kind: ChangeKind, issue: IssueSummary): void {
   };
 
   for (const listener of listeners) listener(change);
+}
+
+/**
+ * An edit made from a row or a card, shown before the server has answered.
+ *
+ * A face or a glyph that stays as it was until a round trip completes reads as a click that missed.
+ * The optimistic row is announced rather than handed back to one view, because the issue may be on
+ * screen more than once — a board behind a dialog, My Issues in another tab of the same window — and
+ * every view already applies a change by upserting on id. The server's own row is announced on top of
+ * it, which is what corrects `updatedAt` and anything else the write moved; a refusal announces the
+ * row the issue started with.
+ */
+export async function updateOptimistically(
+  issue: IssueSummary,
+  optimistic: IssueSummary,
+  patch: UpdateIssueRequest,
+  refusal: string
+): Promise<void> {
+  announce('Updated', optimistic);
+
+  try {
+    announce('Updated', await issuesApi.update(issue.id, patch));
+  } catch (failure) {
+    announce('Updated', issue);
+    toasts.error(failure instanceof ApiError ? failure.message : refusal);
+  }
 }
 
 /**
