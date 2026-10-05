@@ -43,24 +43,9 @@ export class ApiError extends Error {
     return out;
   }
 
-  /** Missing or expired credentials, as opposed to being signed in without the authority. */
-  get isUnauthorized(): boolean {
-    return this.status === 401;
-  }
-
-  /** A member, but the action needs more authority. */
-  get isForbidden(): boolean {
-    return this.status === 403;
-  }
-
   /** Does not exist, or cannot be seen — the API deliberately does not distinguish the two. */
   get isNotFound(): boolean {
     return this.status === 404;
-  }
-
-  /** A unique-constraint clash, a guard tripping (last lead, state in use), or a stale write. */
-  get isConflict(): boolean {
-    return this.status === 409;
   }
 }
 

@@ -8,9 +8,3 @@ public abstract class Entity
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
-
-/// <summary>Entities that are never hard-deleted; archiving keeps history and issue references intact.</summary>
-public interface IArchivable
-{
-    DateTimeOffset? ArchivedAt { get; set; }
-}

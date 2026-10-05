@@ -367,12 +367,6 @@ class Workspace {
 
 export const workspace = new Workspace();
 
-/** Convenience for the pickers: every issue assignable to, for one team. */
-export async function assignableMembers(teamId: Guid): Promise<TeamMemberDto[]> {
-  const members = await workspace.membersFor(teamId);
-  return [...members].sort((a, b) => a.displayName.localeCompare(b.displayName));
-}
-
 /** Preloads what an issue form needs, in one round of requests rather than four in sequence. */
 export async function loadIssueFormData(teamId: Guid) {
   const [states, members, labels, projects] = await Promise.all([

@@ -5,7 +5,7 @@ namespace Planner.Domain.Entities;
 
 /// <summary>Top-level container in a single-organisation install. Owns its own workflow states,
 /// labels, projects and issue numbering sequence.</summary>
-public class Team : Entity, IArchivable
+public class Team : Entity
 {
     /// <summary>Short uppercase prefix used to build human issue keys, e.g. "ENG" -> ENG-42.</summary>
     public string Key { get; set; } = string.Empty;

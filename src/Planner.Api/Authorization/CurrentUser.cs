@@ -28,10 +28,7 @@ public sealed class CurrentUser(IHttpContextAccessor accessor)
         Principal?.FindFirstValue(OpenIddictConstants.Claims.Email) ?? Principal?.FindFirstValue(ClaimTypes.Email);
 
     /// <summary>The organisation role. Exactly one is assigned per user.</summary>
-    public string Role =>
-        Principal?.FindFirstValue(OpenIddictConstants.Claims.Role)
-        ?? Principal?.FindFirstValue(ClaimTypes.Role)
-        ?? PlannerRoles.Guest;
+    public string Role => Principal is null ? PlannerRoles.Guest : RoleOf(Principal);
 
     public bool IsOwner => Role == PlannerRoles.Owner;
 

@@ -69,18 +69,6 @@ export function parseDate(value: string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-/** `YYYY-MM-DD` for a <input type="date">, which will not accept anything else. */
-export function toDateInput(value: string | null | undefined): string {
-  const date = parseDate(value);
-  if (!date) return '';
-
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0')
-  ].join('-');
-}
-
 /** True for a due date that has already passed. Today is not overdue. */
 export function isOverdue(value: string | null | undefined): boolean {
   const date = parseDate(value);

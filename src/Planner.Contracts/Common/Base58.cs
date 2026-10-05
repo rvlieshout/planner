@@ -147,10 +147,4 @@ public static class Base58
 
         return TryParseId(text.AsSpan(), out value);
     }
-
-    /// <summary>Decodes an id or throws. For call sites that have already validated the input.</summary>
-    public static Guid ParseId(ReadOnlySpan<char> text) =>
-        TryParseId(text, out var value)
-            ? value
-            : throw new FormatException($"'{text}' is not a base58 identifier.");
 }

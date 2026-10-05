@@ -5,7 +5,7 @@ namespace Planner.Domain.Entities;
 
 /// <summary>The unit of work: a task/issue. Belongs to exactly one team, optionally to a project and
 /// one of that project's milestones, and may nest one level or more via <see cref="ParentId"/>.</summary>
-public class Issue : Entity, IArchivable
+public class Issue : Entity
 {
     public Guid TeamId { get; set; }
     public Team Team { get; set; } = null!;

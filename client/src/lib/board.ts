@@ -1,4 +1,5 @@
 import type { IssueSummary, WorkflowStateDto } from '$lib/api/types';
+import { plural } from '$lib/format';
 import { compareRank } from '$lib/rank';
 
 /*
@@ -34,7 +35,5 @@ export function layOut(states: WorkflowStateDto[], issues: IssueSummary[]): Boar
 export function boardSummary(columns: BoardColumn[], noun: 'column' | 'group' = 'column'): string {
   const total = columns.reduce((sum, column) => sum + column.issues.length, 0);
 
-  return `${total} ${total === 1 ? 'issue' : 'issues'} in ${columns.length} ${
-    columns.length === 1 ? noun : `${noun}s`
-  }`;
+  return `${plural(total, 'issue')} in ${plural(columns.length, noun)}`;
 }

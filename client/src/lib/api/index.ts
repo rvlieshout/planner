@@ -433,12 +433,6 @@ export const notifications = {
     request<InboxStatus>(`${v1}/notifications/read`, { ...o, method: 'POST', query: { issueId } })
 };
 
-/* ---------------------------------------------------------------- health ---- */
-
-export const health = {
-  ready: () => request<unknown>('/health/ready', { anonymous: true })
-};
-
 /**
  * Walks every page of a list endpoint.
  *

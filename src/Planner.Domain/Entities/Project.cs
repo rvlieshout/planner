@@ -4,7 +4,7 @@ using Planner.Contracts.Enums;
 namespace Planner.Domain.Entities;
 
 /// <summary>A body of work with a target date, owned by one team and made of milestones and issues.</summary>
-public class Project : Entity, IArchivable
+public class Project : Entity
 {
     public Guid TeamId { get; set; }
     public Team Team { get; set; } = null!;
